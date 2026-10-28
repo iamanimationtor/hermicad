@@ -130,10 +130,22 @@ function wallFromLine(
   to: { x: number; y: number },
   level = 0,
 ): StudioItem {
+  const thickness = catalogId === "wall-exterior" ? 0.25 : 0.12;
+  return special(id, catalogId, from, to, thickness, level);
+}
+
+/** همان «از نقطه تا نقطه»، با ضخامت دلخواه (برای مسیر تأسیسات و اعضای سازه). */
+function special(
+  id: string,
+  catalogId: string,
+  from: { x: number; y: number },
+  to: { x: number; y: number },
+  thickness: number,
+  level = 0,
+): StudioItem {
   const dx = to.x - from.x;
   const dy = to.y - from.y;
   const length = Math.hypot(dx, dy);
-  const thickness = catalogId === "wall-exterior" ? 0.25 : 0.12;
   return {
     id,
     catalogId,
@@ -267,6 +279,46 @@ export function sampleDesignItems(): StudioItem[] {
   ];
   for (const [id, x, y] of columns) push(at(id, "column-concrete", x, y, 0.4, 0.4));
 
+  /* تأسیسات مکانیکی، برقی، بهداشتی و ایمنی حریق — طبقهٔ همکف */
+  push(at("mc-1", "fan-coil", 1.0, 5.2, 1.1, 0.5, 0));
+  push(at("mc-2", "duct-riser", 6.55, 6.9, 0.7, 0.5, 0));
+  push(at("mc-3", "water-heater", 5.0, 6.95, 0.5, 0.3, 0));
+  // مسیر اصلی کانال از شفت به نشیمن و غذاخوری + انشعاب‌ها
+  push(special("mc-d1", "duct-run", { x: 6.5, y: 7.2 }, { x: 6.5, y: 4.0 }, 0.5));
+  push(special("mc-d2", "duct-run", { x: 6.5, y: 4.0 }, { x: 1.2, y: 4.0 }, 0.5));
+  push(special("mc-d3", "duct-branch", { x: 6.5, y: 4.0 }, { x: 11.4, y: 4.0 }, 0.4));
+  push(at("ec-1", "panel", 0.35, 5.0, 0.6, 0.25, 90));
+  push(at("ec-2", "light-fixture", 2.8, 3.3, 0.6, 0.6, 0));
+  push(at("ec-3", "light-fixture", 8.8, 3.3, 0.6, 0.6, 0));
+  push(at("ec-4", "light-fixture", 8.8, 8.3, 0.6, 0.6, 0));
+  push(at("ec-5", "socket", 0.35, 2.0, 0.25, 0.18, 90));
+  push(at("ec-6", "socket", 11.65, 4.2, 0.25, 0.18, 90));
+  push(at("pl-1", "pipe-riser", 7.45, 9.3, 0.4, 0.4, 0));
+  // مسیر آب سرد/گرم/فاضلاب از شفت به سرویس و آشپزخانه
+  push(special("pl-c1", "pipe-cold", { x: 7.45, y: 9.3 }, { x: 6.2, y: 9.3 }, 0.18));
+  push(special("pl-c2", "pipe-cold", { x: 7.45, y: 9.0 }, { x: 8.8, y: 9.0 }, 0.18));
+  push(special("pl-h1", "pipe-hot", { x: 7.45, y: 9.55 }, { x: 6.3, y: 9.55 }, 0.18));
+  push(special("pl-d1", "pipe-drain", { x: 7.45, y: 9.05 }, { x: 7.45, y: 7.0 }, 0.2));
+  push(special("pl-g1", "pipe-gas", { x: 11.9, y: 8.9 }, { x: 10.6, y: 8.9 }, 0.18));
+  push(at("pl-2", "floor-drain", 6.2, 9.6, 0.2, 0.2, 0));
+  push(at("pl-3", "washing-machine", 7.1, 7.0, 0.6, 0.6, 0));
+  push(at("fr-30", "fire-extinguisher", 5.85, 6.85, 0.25, 0.25, 0));
+  push(at("fr-31", "smoke-detector", 2.8, 4.6, 0.3, 0.3, 0));
+  push(at("fr-32", "smoke-detector", 8.8, 4.6, 0.3, 0.3, 0));
+  push(at("fr-33", "exit-sign", 6.65, 6.5, 0.5, 0.2, 0));
+  // مسیر لولهٔ اسپرینکلر و شبکهٔ سینی کابل
+  push(special("fr-s1", "sprinkler-run", { x: 0.6, y: 3.3 }, { x: 11.4, y: 3.3 }, 0.15));
+  push(special("fr-s2", "sprinkler-run", { x: 0.6, y: 8.3 }, { x: 11.4, y: 8.3 }, 0.15));
+  push(special("ec-t1", "cable-tray", { x: 0.5, y: 5.0 }, { x: 11.5, y: 5.0 }, 0.3));
+  push(special("ec-t2", "cable-tray", { x: 6.0, y: 5.0 }, { x: 6.0, y: 9.5 }, 0.3));
+
+  /* محوطه */
+  push(at("st-p1", "parking-stall", -4.0, 3.0, 2.5, 5.0, 90));
+  push(at("st-p2", "parking-stall", -4.0, 6.5, 2.5, 5.0, 90));
+  push(at("st-t1", "tree", 14.2, 2.2, 1.6, 1.6, 0));
+  push(at("st-t2", "tree", 14.2, 7.8, 1.6, 1.6, 0));
+  push(at("st-b1", "bench-site", 13.6, 5.0, 1.6, 0.5, 90));
+
   /* شبکهٔ محور */
   for (const [index, x] of [0, 6, 12].entries()) push(at(`ax-v${index}`, "axis-line", x, 5, 10, 0.1, 90));
   for (const [index, y] of [0, 5, 10].entries()) push(at(`ax-h${index}`, "axis-line", 6, y, 12, 0.1));
@@ -292,7 +344,17 @@ export function sampleDesignItems(): StudioItem[] {
   for (const [index, y] of [0, 5, 10].entries()) push(at(`an-gy${index}`, "grid-bubble", -0.9, y, 0.8, 0.8));
 
   /* ── طبقهٔ دوم (سطح ۲): پوسته و سازه، با چیدمان مستقل ── */
-  const shellIds = new Set(["wall-exterior", "column-concrete", "beam-concrete", "footing-strip", "footing-isolated", "axis-line"]);
+  // پوسته، سازه و بازشوها در هر دو طبقه تکرار می‌شوند؛ بازشوها با شناسهٔ نو
+  const shellIds = new Set([
+    "wall-exterior",
+    "column-concrete",
+    "beam-concrete",
+    "footing-strip",
+    "footing-isolated",
+    "axis-line",
+    "door-single",
+    "window",
+  ]);
   for (const item of [...items]) {
     if (!shellIds.has(item.catalogId)) continue;
     push({ ...item, id: `${item.id}-f2`, level: 1 });

@@ -31,7 +31,9 @@ import {
   sheetLayout,
   studioScheduleCsv,
 } from "@/domain/studio/render";
-import { sampleDesignItems } from "@/server/designs";
+import { sampleDesign, sampleDesignItems } from "@/server/designs";
+import { studioIfc, studioXlsx, toPersianWords } from "@/domain/studio/exporters";
+import { renderStudioElevationSheet, renderStudioVertical } from "@/domain/studio/vertical";
 
 function demoDocument() {
   return createStudioDocument({
@@ -266,4 +268,92 @@ test("studio/render", "خروجی بر اساس طبقه، فقط اشیای ه�
   assert(level0.includes('data-catalog="sofa-3"'), "طبقهٔ ۰ کامل نیست");
   assert(!level0.includes('data-catalog="wc-western"'), "شیء طبقهٔ ۱ در طبقهٔ ۰ آمده");
   return "فیلتر طبقه";
+});
+
+test("studio/exporters", "کاربرگ XLSX متره سالم و خوانا است", () => {
+  const doc = sampleDesign();
+  const data = Buffer.from(studioXlsx(doc));
+  // امضای ZIP
+  assert(data[0] === 0x50 && data[1] === 0x4b, "امضای ZIP ندارد");
+  const text = data.toString("latin1");
+  assert(text.includes("xl/workbook.xml"), "فهرست کتاب کار ندارد");
+  for (const name of ["xl/worksheets/sheet1.xml", "xl/worksheets/sheet5.xml"]) {
+    assert(text.includes(name), `برگ ${name} ندارد`);
+  }
+  const sheet = new TextDecoder().decode(data);
+  assert(sheet.includes("متره"), "برگ متره ندارد");
+  assert(sheet.includes(doc.project.code), "کد نقشه در کاربرگ نیست");
+  // جمع مساحت باید بزرگ‌تر از مساحت یک واحد باشد
+  const rows = schedule(doc);
+  assert(rows.length >= 8, `ردیف‌های متره کم است: ${rows.length}`);
+  return `${rows.length} ردیف متره`;
+});
+
+test("studio/exporters", "عدد به حروف فارسی درست تبدیل می‌شود", () => {
+  assert(toPersianWords(0) === "صفر", toPersianWords(0));
+  assert(toPersianWords(7) === "هفت", toPersianWords(7));
+  assert(toPersianWords(21).includes("بیست و یک"), toPersianWords(21));
+  assert(toPersianWords(1234).includes("هزار"), toPersianWords(1234));
+  assert(toPersianWords(2_500_000).includes("میلیون"), toPersianWords(2_500_000));
+  assert(toPersianWords(15).includes("پانزده"), toPersianWords(15));
+  return "تبدیل عدد به حروف";
+});
+
+test("studio/exporters", "IFC4 معتبر: هدر، موجودیت‌های استاندارد و ارجاع‌های موجود", () => {
+  const doc = sampleDesign();
+  const text = studioIfc(doc);
+  assert(text.startsWith("ISO-10303-21;"), "شروع فایل IFC درست نیست");
+  assert(text.trimEnd().endsWith("END-ISO-10303-21;"), "پایان فایل IFC درست نیست");
+  assert(text.includes("FILE_SCHEMA(('IFC4'))"), "شِما IFC4 نیست");
+  assert(text.includes("IFCPROJECT("), "پروژه ندارد");
+  assert(text.includes("IFCBUILDINGSTOREY("), "طبقه ندارد");
+  assert(text.includes("IFCSPACE("), "فضا ندارد");
+  assert(text.includes("IFCBUILDINGELEMENTPROXY("), "اجزای ساختمانی ندارند");
+  // همهٔ ارجاع‌ها باید موجودیت تعریف‌شده باشند
+  const defined = new Set([...text.matchAll(/^#(\d+)=/gm)].map((match) => match[1]));
+  const referenced = new Set([...text.matchAll(/#(\d+)/g)].map((match) => match[1]));
+  const missing = [...referenced].filter((value) => !defined.has(value));
+  assert(missing.length === 0, `ارجاع بدون تعریف: ${missing.slice(0, 5).join(", ")}`);
+  // هندسهٔ هر جزء باید در متر باشد (ابعاد ۱۲×۱۰)
+  const proxies = (text.match(/IFCBUILDINGELEMENTPROXY/g) ?? []).length;
+  assert(proxies >= 60, `تعداد اجزا: ${proxies}`);
+  return `${defined.size} موجودیت`;
+});
+
+test("studio/vertical", "برگهٔ نماها هر چهار جهت و تراز طبقات را دارد", () => {
+  const doc = sampleDesign();
+  const svg = renderStudioElevationSheet(doc);
+  for (const direction of ["north", "south", "east", "west"]) {
+    assert(svg.includes(`data-direction="${direction}"`), `نمای ${direction} رندر نشد`);
+  }
+  assert(svg.includes("±0.00"), "تراز صفر ندارد");
+  assert(svg.includes("+6.40"), "تراز بام (۲×۳٫۲۰) ندارد");
+  assert((svg.match(/data-slab="1"/g) ?? []).length >= 8, "کف طبقات ناقص است");
+  assert(svg.includes("width=\"420mm\""), "ابعاد برگهٔ A3 افقی نیست");
+  return "۴ نما";
+});
+
+test("studio/vertical", "برش فقط اجزای نوار برش را می‌آورد و ارتفاع‌گذاری دارد", () => {
+  const doc = sampleDesign();
+  const section = renderStudioVertical(doc, { sectionAt: 6, sectionWidth: 1.2, direction: "west" });
+  assert(section.includes('data-view="section"'), "خروجی برش نیست");
+  assert(section.includes("6.40"), "ارتفاع کل در برش نیست");
+  const wide = renderStudioVertical(doc, { sectionAt: 6, sectionWidth: 40, direction: "west" });
+  const narrow = renderStudioVertical(doc, { sectionAt: 25, sectionWidth: 1, direction: "west" });
+  // برش بیرون از ساختمان هیچ دیواری نباید داشته باشد
+  assert(!narrow.includes('data-kind="solid"'), "برش خارج از پلان دیوار دارد");
+  assert((wide.match(/data-kind="solid"/g) ?? []).length >= 8, "برش پهن، دیوارها را نیاورد");
+  return "برش";
+});
+
+test("studio/vertical", "نما از مدل پلان ساخته می‌شود (بدون دادهٔ تکراری)", () => {
+  const doc = sampleDesign();
+  const empty = { ...doc, items: [], layers: doc.layers };
+  const svg = renderStudioVertical(empty, { direction: "south" });
+  assert(!svg.includes('data-kind="solid"'), "سند خالی نباید عنصر داشته باشد");
+  // با یک ستون، نما باید عنصر داشته باشد
+  const withColumn = { ...doc, items: doc.items.filter((item) => item.catalogId === "column-concrete") };
+  const svg2 = renderStudioVertical(withColumn, { direction: "south" });
+  assert((svg2.match(/data-kind="column"/g) ?? []).length >= 3, "ستون‌ها در نما نیامدند");
+  return "واترفال";
 });

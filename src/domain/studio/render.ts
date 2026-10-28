@@ -11,6 +11,8 @@
  */
 
 import { CATALOG_BY_ID, STUDIO_LAYERS, type Part, type StudioLayerId } from "./catalog";
+import { studioIfc, studioXlsx } from "./exporters";
+import { renderStudioElevationSheet, renderStudioVertical } from "./vertical";
 import {
   documentBounds,
   documentFingerprint,
@@ -82,9 +84,15 @@ export interface RenderOptions {
   showGrid?: boolean;
   showTitleBlock?: boolean;
   showSchedule?: boolean;
+  /** `undefined` = طبقهٔ جاری سند، `null` = همهٔ طبقات */
   onlyLevel?: number | null;
   /** نمایش محو رشته‌های دیگر به‌عنوان مرجع (پیش‌فرض: روشن) */
   showContext?: boolean;
+  /** نمایش همهٔ طبقات روی هم (پیش‌فرض: فقط طبقهٔ جاری) */
+  allLevels?: boolean;
+  /** مختصات خط برش برای خروجی «section» (متر) */
+  sectionAt?: number;
+  sectionWidth?: number;
 }
 
 export interface SheetLayout {
@@ -277,12 +285,21 @@ function partToSvg(
  * برچسب شیء فقط روی اقلام «قابل نام‌گذاری» نوشته می‌شود؛ برچسب روی دیوار و ستون
  * و نماد، نقشه را شلوغ می‌کند و در نقشهٔ اجرایی هم مرسوم نیست.
  */
+/** اقلام تزئینی که برچسبشان فقط نقشه را شلوغ می‌کند. */
+const UNLABELLED_IDS = new Set(["rug", "planter", "tree", "coffee-table", "floor-drain", "socket", "data-outlet", "smoke-detector", "sprinkler", "light-fixture"]);
+
 const LABELLED_CATEGORIES = new Set(["seating", "dining", "bedroom", "kitchen", "sanitary", "laundry", "office", "retail", "healthcare", "education", "hospitality", "industrial", "mep"]);
 
 const SPACE_IDS = new Set(["space-room", "space-terrace", "space-shaft"]);
 
+/** مرکز شیء روی برگه (میلی‌متر) — برای جای‌گذاری برچسب و بررسی تداخل. */
+function spaceCenter(item: StudioItem, layout: SheetLayout): { x: number; y: number } {
+  return itemTransform(item, layout).origin;
+}
+
 function itemLabelSvg(item: StudioItem, definition: (typeof CATALOG_BY_ID)[string], layout: SheetLayout, theme: Theme): string {
   if (theme === "screen") return "";
+  if (UNLABELLED_IDS.has(item.catalogId)) return "";
   if (SPACE_IDS.has(item.catalogId)) {
     const { origin } = itemTransform(item, layout);
     const area = (item.w * item.d).toFixed(1);
@@ -465,7 +482,8 @@ export function renderStudioSvg(doc: StudioDocument, options: RenderOptions = {}
   // همه با یکدیگر هم‌خوان باشند (نه اینکه فقط هندسه حذف شود).
   const view: StudioDocument = options.classification ? { ...doc, classification: options.classification } : doc;
   const layout = sheetLayout(view, options);
-  const items = renderableItems(view).filter((item) => options.onlyLevel == null || item.level === options.onlyLevel);
+  const levelFilter = options.onlyLevel === undefined ? view.currentLevel : options.onlyLevel;
+  const items = renderableItems(view).filter((item) => options.allLevels === true || levelFilter == null || item.level === levelFilter);
   const body: string[] = [];
   if (theme === "print") {
     body.push(`<rect x="0" y="0" width="${n(layout.widthMm)}" height="${n(layout.heightMm)}" fill="${PAPER}"/>`);
@@ -495,6 +513,12 @@ export function renderStudioSvg(doc: StudioDocument, options: RenderOptions = {}
   }
 
   const labels: string[] = [];
+  const placed: { x: number; y: number; w: number; h: number }[] = [];
+  const collides = (box: { x: number; y: number; w: number; h: number }) =>
+    placed.some(
+      (other) =>
+        Math.abs(other.x - box.x) * 2 < other.w + box.w && Math.abs(other.y - box.y) * 2 < other.h + box.h,
+    );
   // ترتیب رسم: ابتدا فضاها (زمینه)، سپس تجهیزات/سازه، و در پایان برچسب‌ها —
   // تا نوشته‌ها هرگز زیر مبلمان پنهان نشوند.
   const ordered = [...items].sort((a, b) => {
@@ -508,7 +532,18 @@ export function renderStudioSvg(doc: StudioDocument, options: RenderOptions = {}
     const shape = definition.parts.map((part) => partToSvg(part, item, layout, theme, definition.layer)).join("");
     body.push(`<g data-item="${esc(item.id)}" data-catalog="${esc(item.catalogId)}" data-level="${item.level}">${shape}</g>`);
     const label = itemLabelSvg(item, definition, layout, theme);
-    if (label) labels.push(label);
+    if (label) {
+      // جابه‌جایی عمودی برچسب تا روی برچسب دیگری نیفتد (حداکثر ۴ گام ۲ میلی‌متری)
+      const nameLength = (item.label ?? definition.nameFa).length;
+      const box = { x: labels.length >= 0 ? spaceCenter(item, layout).x : 0, y: spaceCenter(item, layout).y, w: nameLength * 1.35 + 2, h: 6 };
+      let shift = 0;
+      for (let step = 0; step < 5; step += 1) {
+        if (!collides({ ...box, y: box.y + shift })) break;
+        shift += 2.2;
+      }
+      placed.push({ ...box, y: box.y + shift });
+      labels.push(shift === 0 ? label : `<g transform="translate(0 ${n(shift)})">${label}</g>`);
+    }
   }
   body.push(`<g data-labels="1">${labels.join("")}</g>`);
 
@@ -564,7 +599,8 @@ export function renderStudioDxf(doc: StudioDocument, options: RenderOptions = {}
   const out: string[] = [];
   const push = (...values: (string | number)[]) => out.push(...values.map(String));
   const view: StudioDocument = options.classification ? { ...doc, classification: options.classification } : doc;
-  const items = renderableItems(view).filter((item) => options.onlyLevel == null || item.level === options.onlyLevel);
+  const levelFilter = options.onlyLevel === undefined ? view.currentLevel : options.onlyLevel;
+  const items = renderableItems(view).filter((item) => options.allLevels === true || levelFilter == null || item.level === levelFilter);
 
   push(0, "SECTION", 2, "HEADER");
   push(9, "$ACADVER", 1, "AC1015");
@@ -993,7 +1029,7 @@ export function studioJson(doc: StudioDocument): string {
   );
 }
 
-export const STUDIO_FORMATS = ["svg", "pdf", "dxf", "csv", "items-csv", "json", "pdf-bundle"] as const;
+export const STUDIO_FORMATS = ["svg", "pdf", "dxf", "csv", "items-csv", "json", "pdf-bundle", "xlsx", "ifc", "elevations", "section"] as const;
 export type StudioFormat = (typeof STUDIO_FORMATS)[number];
 
 export function exportStudio(
@@ -1023,5 +1059,25 @@ export function exportStudio(
       return { filename: `${base}-items.csv`, mime: "text/csv; charset=utf-8", data: Buffer.from(studioItemsCsv(doc), "utf8") };
     case "json":
       return { filename: `${base}.json`, mime: "application/json; charset=utf-8", data: Buffer.from(studioJson(doc), "utf8") };
+    case "xlsx":
+      return {
+        filename: `${doc.project.code || "hermicad"}-metre.xlsx`,
+        mime: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        data: Buffer.from(studioXlsx(doc)),
+      };
+    case "ifc":
+      return { filename: `${doc.project.code || "hermicad"}.ifc`, mime: "application/x-step", data: Buffer.from(studioIfc(doc), "utf8") };
+    case "elevations":
+      return {
+        filename: `${base}-elevations.svg`,
+        mime: "image/svg+xml; charset=utf-8",
+        data: Buffer.from(renderStudioElevationSheet(doc), "utf8"),
+      };
+    case "section":
+      return {
+        filename: `${base}-section.svg`,
+        mime: "image/svg+xml; charset=utf-8",
+        data: Buffer.from(renderStudioVertical(doc, { direction: "west", sectionAt: options.sectionAt ?? 6, sectionWidth: options.sectionWidth ?? 1.2 }), "utf8"),
+      };
   }
 }

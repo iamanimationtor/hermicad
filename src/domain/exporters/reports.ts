@@ -501,7 +501,8 @@ declare namespace crc32 {
   let table: Int32Array | undefined;
 }
 
-function zipStore(files: { name: string; data: Buffer }[]): Buffer {
+/** ساخت آرشیو ZIP بدون فشرده‌سازی (ذخیره‌ای) — برای XLSX/DOCX داخلی. */
+export function zipStore(files: { name: string; data: Buffer }[]): Buffer {
   const chunks: Buffer[] = [];
   const central: Buffer[] = [];
   let offset = 0;
@@ -555,7 +556,7 @@ function zipStore(files: { name: string; data: Buffer }[]): Buffer {
   return Buffer.concat([...chunks, centralBuf, end]);
 }
 
-function colName(index: number): string {
+export function colName(index: number): string {
   let n = index;
   let name = "";
   do {
@@ -565,7 +566,7 @@ function colName(index: number): string {
   return name;
 }
 
-function xmlEscape(value: string): string {
+export function xmlEscape(value: string): string {
   return value.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
 }
 
@@ -574,7 +575,7 @@ function cellXml(value: string | number, ref: string): string {
   return `<c r="${ref}" t="inlineStr"><is><t>${xmlEscape(String(value))}</t></is></c>`;
 }
 
-function sheetXml(rows: (string | number)[][]): string {
+export function sheetXml(rows: (string | number)[][]): string {
   const rowsXml = rows
     .map((row, r) => `<row r="${r + 1}">${row.map((cell, c) => cellXml(cell, `${colName(c)}${r + 1}`)).join("")}</row>`)
     .join("");
@@ -690,7 +691,8 @@ export function schemeXlsx(scheme: CanonicalScheme, report: ValidationReport): B
 
 const IFC_CHARS = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz_$";
 
-function ifcGuid(seed: string): string {
+/** شناسهٔ IfcGloballyUniqueId پایدار و قطعی بر اساس یک رشتهٔ معنی‌دار. */
+export function ifcGuid(seed: string): string {
   let h1 = 2166136261;
   let h2 = 2246822519;
   let h3 = 3266489917;

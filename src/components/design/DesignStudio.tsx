@@ -643,10 +643,14 @@ export function DesignStudio({ initialDesign }: { initialDesign: StudioDocument 
                 const sin = Math.sin(theta);
                 const map = (lx: number, ly: number) => ({ x: item.x + lx * cos - ly * sin, y: item.y - (lx * sin + ly * cos) });
                 const stroke = LAYER_SCREEN_COLOR[def.layer] ?? "#cbd5e1";
-                const dim = item.level !== doc.currentLevel;
+                // محو کردن طبقات دیگر و رشته‌های دیگر؛ هیچ شیئی از بوم حذف نمی‌شود
+                // (ویرایشگر باید همیشه همهٔ اشیای سند را نشان دهد، حتی اگر روی
+                // برگهٔ چاپیِ رشتهٔ جاری نیایند).
+                const otherDiscipline = doc.classification !== "all" && def.discipline !== doc.classification;
+                const dim = item.level !== doc.currentLevel || Boolean(otherDiscipline);
                 const isSelected = item.id === selectedId;
                 return (
-                  <g key={item.id} opacity={dim ? 0.35 : 1} onPointerDown={(event) => startItemDrag(event, item)} style={{ cursor: "move" }}>
+                  <g key={item.id} opacity={dim ? (item.level !== doc.currentLevel ? 0.3 : 0.5) : 1} onPointerDown={(event) => startItemDrag(event, item)} style={{ cursor: "move" }}>
                     <polygon
                       points={[
                         map(-item.w / 2, -item.d / 2),
@@ -874,6 +878,10 @@ export function DesignStudio({ initialDesign }: { initialDesign: StudioDocument 
               { id: "dxf", label: "DXF (اتوکد)" },
               { id: "csv", label: "CSV متره" },
               { id: "items-csv", label: "CSV اشیا" },
+              { id: "elevations", label: "برگهٔ نماها (۴ جهت)" },
+              { id: "section", label: "برش A-A" },
+              { id: "xlsx", label: "XLSX متره و برآورد" },
+              { id: "ifc", label: "IFC4 (BIM)" },
               { id: "json", label: "JSON مدل" },
             ].map((format) => (
               <button

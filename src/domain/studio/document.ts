@@ -303,14 +303,33 @@ export function visibleItems(doc: StudioDocument, options: { respectLevel?: bool
  */
 export const SHARED_LAYERS = new Set<string>(["annotation", "grid", "dimension"]);
 
+/**
+ * لایه‌های تأسیساتی که در «پلان ترکیبی» نمی‌آیند.
+ * پلان ترکیبی = معماری + سازه؛ مسیر کانال/لوله/سینی کابل/اسپرینکلر روی برگهٔ
+ * خودش می‌آید، نه روی پلان معماری (روش رایج دفاتر و جلوگیری از شلوغی).
+ */
+const SERVICE_LAYERS = new Set<string>(["mep", "electrical", "fire", "site"]);
+
+/**
+ * اجزایی که فقط روی برگهٔ سازه معنا دارند: پی (زیر تراز طبیعی) و تیر/مهاربند
+ * (در ضخامت کف پنهان). روی پلان معماری و ترکیبی رسم نمی‌شوند، وگرنه کادر پی
+ * بیرون ساختمان و تیرها روی دیوارها، نقشه را ناخوانا می‌کند.
+ */
+const STRUCTURE_ONLY = (catalogId: string, layer: string): boolean =>
+  layer === "foundation" || catalogId.startsWith("beam-") || catalogId.startsWith("brace-");
+
 export function renderableItems(doc: StudioDocument): StudioItem[] {
   return doc.items.filter((item) => {
     const definition = CATALOG_BY_ID[item.catalogId];
     if (!definition) return false;
     if (!doc.layers[definition.layer]) return false;
-    if (doc.classification !== "all" && definition.discipline !== doc.classification && !SHARED_LAYERS.has(definition.layer)) {
-      return false;
+    if (doc.classification === "all") {
+      if (SERVICE_LAYERS.has(definition.layer)) return false;
+      if (STRUCTURE_ONLY(item.catalogId, definition.layer)) return false;
+      return true;
     }
+    if (definition.discipline !== doc.classification && !SHARED_LAYERS.has(definition.layer)) return false;
+    if (doc.classification !== "structure" && STRUCTURE_ONLY(item.catalogId, definition.layer)) return false;
     return true;
   });
 }
