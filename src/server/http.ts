@@ -4,7 +4,10 @@ export function errorResponse(error: unknown): Response {
   if (error instanceof DomainError) {
     return Response.json({ error: error.message, detail: error.detail }, { status: 422 });
   }
-  const message = error instanceof Error ? error.message : "خطای ناشناخته";
+  const raw = error instanceof Error ? error.message : "خطای ناشناخته";
+  // پیام خطای دیتابیس می‌تواند شامل پارامترها و دادهٔ کاربر باشد؛ آن را کوتاه و
+  // بدون افشای مقادیر برمی‌گردانیم.
+  const message = raw.split("\n")[0].slice(0, 300);
   return Response.json({ error: message, detail: [message] }, { status: 400 });
 }
 

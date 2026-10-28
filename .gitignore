@@ -7,3 +7,6 @@ out/
 *.log
 .DS_Store
 tsconfig.tsbuildinfo
+
+# پیش‌نمایش تصویری موقت (خروجی npm run preview:design)
+.preview/

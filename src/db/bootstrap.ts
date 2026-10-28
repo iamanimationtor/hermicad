@@ -105,7 +105,18 @@ create table if not exists audit_events (
   created_at timestamptz not null default now()
 );
 
+create table if not exists design_documents (
+  id uuid primary key default gen_random_uuid(),
+  name text not null,
+  kind text not null default 'architecture',
+  revision integer not null default 1,
+  data jsonb not null,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
 create index if not exists projects_status_idx on projects (status);
+create index if not exists design_documents_updated_idx on design_documents (updated_at desc);
 create index if not exists schemes_project_idx on schemes (project_id);
 create index if not exists validation_runs_scheme_idx on validation_runs (scheme_id);
 create index if not exists audit_events_project_idx on audit_events (project_id);

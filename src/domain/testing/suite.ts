@@ -20,6 +20,7 @@ import "./engineering.test";
 import "./integration.test";
 import "./exports.test";
 import "./regression.test";
+import "./studio.test";
 
 import { registeredCount, runRegisteredTests, type TestCaseResult } from "./harness";
 

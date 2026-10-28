@@ -13,6 +13,7 @@ import type {
   SiteModel,
   ValidationReport,
 } from "@/domain/types";
+import type { StudioDocument } from "@/domain/studio/document";
 
 /**
  * HERMICAD persistence layer.
@@ -135,4 +136,21 @@ export const auditEvents = pgTable("audit_events", {
   action: text("action").notNull(),
   payload: jsonb("payload").$type<Record<string, unknown>>(),
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+});
+
+/**
+ * Design Studio documents.
+ *
+ * The free-hand drawing is stored as a single versioned JSON document — the
+ * same shape the pure engine and the exporters consume — so a saved drawing can
+ * be re-rendered to SVG/PDF/DXF at any time without the UI.
+ */
+export const designDocuments = pgTable("design_documents", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  name: text("name").notNull(),
+  kind: text("kind").notNull().default("architecture"),
+  revision: integer("revision").notNull().default(1),
+  data: jsonb("data").$type<StudioDocument>().notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
 });
