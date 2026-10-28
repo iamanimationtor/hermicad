@@ -34,6 +34,9 @@ import {
 import { sampleDesign, sampleDesignItems } from "@/server/designs";
 import { studioIfc, studioXlsx, toPersianWords } from "@/domain/studio/exporters";
 import { renderStudioElevationSheet, renderStudioVertical } from "@/domain/studio/vertical";
+import { shapeForDisplay, shapeLogical } from "@/domain/studio/pdf/arabic";
+import { inflateSync } from "node:zlib";
+import { loadTypeface } from "@/domain/studio/pdf/typeface";
 
 function demoDocument() {
   return createStudioDocument({
@@ -183,7 +186,7 @@ test("studio/render", "DXF نسخهٔ AC1015 با واحد متر و لایه‌
 test("studio/render", "PDF برداری با ابعاد صفحهٔ واقعی و xref سالم تولید می‌شود", () => {
   const pdf = renderStudioPdf(demoDocument());
   const text = Buffer.from(pdf).toString("latin1");
-  assert(text.startsWith("%PDF-1.4"), "سرصفحهٔ PDF");
+  assert(/^%PDF-1\.\d/.test(text), "سرصفحهٔ PDF");
   assert(text.includes("xref"), "xref ندارد");
   assert(text.includes("%%EOF"), "پایان فایل ندارد");
   assert(/MediaBox \[0 0 [\d.]+ [\d.]+]/.test(text), "MediaBox ندارد");
@@ -191,9 +194,13 @@ test("studio/render", "PDF برداری با ابعاد صفحهٔ واقعی و
   const widthPt = Number(media?.[1]);
   assert(Math.abs(widthPt - 420 * (72 / 25.4)) < 1, `عرض صفحهٔ A3: ${widthPt}pt`);
   assert(pdf.length > 3000, `حجم PDF کم است: ${pdf.length}`);
-  const lineOps = (text.match(/ l\n/g) ?? []).length;
+  assert(Buffer.from(pdf).subarray(0, 5).toString("latin1") === "%PDF-", "سرصفحهٔ PDF");
+  const content = pdfContentStreams(Buffer.from(pdf));
+  const lineOps = (content.match(/ l\n/g) ?? []).length;
   assert(lineOps >= 20, `تعداد مسیرهای برداری کم است: ${lineOps}`);
-  assert(text.includes("BT"), "متن برداری ندارد");
+  assert(content.includes("BT"), "متن برداری ندارد");
+  assert(text.includes("/FontFile2"), "فونت جاسازی نشده");
+  assert(content.includes("Tj"), "عملگر نمایش متن ندارد");
   return `${(pdf.length / 1024).toFixed(0)} KB · ${widthPt.toFixed(0)}×${Number(media?.[2]).toFixed(0)}pt`;
 });
 
@@ -371,4 +378,141 @@ test("studio/document", "تغییر نوع شیء، محدودهٔ مجاز کا
   doc = updateItem(doc, chair.id, { w: 8 });
   assert(doc.items[0].w <= 2.1 * 6, `حداکثر اندازه اعمال نشد: ${doc.items[0].w}`);
   return "تغییر نوع";
+});
+
+/* ─────────────────────────── متن فارسی و PDF ─────────────────────────── */
+
+/** استخراج و بازکردن همهٔ جریان‌های Flate یک PDF (برای بازرسی محتوای برداری). */
+function pdfContentStreams(pdf: Buffer): string {
+  const raw = pdf.toString("latin1");
+  const chunks: string[] = [];
+  let index = raw.indexOf("stream\n");
+  while (index >= 0) {
+    // «endstream» خودش «stream» دارد؛ باید از آن رد شد
+    if (raw.slice(Math.max(0, index - 3), index) === "end") {
+      index = raw.indexOf("stream\n", index + 7);
+      continue;
+    }
+    const start = index + 7;
+    const end = raw.indexOf("endstream", start);
+    if (end < 0) break;
+    const body = pdf.subarray(start, end);
+    try {
+      chunks.push(inflateSync(body).toString("latin1"));
+    } catch {
+      chunks.push(body.toString("latin1"));
+    }
+    index = raw.indexOf("stream\n", end);
+  }
+  return chunks.join("\n");
+}
+
+test("studio/text", "شکل‌دهی حروف فارسی: آغازین/میانی/پایانی و لیگاتور لا", () => {
+  // «سلام» = س(آغازین) + لا(پایانی) + م(پایانی)
+  const shaped = shapeLogical("سلام");
+  assert(shaped.length === 3, `طول شکل‌دهی: ${shaped.length}`);
+  assert(shaped[0] === 0xfeb3, `س آغازین: ${shaped[0].toString(16)}`);
+  assert(shaped[1] === 0xfefc, `لا پایانی: ${shaped[1].toString(16)}`);
+  // م پس از الف (که فقط از راست می‌چسبد) به حرف پیشین نمی‌چسبد ⇒ شکل تنها
+  assert(shaped[2] === 0xfee1, `م تنها: ${shaped[2].toString(16)}`);
+
+  // «کتاب» = ک(آغازین) + ت(میانی) + ا(پایانی) + ب(پایانی)
+  const book = shapeLogical("کتاب");
+  assert(book[0] === 0xfb90, `ک آغازین: ${book[0].toString(16)}`);
+  assert(book[1] === 0xfe98, `ت میانی: ${book[1].toString(16)}`);
+  assert(book[2] === 0xfe8e, `ا پایانی: ${book[2].toString(16)}`);
+  assert(book[3] === 0xfe8f, `ب تنها (الف به چپ نمی‌چسبد): ${book[3].toString(16)}`);
+  return "شکل‌دهی";
+});
+
+test("studio/text", "قواعد شکل‌دهی: تنهای، فاصله، نیم‌فاصله و حرف راست‌چسب", () => {
+  // «ا» و «د» فقط از راست می‌چسبند؛ در «ادب» هیچ‌کدام به بعدی نمی‌چسبند
+  const adab = shapeLogical("ادب");
+  assert(adab[0] === 0xfe8d, `ا تنها: ${adab[0].toString(16)}`);
+  assert(adab[1] === 0xfea9, `د تنها: ${adab[1].toString(16)}`);
+  assert(adab[2] === 0xfe8f, `ب تنها بعد از د: ${adab[2].toString(16)}`);
+
+  // نیم‌فاصله (ZWNJ) اتصال را می‌شکند و خودش گلیف ندارد
+  const zwnj = shapeLogical("می‌رود");
+  assert(zwnj.length === 5, `طول «می‌رود» (نیم‌فاصله گلیف ندارد): ${zwnj.length}`);
+  assert(zwnj[1] === 0xfbfd, `ی پایانی پیش از نیم‌فاصله: ${zwnj[1].toString(16)}`);
+  assert(zwnj[2] === 0xfead, `ر تنها پس از نیم‌فاصله: ${zwnj[2].toString(16)}`);
+  assert(!zwnj.includes(0x200c), "نیم‌فاصله نباید گلیف بگیرد");
+
+  // فاصله شکل نمی‌گیرد
+  assert(shapeLogical("ا ب")[1] === 0x20, "فاصله باید دست‌نخورده بماند");
+  return "نیم‌فاصله";
+});
+
+test("studio/text", "چیدمان دیداری: عدد و کلمهٔ لاتین ترتیب داخلی خود را نگه می‌دارد", () => {
+  const visual = shapeForDisplay("اتاق ۱۲ متر", "rtl");
+  const text = String.fromCodePoint(...visual);
+  // تراز: رشتهٔ دیداری باید با «متر» شروع نشود؛ عدد ۱۲ باید پیوسته بماند
+  const digits = [..."۱۲"].map((char) => char.codePointAt(0)!);
+  const firstDigit = text.indexOf(String.fromCodePoint(digits[0]));
+  assert(firstDigit >= 0, "عدد در خروجی نیست");
+  assert(text[firstDigit + 1] === String.fromCodePoint(digits[1]), "ترتیب ارقام نباید معکوس شود");
+
+  // لاتین: «قطر ۲۰ cm» باید cm را به‌صورت پیوسته و در سمت چپ عدد داشته باشد
+  const latin = String.fromCodePoint(...shapeForDisplay("قطر ۲۰ cm", "rtl"));
+  assert(latin.includes("cm"), "کلمهٔ لاتین حفظ نشد");
+  assert(!latin.includes("mc"), "کلمهٔ لاتین معکوس شد");
+  return "دوسویه‌نویسی";
+});
+
+test("studio/text", "فونت فارسی جاسازی‌شدنی است و نگاشت متن برقرار می‌شود", () => {
+  const typeface = loadTypeface("regular");
+  assert(typeface !== null, "فونت وزیرمتن پیدا نشد (public/fonts)");
+  assert(typeface!.embeddable, "مجوز جاسازی فونت باید آزاد باشد (OFL)");
+  assert(typeface!.unitsPerEm === 2048, `unitsPerEm: ${typeface!.unitsPerEm}`);
+  for (const char of "ابپتثجچحخدذرزژسشصضطظعغفقکگلمنوهیآأء۰۱۲۳۴۵۶۷۸۹") {
+    const code = char.codePointAt(0)!;
+    assert(typeface!.glyphFor(code) > 0, `گلیف نبود برای «${char}»`);
+  }
+  for (const code of [0xfe8d, 0xfe8e, 0xfbfc, 0xfbff, 0xfefb, 0xfefc, 0x00b2]) {
+    assert(typeface!.glyphFor(code) > 0, `شکل نمایشی ${code.toString(16)} در فونت نیست`);
+  }
+  // عرض متن باید مثبت و متناسب با طول باشد
+  const short = typeface!.widthOf("اتاق", 10);
+  const long = typeface!.widthOf("اتاق خواب بزرگ", 10);
+  assert(long > short && short > 0, `عرض متن نامعتبر: ${short} / ${long}`);
+  return `upem ${typeface!.unitsPerEm}`;
+});
+
+test("studio/render", "PDF فارسی: فونت جاسازی‌شده، xref سالم و ToUnicode", () => {
+  const doc = sampleDesign();
+  const pdf = Buffer.from(renderStudioPdf(doc));
+  const head = pdf.subarray(0, 8).toString("latin1");
+  assert(head.startsWith("%PDF-1.7"), `سرصفحه: ${head}`);
+  const text = pdf.toString("latin1");
+  assert(text.includes("/FontFile2"), "فونت جاسازی نشده");
+  assert(text.includes("/Identity-H"), "کدگذاری CID استفاده نشده");
+  assert(text.includes("/ToUnicode"), "نگاشت متن (ToUnicode) ندارد");
+  assert(text.includes("/BaseFont /Vazirmatn"), "نام فونت جاسازی‌شده نیست");
+  assert(/\/W \[/.test(text), "آرایهٔ عرض گلیف‌ها (/W) ندارد");
+  assert(text.trimEnd().endsWith("%%EOF"), "پایان فایل ندارد");
+
+  // آفست‌های xref باید به ابتدای اشیای درست اشاره کنند
+  const startxref = Number(/startxref\s+(\d+)/.exec(text)?.[1] ?? -1);
+  assert(startxref > 0, "startxref ندارد");
+  const xref = text.slice(startxref);
+  const entries = [...xref.matchAll(/(\d{10}) 00000 n/g)].map((match) => Number(match[1]));
+  assert(entries.length >= 6, `تعداد ورودی xref: ${entries.length}`);
+  entries.forEach((offset, index) => {
+    const at = pdf.subarray(offset, offset + 24).toString("latin1");
+    assert(/^\d+ 0 obj/.test(at), `xref ورودی ${index + 1} به شیء اشاره نمی‌کند: ${JSON.stringify(at)}`);
+  });
+  return `${entries.length} شیء`;
+});
+
+test("studio/render", "DXF برچسب فارسی را با یونیکد و به شکل درست می‌نویسد", () => {
+  const dxf = renderStudioDxf(sampleDesign());
+  assert(dxf.includes("LABELS"), "لایهٔ برچسب در جدول لایه‌ها نیست");
+  const escaped = dxf.split("\n").filter((line) => line.includes("U+"));
+  assert(escaped.length >= 10, `تعداد برچسب‌های یونیکد: ${escaped.length}`);
+  const unicode = String.fromCharCode(92) + "U+";
+  assert(escaped[0].startsWith(unicode), `قالب یونیکد DXF: ${escaped[0].slice(0, 20)}`);
+  assert(/U\+FE[0-9A-F]{2}/.test(escaped.join("")), "شکل نمایشی (FE..) در برچسب‌ها نیست");
+  assert(dxf.trimEnd().endsWith("EOF"), "DXF با EOF تمام نمی‌شود");
+  return `${escaped.length} برچسب`;
 });

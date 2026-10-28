@@ -11,6 +11,10 @@
  */
 
 import { CATALOG_BY_ID, STUDIO_LAYERS, type Part, type StudioLayerId } from "./catalog";
+import { shapeForDisplay } from "./pdf/arabic";
+import { PdfText, type TextAnchor } from "./pdf/text";
+import { embedFont, loadTypeface, writeToUnicode } from "./pdf/typeface";
+import { PdfWriter } from "./pdf/writer";
 import { studioIfc, studioXlsx } from "./exporters";
 import { renderStudioElevationSheet, renderStudioVertical } from "./vertical";
 import {
@@ -595,6 +599,11 @@ function dxfPolyline(points: { x: number; y: number }[], layer: string): string[
   ];
 }
 
+/** متن برچسب برای DXF (همان قاعدهٔ PDF). */
+function dxfLabelFor(item: StudioItem, definition: (typeof CATALOG_BY_ID)[string]): string | null {
+  return pdfLabelFor(item, definition);
+}
+
 export function renderStudioDxf(doc: StudioDocument, options: RenderOptions = {}): string {
   const out: string[] = [];
   const push = (...values: (string | number)[]) => out.push(...values.map(String));
@@ -614,6 +623,7 @@ export function renderStudioDxf(doc: StudioDocument, options: RenderOptions = {}
     const definition = CATALOG_BY_ID[item.catalogId];
     if (definition) usedLayers.add(definition.layer);
   }
+  usedLayers.add("labels");
   push(0, "SECTION", 2, "TABLES");
   push(0, "TABLE", 2, "LAYER", 70, usedLayers.size);
   for (const layer of usedLayers) {
@@ -706,6 +716,32 @@ export function renderStudioDxf(doc: StudioDocument, options: RenderOptions = {}
       definition.nameEn.replace(/[^\x20-\x7E]/g, ""),
     );
   }
+
+  // برچسب‌های فارسی: DXF (R2000) کدگذاری تک‌بایتی دارد؛ متن فارسی به‌صورت
+  // دنبالهٔ \U+XXXX و با شکل نمایشی درست نوشته می‌شود تا در اتوکد/ب‌ریک‌کد
+  // خوانا باشد (روش استاندارد انتقال یونیکد در DXF).
+  for (const item of items) {
+    const definition = CATALOG_BY_ID[item.catalogId];
+    if (!definition) continue;
+    const text = dxfLabelFor(item, definition);
+    if (!text) continue;
+    const shaped = shapeForDisplay(text, "rtl");
+    const encoded = shaped.map((code) => DXF_UNICODE + code.toString(16).toUpperCase().padStart(4, "0")).join("");
+    push(
+      0,
+      "TEXT",
+      8,
+      "LABELS",
+      "10",
+      item.x.toFixed(4),
+      "20",
+      (item.y - item.d / 2 - 0.12).toFixed(4),
+      "40",
+      "0.2",
+      "1",
+      encoded,
+    );
+  }
   push(0, "ENDSEC", 0, "EOF");
   return `${out.join("\n")}\n`;
 }
@@ -715,6 +751,9 @@ export function renderStudioDxf(doc: StudioDocument, options: RenderOptions = {}
 const MM_TO_PT = 72 / 25.4;
 
 const ascii = (value: string): string => value.replace(/[^\x20-\x7E]/g, "");
+
+/** پیشوند یونیکد DXF (بک‌اسلش + U+) بدون درگیری با escape رشته‌ها. */
+const DXF_UNICODE = String.fromCharCode(92) + "U+";
 
 function pdfEscape(value: string): string {
   return ascii(value).replace(/\\/g, "\\\\").replace(/\(/g, "\\(").replace(/\)/g, "\\)");
@@ -733,7 +772,12 @@ interface PdfPageSpec {
   caption: string;
 }
 
-function buildPdfPage(doc: StudioDocument, options: RenderOptions, spec: PdfPageSpec): { ops: string[]; layout: SheetLayout } {
+function buildPdfPage(
+  doc: StudioDocument,
+  options: RenderOptions,
+  spec: PdfPageSpec,
+  textLayer: PdfText,
+): { ops: string[]; layout: SheetLayout } {
   const view: StudioDocument = { ...doc, classification: spec.classification, currentLevel: spec.level ?? doc.currentLevel };
   const layout = sheetLayout(view, options);
   const pageH = layout.heightMm * MM_TO_PT;
@@ -769,18 +813,35 @@ function buildPdfPage(doc: StudioDocument, options: RenderOptions, spec: PdfPage
       fillGray != null ? "b" : "S",
     );
   };
-  const text = (at: { x: number; y: number }, sizeMm: number, value: string, gray = 0.1, anchor: "start" | "end" = "start") => {
+  /** نوشتن متن با فونت جاسازی‌شده؛ اندازه به میلی‌متر داده می‌شود. */
+  const text = (
+    at: { x: number; y: number },
+    sizeMm: number,
+    value: string,
+    gray = 0.1,
+    anchor: TextAnchor = "start",
+    bold = false,
+    direction: "rtl" | "ltr" = "rtl",
+  ) => {
     const pt = toPt(at.x, at.y);
-    const fontSize = sizeMm * MM_TO_PT;
-    const clean = pdfEscape(value);
-    if (!clean.trim()) return;
-    const widthEstimate = clean.length * fontSize * 0.5;
-    const x = anchor === "end" ? pt.x - widthEstimate : pt.x;
-    ops.push(`BT ${gray} ${gray} ${gray} rg /F1 ${fontSize.toFixed(2)} Tf 1 0 0 1 ${x.toFixed(2)} ${pt.y.toFixed(2)} Tm (${clean}) Tj ET`);
+    textLayer.draw(ops, pt, value, { sizePt: sizeMm * MM_TO_PT, gray, anchor, bold, direction });
+  };
+
+  /** متن را در عرض مشخص جا می‌دهد: اول کوچک‌تر می‌کند، بعد کوتاه می‌کند. */
+  const fit = (value: string, maxMm: number, sizeMm: number, bold = false): { value: string; sizeMm: number } => {
+    let size = sizeMm;
+    const fits = (candidate: string, candidateSize: number) =>
+      textLayer.width(candidate, { sizePt: candidateSize * MM_TO_PT, bold }) <= maxMm * MM_TO_PT;
+    if (fits(value, size)) return { value, sizeMm: size };
+    while (size > 2.1 && !fits(value, size)) size -= 0.2;
+    if (fits(value, size)) return { value, sizeMm: size };
+    let trimmed = value;
+    while (trimmed.length > 3 && !fits(`${trimmed}…`, size)) trimmed = trimmed.slice(0, -1);
+    return { value: `${trimmed}…`, sizeMm: size };
   };
 
   const area = layout.areaMm;
-  text({ x: area.x + 2, y: area.y + 5 }, 2.6, `${ENGINE_LABEL}  FINGERPRINT ${documentFingerprint(doc)}`, 0.55);
+  text({ x: area.x + 2, y: area.y + 5 }, 2.6, `${ENGINE_LABEL} · ${documentFingerprint(doc)}`, 0.55, "start", false, "ltr");
   // کادر نقشه
   line({ x: area.x, y: area.y + 8 }, { x: area.x + area.w, y: area.y + 8 }, 0.4, 0.85);
 
@@ -826,17 +887,27 @@ function buildPdfPage(doc: StudioDocument, options: RenderOptions, spec: PdfPage
         );
       }
     }
-    if (LABELLED_CATEGORIES.has(definition.category)) {
-      const center = transform.origin;
-      text({ x: center.x, y: center.y + 1 }, 1.8, definition.nameEn, 0.35);
+    // برچسب‌ها: فضا با مساحت، اندازه‌گذاری با مقدار، بقیه با نام
+    const center = transform.origin;
+    const label = pdfLabelFor(item, definition);
+    if (label) {
+      const size = SPACE_IDS.has(item.catalogId) ? 2.4 : 1.8;
+      text({ x: center.x, y: center.y + (SPACE_IDS.has(item.catalogId) ? 2.2 : 0.9) }, size, label, 0.3, "middle");
     }
   }
 
   // عنوان و کادر اطلاعات
-  const scaleText = `SCALE 1:${Math.round(1000 / layout.mmPerMetre)}${layout.fitted ? " (AUTO)" : ""}`;
-  text({ x: area.x + 3, y: area.y + area.h - 6 }, 3.6, `${doc.project.code}  ${ascii(doc.project.name) || "PROJECT"}`, 0.1);
-  text({ x: area.x + 3, y: area.y + area.h - 11 }, 2.8, spec.caption, 0.35);
-  text({ x: area.x + 3, y: area.y + area.h - 15 }, 2.4, `SHEET ${doc.sheet.format}  ${doc.sheet.orientation.toUpperCase()}  ${scaleText}  REV ${doc.revision}  ${doc.project.date}`, 0.45);
+  const scaleText = `1:${Math.round(1000 / layout.mmPerMetre)}${layout.fitted ? " (AUTO)" : ""}`;
+  const heading = fit(`${doc.project.code} · ${doc.project.name}`, area.w - 8, 4.2, true);
+  text({ x: area.x + 3, y: area.y + area.h - 6 }, heading.sizeMm, heading.value, 0.1, "start", true);
+  const subheading = fit(spec.caption, area.w - 8, 3, false);
+  text({ x: area.x + 3, y: area.y + area.h - 11 }, subheading.sizeMm, subheading.value, 0.35);
+  text(
+    { x: area.x + 3, y: area.y + area.h - 15 },
+    2.4,
+    `${doc.sheet.format} · ${doc.sheet.orientation === "landscape" ? "افقی" : "عمودی"} · مقیاس ${scaleText} · ویرایش ${doc.revision}`,
+    0.45,
+  );
 
   const block = layout.titleBlock;
   poly(
@@ -849,16 +920,25 @@ function buildPdfPage(doc: StudioDocument, options: RenderOptions, spec: PdfPage
     0.45,
     null,
   );
-  const colWidth = block.w / 4;
-  for (let i = 1; i < 4; i += 1) {
-    line({ x: block.x + colWidth * i, y: block.y }, { x: block.x + colWidth * i, y: block.y + block.h }, 0.25, 0.4);
+  const cols = [
+    { title: "پروژه", value: doc.project.name, sub: `${doc.project.code} · کارفرما: ${doc.project.client || "—"}` },
+    { title: "نقشه", value: spec.caption, sub: `طبقه ${(spec.level ?? doc.currentLevel) + 1} از ${doc.levels} · ویرایش ${doc.revision}` },
+    { title: "مقیاس و برگه", value: `${scaleText}`, sub: `${doc.sheet.format} · ${doc.sheet.orientation === "landscape" ? "افقی" : "عمودی"}` },
+    { title: "کنترل", value: doc.project.designer || "—", sub: `${doc.project.date} · ${documentFingerprint(doc)}` },
+  ];
+  const colWidth = block.w / cols.length;
+  let cursor = block.x;
+  for (let index = 0; index < cols.length; index += 1) {
+    const col = cols[index];
+    if (index > 0) line({ x: cursor, y: block.y }, { x: cursor, y: block.y + block.h }, 0.25, 0.4);
+    text({ x: cursor + formulaPadding(colWidth), y: block.y + 5 }, 2.2, col.title, 0.45, "end");
+    const value = fit(col.value, colWidth - 5, 3.6, true);
+    text({ x: cursor + colWidth - 2.5, y: block.y + 12 }, value.sizeMm, value.value, 0.1, "end", true);
+    const sub = fit(col.sub, colWidth - 5, 2.2);
+    text({ x: cursor + colWidth - 2.5, y: block.y + 17 }, sub.sizeMm, sub.value, 0.4, "end");
+    cursor += colWidth;
   }
-  text({ x: block.x + block.w - 3, y: block.y + 8 }, 4, ascii(doc.project.code), 0.1, "end");
-  text({ x: block.x + block.w / 2 + colWidth / 2, y: block.y + 8 }, 3.4, ascii(spec.caption), 0.1, "end");
-  text({ x: block.x + colWidth * 2, y: block.y + 8 }, 3, `${scaleText}`, 0.1, "end");
-  text({ x: block.x + colWidth, y: block.y + 8 }, 3.2, ascii(doc.project.designer) || "DESIGNER", 0.1, "end");
-  text({ x: block.x + block.w - 3, y: block.y + 16 }, 2.4, `DATE ${doc.project.date}   REV ${doc.revision}   ${doc.sheet.format}`, 0.45, "end");
-  text({ x: block.x + block.w - 3, y: block.y + 24 }, 2.4, "HERMICAD - ENGINEER REVIEW REQUIRED", 0.55, "end");
+  text({ x: block.x + block.w - 2.5, y: block.y + 22 }, 2, "ترسیم آزاد — کنترل نهایی با مهندس دارای صلاحیت", 0.55, "end");
 
   // خط‌کش مقیاس
   const barX = area.x + 3;
@@ -875,58 +955,95 @@ function buildPdfPage(doc: StudioDocument, options: RenderOptions, spec: PdfPage
       0.2,
       i % 2 === 0 ? 0.1 : null,
     );
-    text({ x, y: barY + 6 }, 2.2, String(i), 0.4);
+    text({ x, y: barY + 6 }, 2.2, String(i), 0.4, "start", false, "ltr");
   }
-  text({ x: barX + 5 * layout.mmPerMetre + 3, y: barY + 6 }, 2.2, "m", 0.4);
+  text({ x: barX + 5 * layout.mmPerMetre + 3, y: barY + 6 }, 2.2, "متر", 0.4);
 
   return { ops, layout };
 }
 
-function assemblePdf(pages: { ops: string[]; layout: SheetLayout }[]): Uint8Array {
-  const bodies = pages.map((page) => {
-    const width = page.layout.widthMm * MM_TO_PT;
-    const height = page.layout.heightMm * MM_TO_PT;
-    const header = `q 1 1 1 rg 0 0 ${width.toFixed(2)} ${height.toFixed(2)} re f Q\n`;
-    return Buffer.from(header + page.ops.join("\n"), "latin1");
-  });
+/** فاصلهٔ کوچک برای چسبیدن عنوان ستون به لبهٔ داخلی کادر. */
+function formulaPadding(_width: number): number {
+  return -2.5;
+}
 
-  const objects: string[] = [];
-  const pageIds = pages.map((_, index) => 4 + index * 2);
-  objects.push("<< /Type /Catalog /Pages 2 0 R >>");
-  objects.push(`<< /Type /Pages /Kids [${pageIds.map((id) => `${id} 0 R`).join(" ")}] /Count ${pages.length} >>`);
-  objects.push("<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>");
+/** برچسب قابل نوشتن برای یک شیء در PDF (هم‌خوان با منطق SVG). */
+function pdfLabelFor(
+  item: StudioItem,
+  definition: (typeof CATALOG_BY_ID)[string],
+): string | null {
+  if (SPACE_IDS.has(item.catalogId)) {
+    const area = (item.w * item.d).toFixed(1);
+    const name = item.label?.trim() || (item.catalogId === "space-terrace" ? "تراس" : item.catalogId === "space-shaft" ? "شفت" : "فضا");
+    return `${name} (${area} m²)`;
+  }
+  if (item.catalogId === "dim-linear") return `${item.w.toFixed(2)} m`;
+  if (UNLABELLED_IDS.has(item.catalogId)) return null;
+  if (!LABELLED_CATEGORIES.has(definition.category) && !item.label) return null;
+  if (!item.label && (Math.min(item.w, item.d) < 0.75 || item.w * item.d < 0.4)) return null;
+  return item.label ?? definition.nameFa;
+}
+
+function assemblePdf(pages: { ops: string[]; layout: SheetLayout }[], text: PdfText, doc: StudioDocument): Uint8Array {
+  const writer = new PdfWriter();
+  const catalog = writer.reserve();
+  const pagesObject = writer.reserve();
+
+  const regular = loadTypeface("regular");
+  const bold = loadTypeface("bold");
+  const regularFont = regular ? embedFont(writer, regular, text.usageFor("regular").keys()) : null;
+  const boldFont = bold && bold !== regular ? embedFont(writer, bold, text.usageFor("bold").keys()) : null;
+
+  // پشتیبان: اگر فونت نبود، Helvetica
+  const helvetica = regularFont ? null : writer.add("<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>");
+  const fontResources = regularFont
+    ? `/F1 ${regularFont.objectNumber} 0 R${boldFont ? ` /F2 ${boldFont.objectNumber} 0 R` : ""}`
+    : `/F1 ${helvetica} 0 R`;
+
+  const pageIds = pages.map(() => writer.reserve());
   pages.forEach((page, index) => {
-    const contentId = pageIds[index] + 1;
     const width = (page.layout.widthMm * MM_TO_PT).toFixed(2);
     const height = (page.layout.heightMm * MM_TO_PT).toFixed(2);
-    objects.push(
-      `<< /Type /Page /Parent 2 0 R /MediaBox [0 0 ${width} ${height}] /Resources << /Font << /F1 3 0 R >> /ProcSet [/PDF /Text] >> /Contents ${contentId} 0 R >>`,
+    const body = Buffer.from(
+      `q 1 1 1 rg 0 0 ${width} ${height} re f Q\n${page.ops.join("\n")}\n`,
+      "latin1",
     );
-    objects.push(`<< /Length ${bodies[index].length} >>\nstream\n${bodies[index].toString("latin1")}\nendstream`);
+    const contentId = writer.addStream({}, body, true);
+    writer.set(
+      pageIds[index],
+      `<< /Type /Page /Parent ${pagesObject} 0 R /MediaBox [0 0 ${width} ${height}] ` +
+        `/Resources << /Font << ${fontResources} >> /ProcSet [/PDF /Text] >> /Contents ${contentId} 0 R >>`,
+    );
   });
 
-  let pdf = "%PDF-1.4\n%\xE2\xE3\xCF\xD3\n";
-  const offsets: number[] = [];
-  objects.forEach((body, index) => {
-    offsets.push(Buffer.byteLength(pdf, "latin1"));
-    pdf += `${index + 1} 0 obj\n${body}\nendobj\n`;
-  });
-  const xrefStart = Buffer.byteLength(pdf, "latin1");
-  pdf += `xref\n0 ${objects.length + 1}\n0000000000 65535 f \n`;
-  for (const offset of offsets) pdf += `${String(offset).padStart(10, "0")} 00000 n \n`;
-  pdf += `trailer\n<< /Size ${objects.length + 1} /Root 1 0 R >>\nstartxref\n${xrefStart}\n%%EOF\n`;
-  return new Uint8Array(Buffer.from(pdf, "latin1"));
+  writer.set(catalog, `<< /Type /Catalog /Pages ${pagesObject} 0 R >>`);
+  writer.set(
+    pagesObject,
+    `<< /Type /Pages /Kids [${pageIds.map((id) => `${id} 0 R`).join(" ")}] /Count ${pages.length} >>`,
+  );
+
+  if (regularFont) writeToUnicode(writer, regularFont, text.usageFor("regular"));
+  if (boldFont) writeToUnicode(writer, boldFont, text.usageFor("bold"));
+
+  return new Uint8Array(
+    writer.build(catalog, {
+      Title: doc.project.code || "HERMICAD",
+      Producer: ENGINE_LABEL,
+      Creator: "HERMICAD Studio",
+    }),
+  );
 }
 
 export function renderStudioPdf(doc: StudioDocument, options: RenderOptions = {}): Uint8Array {
+  const text = new PdfText(loadTypeface("regular"), loadTypeface("bold"));
   const classification = options.classification ?? doc.classification;
-  const caption = `${classificationLabel(doc, { classification }).toUpperCase()} - LEVEL ${doc.currentLevel + 1}/${doc.levels}`;
+  const caption = `${classificationLabel(doc, { classification })}`;
   const page = buildPdfPage(doc, options, {
     level: options.onlyLevel == null ? doc.currentLevel : options.onlyLevel,
     classification,
     caption,
-  });
-  return assemblePdf([page]);
+  }, text);
+  return assemblePdf([page], text, doc);
 }
 
 export interface PdfBundleOptions {
@@ -941,6 +1058,7 @@ export interface PdfBundleOptions {
  * این همان «رندر هماهنگ طبق طبقه‌بندی» است که برای ارائه و کنترل استفاده می‌شود.
  */
 export function renderStudioPdfBundle(doc: StudioDocument, options: PdfBundleOptions = {}): { pdf: Uint8Array; pages: number } {
+  const text = new PdfText(loadTypeface("regular"), loadTypeface("bold"));
   const levels = options.allLevels === false ? [doc.currentLevel] : Array.from({ length: doc.levels }, (_, index) => index);
   const classifications: StudioDocument["classification"][] =
     options.allClassifications === false
@@ -956,17 +1074,17 @@ export function renderStudioPdfBundle(doc: StudioDocument, options: PdfBundleOpt
         buildPdfPage(doc, { classification }, {
           level,
           classification,
-          caption: `${classificationLabel(doc, { classification }).toUpperCase()} - LEVEL ${level + 1}/${doc.levels}`,
-        }),
+          caption: classificationLabel(doc, { classification }),
+        }, text),
       );
     }
   }
   if (pages.length === 0) {
     pages.push(
-      buildPdfPage(doc, {}, { level: doc.currentLevel, classification: doc.classification, caption: "PLAN" }),
+      buildPdfPage(doc, {}, { level: doc.currentLevel, classification: doc.classification, caption: "پلان" }, text),
     );
   }
-  return { pdf: assemblePdf(pages), pages: pages.length };
+  return { pdf: assemblePdf(pages, text, doc), pages: pages.length };
 }
 
 /* ───────────────────────────── CSV / JSON ───────────────────────────── */
