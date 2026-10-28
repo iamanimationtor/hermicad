@@ -228,7 +228,12 @@ export function addItem(
 export function updateItem(doc: StudioDocument, id: string, patch: Partial<StudioItem>): StudioDocument {
   return touch({
     ...doc,
-    items: doc.items.map((item) => (item.id === id ? clampItem({ ...item, ...patch }, CATALOG_BY_ID[item.catalogId]) : item)),
+    items: doc.items.map((item) => {
+      if (item.id !== id) return item;
+      const merged = { ...item, ...patch };
+      // اگر نوع شیء عوض شود، محدودهٔ مجاز باید از تعریف جدید خوانده شود، نه قدیمی.
+      return clampItem(merged, CATALOG_BY_ID[merged.catalogId]);
+    }),
   });
 }
 

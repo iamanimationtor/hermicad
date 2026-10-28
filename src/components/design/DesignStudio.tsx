@@ -836,6 +836,38 @@ export function DesignStudio({ initialDesign }: { initialDesign: StudioDocument 
                   </select>
                 </label>
               </div>
+              <label className="block">
+                <span className="label">تغییر نوع / شکل شیء</span>
+                {/* همان شیء، با نوع دیگری از کتابخانه جایگزین می‌شود (شکل و کلاس
+                    IFC عوض می‌شود، موقعیت و طبقه می‌ماند) */}
+                <select
+                  className="field"
+                  value={selected.catalogId}
+                  onChange={(event) => {
+                    const next = CATALOG_BY_ID[event.target.value];
+                    if (!next) return;
+                    commit(
+                      updateItem(doc, selected.id, {
+                        catalogId: next.id,
+                        w: next.defaultSize.w,
+                        d: next.defaultSize.d,
+                      }),
+                      "نوع شیء تغییر کرد",
+                    );
+                  }}
+                >
+                  {CATEGORIES.map((category) => (
+                    <optgroup key={category.id} label={category.label}>
+                      {CATALOG.filter((entry) => entry.category === category.id)
+                        .map((entry) => (
+                          <option key={entry.id} value={entry.id}>
+                            {entry.nameFa}
+                          </option>
+                        ))}
+                    </optgroup>
+                  ))}
+                </select>
+              </label>
               <div className="flex flex-wrap gap-1">
                 <button type="button" className="btn px-2 py-1" onClick={() => commit(rotateItem(doc, selected.id, 90), "چرخش ۹۰°")}>۹۰°</button>
                 <button type="button" className="btn px-2 py-1" onClick={() => commit(rotateItem(doc, selected.id, -90), "چرخش ۹۰°")}>‑۹۰°</button>
@@ -1003,6 +1035,9 @@ export function DesignStudio({ initialDesign }: { initialDesign: StudioDocument 
           </p>
           <p>تجدیدنظر {doc.revision} · {doc.project.date}</p>
           <p className="mt-1">خروجی برای کنترل مهندس دارای صلاحیت است، نه تأییدیهٔ انطباق.</p>
+          <Link href={`/design/${doc.id}/gallery`} className="btn btn-primary mt-2 w-full justify-center px-2 py-1">
+            گالری رندرهای طبقه‌بندی‌شده
+          </Link>
           <Link href="/design" className="btn mt-2 w-full justify-center px-2 py-1">همهٔ اسناد طراحی</Link>
         </section>
       </aside>

@@ -357,3 +357,18 @@ test("studio/vertical", "نما از مدل پلان ساخته می‌شود (�
   assert((svg2.match(/data-kind="column"/g) ?? []).length >= 3, "ستون‌ها در نما نیامدند");
   return "واترفال";
 });
+
+test("studio/document", "تغییر نوع شیء، محدودهٔ مجاز کالای جدید را اعمال می‌کند", () => {
+  let doc = createStudioDocument({ items: [] });
+  doc = addItem(doc, "chair", { x: 2, y: 2 });
+  const chair = doc.items[0];
+  assert(chair.w <= 0.6, `صندلی بزرگ‌تر از حد: ${chair.w}`);
+  // تبدیل صندلی به مبل سه‌نفره: اندازهٔ پیش‌فرض جدید باید پذیرفته شود
+  doc = updateItem(doc, chair.id, { catalogId: "sofa-3", w: 2.1, d: 0.9 });
+  assert(doc.items[0].catalogId === "sofa-3", "نوع شیء عوض نشد");
+  assert(doc.items[0].w > 1, `مبل به اندازهٔ صندلی محدود شد: ${doc.items[0].w}`);
+  // رفتار غیرمجاز: مبل را نمی‌توان به اندازهٔ ۸ متر کرد
+  doc = updateItem(doc, chair.id, { w: 8 });
+  assert(doc.items[0].w <= 2.1 * 6, `حداکثر اندازه اعمال نشد: ${doc.items[0].w}`);
+  return "تغییر نوع";
+});

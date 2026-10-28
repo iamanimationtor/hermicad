@@ -51,11 +51,7 @@ export default async function DesignIndexPage() {
             </Panel>
           )}
           {designs.map((design) => (
-            <Link
-              key={design.id}
-              href={`/design/${design.id}`}
-              className="panel block p-4 transition hover:border-teal-400/40"
-            >
+            <div key={design.id} className="panel block p-4 transition hover:border-teal-400/40">
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <div>
                   <div className="flex flex-wrap items-center gap-2">
@@ -63,12 +59,23 @@ export default async function DesignIndexPage() {
                     <span className="chip">{design.sheet}</span>
                     <span className="chip">تجدیدنظر {design.revision}</span>
                   </div>
-                  <h2 className="mt-1 text-sm font-bold text-slate-100">{design.name}</h2>
+                  <h2 className="mt-1 text-sm font-bold text-slate-100">
+                    <Link href={`/design/${design.id}`} className="hover:text-teal-200">
+                      {design.name}
+                    </Link>
+                  </h2>
                   <p className="mt-0.5 text-[11px] text-slate-400">{design.items} شیء · آخرین تغییر {new Date(design.updatedAt).toLocaleString("fa-IR")}</p>
                 </div>
-                <span className="btn px-3 py-1.5 text-[11px]">باز کردن استودیو</span>
+                <div className="flex items-center gap-2">
+                  <Link href={`/design/${design.id}/gallery`} className="btn px-3 py-1.5 text-[11px]">
+                    گالری رندرها
+                  </Link>
+                  <Link href={`/design/${design.id}`} className="btn btn-primary px-3 py-1.5 text-[11px]">
+                    باز کردن استودیو
+                  </Link>
+                </div>
               </div>
-            </Link>
+            </div>
           ))}
         </div>
 
