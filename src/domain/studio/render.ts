@@ -17,6 +17,7 @@ import { embedFont, loadTypeface, writeToUnicode } from "./pdf/typeface";
 import { PdfWriter } from "./pdf/writer";
 import { studioIfc, studioXlsx } from "./exporters";
 import { renderStudioElevationSheet, renderStudioVertical } from "./vertical";
+import { renderStudioElevationsPdf, renderStudioVerticalPdf } from "./verticalPdf";
 import {
   documentBounds,
   documentFingerprint,
@@ -984,7 +985,7 @@ function pdfLabelFor(
   return item.label ?? definition.nameFa;
 }
 
-function assemblePdf(pages: { ops: string[]; layout: SheetLayout }[], text: PdfText, doc: StudioDocument): Uint8Array {
+export function assemblePdf(pages: { ops: string[]; layout: SheetLayout }[], text: PdfText, doc: StudioDocument): Uint8Array {
   const writer = new PdfWriter();
   const catalog = writer.reserve();
   const pagesObject = writer.reserve();
@@ -1147,7 +1148,21 @@ export function studioJson(doc: StudioDocument): string {
   );
 }
 
-export const STUDIO_FORMATS = ["svg", "pdf", "dxf", "csv", "items-csv", "json", "pdf-bundle", "xlsx", "ifc", "elevations", "section"] as const;
+export const STUDIO_FORMATS = [
+  "svg",
+  "pdf",
+  "dxf",
+  "csv",
+  "items-csv",
+  "json",
+  "pdf-bundle",
+  "xlsx",
+  "ifc",
+  "elevations",
+  "section",
+  "elevations-pdf",
+  "section-pdf",
+] as const;
 export type StudioFormat = (typeof STUDIO_FORMATS)[number];
 
 export function exportStudio(
@@ -1196,6 +1211,22 @@ export function exportStudio(
         filename: `${base}-section.svg`,
         mime: "image/svg+xml; charset=utf-8",
         data: Buffer.from(renderStudioVertical(doc, { direction: "west", sectionAt: options.sectionAt ?? 6, sectionWidth: options.sectionWidth ?? 1.2 }), "utf8"),
+      };
+    case "elevations-pdf": {
+      const bundle = renderStudioElevationsPdf(doc, options.sectionAt ?? 6, options.sectionWidth ?? 1.2);
+      return {
+        filename: `${base}-elevations-section.pdf`,
+        mime: "application/pdf",
+        data: Buffer.from(bundle.pdf),
+      };
+    }
+    case "section-pdf":
+      return {
+        filename: `${base}-section.pdf`,
+        mime: "application/pdf",
+        data: Buffer.from(
+          renderStudioVerticalPdf(doc, { direction: "west", sectionAt: options.sectionAt ?? 6, sectionWidth: options.sectionWidth ?? 1.2 }),
+        ),
       };
   }
 }

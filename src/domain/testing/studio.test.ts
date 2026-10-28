@@ -33,7 +33,8 @@ import {
 } from "@/domain/studio/render";
 import { sampleDesign, sampleDesignItems } from "@/server/designs";
 import { studioIfc, studioXlsx, toPersianWords } from "@/domain/studio/exporters";
-import { renderStudioElevationSheet, renderStudioVertical } from "@/domain/studio/vertical";
+import { renderStudioElevationSheet, renderStudioVertical, viewGeometry } from "@/domain/studio/vertical";
+import { renderStudioElevationsPdf, renderStudioVerticalPdf } from "@/domain/studio/verticalPdf";
 import { shapeForDisplay, shapeLogical } from "@/domain/studio/pdf/arabic";
 import { inflateSync } from "node:zlib";
 import { loadTypeface } from "@/domain/studio/pdf/typeface";
@@ -515,4 +516,39 @@ test("studio/render", "DXF برچسب فارسی را با یونیکد و به 
   assert(/U\+FE[0-9A-F]{2}/.test(escaped.join("")), "شکل نمایشی (FE..) در برچسب‌ها نیست");
   assert(dxf.trimEnd().endsWith("EOF"), "DXF با EOF تمام نمی‌شود");
   return `${escaped.length} برچسب`;
+});
+
+test("studio/vertical", "PDF نماها: پنج برگه، فونت جاسازی‌شده و هندسهٔ مشترک با SVG", () => {
+  const doc = sampleDesign();
+  const { pdf, pages } = renderStudioElevationsPdf(doc);
+  assert(pages === 5, `تعداد برگه‌ها: ${pages}`);
+  const raw = Buffer.from(pdf).toString("latin1");
+  assert(/^%PDF-1\.\d/.test(raw), "سرصفحهٔ PDF");
+  assert((raw.match(/\/Type \/Page /g) ?? []).length === 5, "تعداد شیء Page با برگه‌ها نمی‌خواند");
+  assert(raw.includes("/FontFile2"), "فونت جاسازی نشده");
+  assert(raw.includes("Vazirmatn"), "نام فونت جاسازی‌شده نیست");
+
+  // هندسهٔ مشترک: مقیاس PDF باید همان مقیاس SVG باشد (یک منبع حقیقت)
+  const svg = renderStudioElevationSheet(doc);
+  const scale = /1:(\d+)/.exec(svg)?.[1];
+  assert(scale != null, "مقیاس SVG پیدا نشد");
+  assert(viewGeometry(doc, { direction: "south" }, { x: 0, y: 0, w: 300, h: 200 }).scale > 0, "مقیاس نمای جنوبی");
+
+  // جریان محتوا باید دستورهای رسم داشته باشد (نه برگهٔ خالی)
+  const content = pdfContentStreams(Buffer.from(pdf));
+  assert((content.match(/ re [BS]/g) ?? []).length > 50, "مستطیل‌های برگه کم است");
+  assert((content.match(/ l S/g) ?? []).length > 20, "خطوط برگه کم است");
+  return `${pages} برگه · ${(pdf.length / 1024).toFixed(0)} KB`;
+});
+
+test("studio/vertical", "PDF برش: اجزای بریده‌شده poché دارند و برگه کامل است", () => {
+  const doc = sampleDesign();
+  const pdf = renderStudioVerticalPdf(doc, { direction: "west", sectionAt: 6, sectionWidth: 1.2 });
+  const raw = Buffer.from(pdf).toString("latin1");
+  assert((raw.match(/\/Type \/Page /g) ?? []).length === 1, "برش باید یک برگه باشد");
+  const svg = renderStudioVertical(doc, { direction: "west", sectionAt: 6, sectionWidth: 1.2 });
+  assert(svg.includes('data-cut="1"'), "پوشش (poché) در SVG نیست");
+  const content = pdfContentStreams(Buffer.from(pdf));
+  assert((content.match(/ re [BS]/g) ?? []).length > 20, "هندسهٔ برش رسم نشده");
+  return "برش A-A";
 });

@@ -51,6 +51,9 @@ export default async function DesignGalleryPage({ params }: { params: Promise<{ 
           <a href={`${base}?format=pdf-bundle`} className="btn">
             PDF چندبرگی
           </a>
+          <a href={`${base}?format=elevations-pdf`} className="btn">
+            PDF نماها و برش
+          </a>
           <a href={`${base}?format=xlsx`} className="btn">
             XLSX متره
           </a>
@@ -80,6 +83,33 @@ export default async function DesignGalleryPage({ params }: { params: Promise<{ 
           </section>
         ))}
       </div>
+
+      {/* بستهٔ چاپی: PDF برگه‌های رسمی برای چاپ، امضا و تحویل */}
+      <section className="panel mt-6 p-5">
+        <h2 className="text-sm font-bold text-white">بستهٔ چاپی PDF</h2>
+        <p className="mt-1 text-[11px] leading-6 text-slate-400">
+          همان برگه‌های SVG، این‌بار به‌صورت PDF برداری با فونت فارسی جاسازی‌شده (متن قابل جست‌وجو و کپی).
+          برای چاپ A3 و تحویل به شهرداری/ناظر آماده است.
+        </p>
+        <div className="mt-3 flex flex-wrap gap-2">
+          <a href={`${base}?format=elevations-pdf`} className="btn" download>
+            نماها و برش (۵ برگه)
+          </a>
+          <a href={`${base}?format=section-pdf`} className="btn" download>
+            برش A-A (PDF)
+          </a>
+          {DISCIPLINES.map((entry) => (
+            <a
+              key={entry.id}
+              href={`${base}?format=pdf&classification=${entry.id}`}
+              className="btn"
+              download
+            >
+              PDF {entry.label}
+            </a>
+          ))}
+        </div>
+      </section>
 
       <p className="mt-6 text-[11px] leading-6 text-slate-500">
         تصاویر، همان برگه‌های رسمی SVG هستند (چاپ‌پذیر در A3). هر برگه فقط اشیای رشتهٔ خودش را با رنگ

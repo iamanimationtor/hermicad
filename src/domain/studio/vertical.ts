@@ -140,8 +140,24 @@ interface DrawnView {
   maxX: number;
 }
 
-/** رسم یک نما/برش داخل کادر مشخص (میلی‌متر). */
-function drawView(doc: StudioDocument, options: VerticalViewOptions, frame: Frame): DrawnView {
+/** هندسهٔ یک نما/برش روی برگه (میلی‌متر) — مشترک بین خروجی SVG و PDF. */
+export interface ViewGeometry {
+  direction: ElevationDirection;
+  isSection: boolean;
+  blocks: ElevationBlock[];
+  /** ترتیب رسم: پی، دیوارها (دور به نزدیک)، بقیه، بازشوها، ستون‌ها */
+  ordered: ElevationBlock[];
+  scale: number;
+  mmPerMetre: number;
+  minX: number;
+  maxX: number;
+  minY: number;
+  maxY: number;
+  frame: Frame;
+  map: (x: number, y: number) => { x: number; y: number };
+}
+
+export function viewGeometry(doc: StudioDocument, options: VerticalViewOptions, frame: Frame): ViewGeometry {
   const direction = options.direction ?? "south";
   const isSection = options.sectionAt != null;
   const blocks = collectBlocks(doc, direction, isSection ? { at: options.sectionAt!, width: options.sectionWidth ?? 1.0 } : undefined);
@@ -165,10 +181,42 @@ function drawView(doc: StudioDocument, options: VerticalViewOptions, frame: Fram
   }
   const mmPerMetre = 1000 / scale;
   const drawingW = spanX * mmPerMetre;
+  const drawingH = spanY * mmPerMetre;
   const originX = frame.x + (frame.w - drawingW) / 2 + drawingW;
-  const originY = frame.y + frame.h - 12;
+  // تراز عمودی: نقشه در فضای زیر عنوان «وسط‌چین» می‌شود (نه چسبیده به کف کادر)
+  const topPad = 20;
+  const bottomPad = 10;
+  const originY = frame.y + topPad + Math.max(0, (frame.h - topPad - bottomPad - drawingH) / 2) + drawingH;
   const map = (x: number, y: number) => ({ x: originX - (x - minX) * mmPerMetre, y: originY - (y - minY) * mmPerMetre });
 
+  const near = direction === "south" || direction === "west";
+  const walls = blocks.filter((block) => block.layer === "walls" && block.kind === "solid").sort((a, b) => (near ? b.depth - a.depth : a.depth - b.depth));
+  const openings = blocks.filter((block) => block.kind === "opening");
+  const columns = blocks.filter((block) => block.kind === "column");
+  const footing = blocks.filter((block) => block.layer === "foundation");
+  const rest = blocks.filter((block) => !walls.includes(block) && !openings.includes(block) && !columns.includes(block) && !footing.includes(block));
+  const ordered = [...footing, ...walls, ...rest, ...openings, ...columns];
+
+  return {
+    direction,
+    isSection,
+    blocks,
+    ordered,
+    scale,
+    mmPerMetre,
+    minX,
+    maxX,
+    minY,
+    maxY,
+    frame,
+    map,
+  };
+}
+
+/** رسم یک نما/برش داخل کادر مشخص (میلی‌متر) — خروجی SVG. */
+function drawView(doc: StudioDocument, options: VerticalViewOptions, frame: Frame): DrawnView {
+  const view = viewGeometry(doc, options, frame);
+  const { direction, isSection, blocks, ordered, scale, mmPerMetre, minX, maxX, minY, maxY, map } = view;
   const pieces: string[] = [];
 
   // کف طبقات و بام
@@ -194,14 +242,6 @@ function drawView(doc: StudioDocument, options: VerticalViewOptions, frame: Fram
   //   ۴) پی‌ها زیر تراز صفر
   // این ترتیب همان چیزی است که در نمای واقعی دیده می‌شود؛ ترتیب صرفاً هندسی
   // (عمق) باعث می‌شد بازشوی دیوار دور، از روی دیوار نزدیک دیده شود.
-  const near = direction === "south" || direction === "west";
-  const walls = blocks.filter((block) => block.layer === "walls" && block.kind === "solid").sort((a, b) => (near ? b.depth - a.depth : a.depth - b.depth));
-  const openings = blocks.filter((block) => block.kind === "opening");
-  const columns = blocks.filter((block) => block.kind === "column");
-  const footing = blocks.filter((block) => block.layer === "foundation");
-  const rest = blocks.filter((block) => !walls.includes(block) && !openings.includes(block) && !columns.includes(block) && !footing.includes(block));
-  const ordered = [...footing, ...walls, ...rest, ...openings, ...columns];
-
   for (const block of ordered) {
     const style = LAYER_STYLE[block.layer] ?? LAYER_STYLE.walls;
     const p0 = map(block.x0, block.y0);
@@ -210,6 +250,10 @@ function drawView(doc: StudioDocument, options: VerticalViewOptions, frame: Fram
     const y = Math.min(p0.y, p1.y);
     const w = Math.max(Math.abs(p1.x - p0.x), 0.3);
     const h = Math.max(Math.abs(p1.y - p0.y), 0.3);
+    // در برش، اجزای بریده‌شده «پوشیده» (poché) رسم می‌شوند تا از نمای بیرونی
+    // قابل تفکیک باشند — قاعدهٔ ترسیم استاندارد برش.
+    const isCut = isSection && block.kind !== "opening";
+    const cutFill = isCut ? (block.kind === "column" ? "#64748b" : "#cbd5e1") : null;
     if (block.kind === "opening") {
       pieces.push(
         `<rect x="${n(x)}" y="${n(y)}" width="${n(w)}" height="${n(h)}" fill="#ffffff" stroke="${style.stroke}" stroke-width="0.3" data-opening="1"/>`,
@@ -218,7 +262,7 @@ function drawView(doc: StudioDocument, options: VerticalViewOptions, frame: Fram
       continue;
     }
     pieces.push(
-      `<rect x="${n(x)}" y="${n(y)}" width="${n(w)}" height="${n(h)}" fill="${block.kind === "column" ? "#94a3b8" : style.fill}" stroke="${style.stroke}" stroke-width="${style.width}" data-kind="${block.kind}"${block.y0 < 0 ? ' data-below-grade="1"' : ""}/>`,
+      `<rect x="${n(x)}" y="${n(y)}" width="${n(w)}" height="${n(h)}" fill="${cutFill ?? (block.kind === "column" ? "#94a3b8" : style.fill)}" stroke="${style.stroke}" stroke-width="${style.width}" data-kind="${block.kind}"${isCut ? ' data-cut="1"' : ""}${block.y0 < 0 ? ' data-below-grade="1"' : ""}/>`,
     );
   }
 
@@ -241,14 +285,18 @@ function drawView(doc: StudioDocument, options: VerticalViewOptions, frame: Fram
   for (let level = 0; level <= doc.levels; level += 1) {
     const y = level * DEFAULT_FLOOR_HEIGHT;
     const point = map(minX, y);
+    const leftEdge = map(maxX, y);
     const label = level === 0 ? "±0.00" : `+${y.toFixed(2)}`;
     pieces.push(
-      `<line x1="${n(frame.x + 3)}" y1="${n(point.y)}" x2="${n(point.x - 2)}" y2="${n(point.y)}" stroke="#94a3b8" stroke-width="0.15" stroke-dasharray="3 2"/>`,
+      // ترازها در حاشیهٔ چپ نوشته می‌شوند و خط راهنما فقط تا لبهٔ چپ نقشه می‌آید
+      // (اگر تا لبهٔ راست کشیده شود، از روی خود نقشه می‌گذرد).
+      `<line x1="${n(frame.x + 13)}" y1="${n(point.y)}" x2="${n(leftEdge.x - 1.5)}" y2="${n(point.y)}" stroke="#94a3b8" stroke-width="0.15" stroke-dasharray="3 2"/>`,
       `<text direction="ltr" x="${n(frame.x + 1)}" y="${n(point.y + 0.8)}" font-size="2" fill="#334155" font-family="Vazirmatn, Tahoma, sans-serif">${label}</text>`,
     );
   }
-  const dimA = map(maxX + 0.55, 0);
-  const dimB = map(maxX + 0.55, doc.levels * DEFAULT_FLOOR_HEIGHT);
+  // ارتفاع‌گذاری کل در سمت راست نقشه (بیرون از خط دیوار)
+  const dimA = map(minX - 0.55, 0);
+  const dimB = map(minX - 0.55, doc.levels * DEFAULT_FLOOR_HEIGHT);
   pieces.push(
     `<line x1="${n(dimA.x)}" y1="${n(dimA.y)}" x2="${n(dimB.x)}" y2="${n(dimB.y)}" stroke="#334155" stroke-width="0.2"/>`,
     `<line x1="${n(dimA.x - 1)}" y1="${n(dimA.y)}" x2="${n(dimA.x + 1)}" y2="${n(dimA.y)}" stroke="#334155" stroke-width="0.2"/>`,
