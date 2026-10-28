@@ -914,6 +914,8 @@ export function DesignStudio({ initialDesign }: { initialDesign: StudioDocument 
               { id: "elevations-pdf", label: "برگهٔ نماها PDF" },
               { id: "section", label: "برش A-A (SVG)" },
               { id: "section-pdf", label: "برش A-A (PDF)" },
+              { id: "details", label: "جزئیات سازه و میلگرد (SVG)" },
+              { id: "details-pdf", label: "جزئیات سازه و میلگرد (PDF)" },
               { id: "xlsx", label: "XLSX متره و برآورد" },
               { id: "ifc", label: "IFC4 (BIM)" },
               { id: "json", label: "JSON مدل" },

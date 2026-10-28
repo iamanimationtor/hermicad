@@ -24,6 +24,7 @@ import {
   type StudioItem,
 } from "./document";
 import { ifcGuid, sheetXml, zipStore } from "@/domain/exporters/reports";
+import { rebarSchedule } from "./details";
 
 const layerLabel = (id: string): string => STUDIO_LAYERS.find((layer) => layer.id === id)?.label ?? id;
 
@@ -47,6 +48,7 @@ const HEADERS = {
   space: ["شناسه", "نام فضا", "مساحت (م²)", "طبقه", "مختصات مرکز"],
   items: ["شناسه", "کد کتابخانه", "نام", "دسته", "رشته", "لایه", "طبقه", "x (م)", "y (م)", "عرض (م)", "عمق (م)", "چرخش (°)"],
   issues: ["کد", "شدت", "پیام", "شناسهٔ شیء"],
+  rebar: ["ردیف", "عضو", "قطر (mm)", "تعداد", "طول هر شاخه (m)", "طول کل (m)", "وزن (kg)", "شرح"],
 };
 
 /** تبدیل عدد به حروف فارسی برای مبالغ و متراژها (کاربرگ‌های رسمی). */
@@ -181,8 +183,32 @@ export function studioXlsx(doc: StudioDocument, options: StudioWorkbookOptions =
     ["طبقه‌بندی", classificationLabel(doc.classification)],
   ];
 
+  // برگهٔ میلگرد: برای برآورد و سفارش آرماتور
+  const rebar = rebarSchedule(doc);
+  const rebarRows: (string | number)[][] = [
+    ["HERMICAD Studio — جدول میلگرد"],
+    ["کد نقشه", doc.project.code, "ویرایش", doc.revision],
+    ["محاسبه بر پایهٔ مدل پلان است؛ کنترل نهایی با مهندس دارای صلاحیت.", "", ""],
+    [],
+    HEADERS.rebar,
+    ...rebar.rows.map((row, index) => [
+      index + 1,
+      row.member,
+      row.diameterMm,
+      row.count,
+      row.lengthM,
+      row.totalLengthM,
+      row.weightKg,
+      row.note,
+    ]),
+    [],
+    ["جمع وزن (kg)", round(rebar.totalWeightKg * 1.05, 1), "با ۵٪ پرت"],
+    ...rebar.notes.map((note) => [note]),
+  ];
+
   const sheets = [
     { name: "متره", rows: scheduleRows },
+    { name: "میلگرد", rows: rebarRows },
     { name: "در و پنجره", rows: openingRows },
     { name: "فضاها", rows: spaceRows },
     { name: "اشیاء", rows: itemRows },

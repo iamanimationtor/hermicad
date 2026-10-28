@@ -98,6 +98,9 @@ export default async function DesignGalleryPage({ params }: { params: Promise<{ 
           <a href={`${base}?format=section-pdf`} className="btn" download>
             برش A-A (PDF)
           </a>
+          <a href={`${base}?format=details-pdf`} className="btn" download>
+            جزئیات سازه و جدول میلگرد
+          </a>
           {DISCIPLINES.map((entry) => (
             <a
               key={entry.id}

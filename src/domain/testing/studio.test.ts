@@ -35,6 +35,7 @@ import { sampleDesign, sampleDesignItems } from "@/server/designs";
 import { studioIfc, studioXlsx, toPersianWords } from "@/domain/studio/exporters";
 import { renderStudioElevationSheet, renderStudioVertical, viewGeometry } from "@/domain/studio/vertical";
 import { renderStudioElevationsPdf, renderStudioVerticalPdf } from "@/domain/studio/verticalPdf";
+import { barArea, barWeightPerMetre, rebarSchedule, renderStudioDetailPdf, renderStudioDetailSheet } from "@/domain/studio/details";
 import { shapeForDisplay, shapeLogical } from "@/domain/studio/pdf/arabic";
 import { inflateSync } from "node:zlib";
 import { loadTypeface } from "@/domain/studio/pdf/typeface";
@@ -551,4 +552,79 @@ test("studio/vertical", "PDF برش: اجزای بریده‌شده poché دا�
   const content = pdfContentStreams(Buffer.from(pdf));
   assert((content.match(/ re [BS]/g) ?? []).length > 20, "هندسهٔ برش رسم نشده");
   return "برش A-A";
+});
+
+/* ─────────────────────────── جزئیات سازه و میلگرد ─────────────────────────── */
+
+test("studio/details", "جدول میلگرد: تعداد/قطر/وزن سازگار و جمع درست است", () => {
+  const doc = sampleDesign();
+  const schedule = rebarSchedule(doc);
+  assert(schedule.members.length > 0, "هیچ عضو سازه‌ای شناسایی نشد");
+  // ردیف‌ها بر پایهٔ «نوع عضو» تجمیع می‌شوند، پس تعدادشان از تعداد اعضا کمتر است
+  assert(schedule.rows.length >= 3, "ردیف‌های جدول میلگرد کم است");
+  assert(schedule.rows.length <= schedule.members.length * 2, "ردیف‌ها بیش از حد متورم شده‌اند");
+  for (const row of schedule.rows) {
+    assert(row.diameterMm === 8 || row.diameterMm === 10 || row.diameterMm === 12 || row.diameterMm === 16 || row.diameterMm === 20, `قطر نامعتبر: ${row.diameterMm}`);
+    assert(row.count > 0, `تعداد نامعتبر در ${row.member}`);
+    assert(row.lengthM > 0, `طول نامعتبر در ${row.member}`);
+    const expected = row.count * row.lengthM * barWeightPerMetre(row.diameterMm);
+    assert(Math.abs(row.weightKg - expected) < 0.2, `وزن ${row.member} با طول/تعداد نمی‌خواند: ${row.weightKg} vs ${expected}`);
+    if (row.diameterMm >= 12) assert(/شاخهٔ|میلگرد|شبکهٔ/.test(row.note), `شرح میلگرد اصلی ناقص است: ${row.note}`);
+  }
+  const sum = schedule.rows.reduce((total, row) => total + row.weightKg, 0);
+  assert(Math.abs(schedule.totalWeightKg - sum) < 0.2, "جمع وزن با ردیف‌ها نمی‌خواند");
+  assert(schedule.notes.length >= 3, "یادداشت‌های فنی کم است");
+
+  // ابعاد و آرماتور نباید با حداقل آیین‌نامه‌ای ناسازگار باشد
+  const columns = schedule.members.filter((member) => member.kind === "column");
+  for (const column of columns) {
+    assert(column.bars.mainCount >= 4, `ستون با کمتر از ۴ میلگرد: ${column.bars.mainCount}`);
+    assert(column.bars.mainCount % 4 === 0, `آرایش ستون مضرب ۴ نیست: ${column.bars.mainCount}`);
+    assert(column.bars.hoopCount >= Math.ceil(column.length / 0.2) - 1, "تعداد خاموت کم است");
+  }
+  return `${schedule.members.length} عضو · ${schedule.rows.length} ردیف · ${schedule.totalWeightKg} kg`;
+});
+
+test("studio/details", "وزن واحد میلگرد مطابق جدول استاندارد است", () => {
+  assert(Math.abs(barWeightPerMetre(16) - 1.578) < 0.01, `Φ16: ${barWeightPerMetre(16)}`);
+  assert(Math.abs(barWeightPerMetre(12) - 0.888) < 0.01, `Φ12: ${barWeightPerMetre(12)}`);
+  assert(Math.abs(barWeightPerMetre(8) - 0.395) < 0.01, `Φ8: ${barWeightPerMetre(8)}`);
+  assert(Math.abs(barArea(16) - 201) < 2, `سطح Φ16: ${barArea(16)}`);
+  return "kg/m";
+});
+
+test("studio/details", "برگهٔ جزئیات: SVG و PDF هر دو با جدول و عنوان کامل", () => {
+  const doc = sampleDesign();
+  const svg = renderStudioDetailSheet(doc);
+  assert(svg.includes("جدول میلگرد"), "عنوان جدول در SVG نیست");
+  assert(svg.includes("جزئیات ستون"), "جزئیات ستون در SVG نیست");
+  assert(svg.includes("کنترل نهایی با مهندس"), "هشدار کنترل در کادر نیست");
+  assert((svg.match(/<rect /g) ?? []).length > 10, "اجزای ترسیمی برگه کم است");
+  assert((svg.match(/<line /g) ?? []).length > 60, "خطوط هاشور/آرماتور کم است");
+
+  const pdf = renderStudioDetailPdf(doc);
+  const raw = Buffer.from(pdf).toString("latin1");
+  assert(/^%PDF-1\.\d/.test(raw), "سرصفحهٔ PDF");
+  assert(raw.includes("/FontFile2"), "فونت فارسی جاسازی نشده");
+  assert((raw.match(/\/Type \/Page /g) ?? []).length === 1, "جزئیات باید یک برگه باشد");
+  const content = pdfContentStreams(Buffer.from(pdf));
+  assert((content.match(/ re [BS]/g) ?? []).length > 10, "مستطیل‌های جدول/جزئیات کم است");
+  assert((content.match(/ l S/g) ?? []).length > 40, "خطوط آرماتور/هاشور کم است");
+  return `${(pdf.length / 1024).toFixed(0)} KB`;
+});
+
+test("studio/exporters", "XLSX شامل برگهٔ میلگرد است", () => {
+  const doc = sampleDesign();
+  const xlsx = Buffer.from(studioXlsx(doc));
+  const text = xlsx.toString("latin1");
+  assert(text.includes("xl/worksheets/sheet2.xml"), "برگهٔ دوم ساخته نشده");
+  // محتوای XML با UTF-8 نوشته می‌شود؛ برای جست‌وجو همان بایت‌ها را latin1 می‌خوانیم
+  const rebarLabel = Buffer.from("میلگرد", "utf8").toString("latin1");
+  assert(text.includes(rebarLabel), "نام برگهٔ میلگرد در فهرست نیست");
+  const barText = Buffer.from("شاخهٔ", "utf8").toString("latin1");
+  const meshText = Buffer.from("شبکهٔ", "utf8").toString("latin1");
+  assert(text.includes(barText) || text.includes(meshText), "ردیف‌های میلگرد در برگه نیست");
+  // فایل باید ZIP معتبر با امضای PK باشد
+  assert(xlsx[0] === 0x50 && xlsx[1] === 0x4b, "امضای ZIP نامعتبر");
+  return "6 برگ";
 });

@@ -18,6 +18,7 @@ import { PdfWriter } from "./pdf/writer";
 import { studioIfc, studioXlsx } from "./exporters";
 import { renderStudioElevationSheet, renderStudioVertical } from "./vertical";
 import { renderStudioElevationsPdf, renderStudioVerticalPdf } from "./verticalPdf";
+import { renderStudioDetailPdf, renderStudioDetailSheet } from "./details";
 import {
   documentBounds,
   documentFingerprint,
@@ -1162,6 +1163,8 @@ export const STUDIO_FORMATS = [
   "section",
   "elevations-pdf",
   "section-pdf",
+  "details",
+  "details-pdf",
 ] as const;
 export type StudioFormat = (typeof STUDIO_FORMATS)[number];
 
@@ -1220,6 +1223,18 @@ export function exportStudio(
         data: Buffer.from(bundle.pdf),
       };
     }
+    case "details":
+      return {
+        filename: `${base}-structural-details.svg`,
+        mime: "image/svg+xml; charset=utf-8",
+        data: Buffer.from(renderStudioDetailSheet(doc), "utf8"),
+      };
+    case "details-pdf":
+      return {
+        filename: `${base}-structural-details.pdf`,
+        mime: "application/pdf",
+        data: Buffer.from(renderStudioDetailPdf(doc)),
+      };
     case "section-pdf":
       return {
         filename: `${base}-section.pdf`,

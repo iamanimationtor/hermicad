@@ -1,6 +1,7 @@
 import { desc, eq } from "drizzle-orm";
 import { getDb } from "@/db";
 import { designDocuments } from "@/db/schema";
+import { CATALOG_BY_ID } from "@/domain/studio/catalog";
 import {
   createStudioDocument,
   type StudioDocument,
@@ -130,7 +131,14 @@ function wallFromLine(
   to: { x: number; y: number },
   level = 0,
 ): StudioItem {
-  const thickness = catalogId === "wall-exterior" ? 0.25 : 0.12;
+  // ضخامت هر عضو از معنای خودش می‌آید؛ پی نواری ضخامت دیوار نیست و باید
+  // عرض واقعی خودش (پیش‌فرض کتابخانه) را داشته باشد.
+  const thickness =
+    catalogId === "wall-exterior"
+      ? 0.25
+      : catalogId === "wall-partition"
+        ? 0.12
+        : (CATALOG_BY_ID[catalogId]?.defaultSize.d ?? 0.12);
   return special(id, catalogId, from, to, thickness, level);
 }
 

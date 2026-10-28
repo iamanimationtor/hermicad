@@ -172,7 +172,13 @@ export function shapeLogical(text: string): number[] {
 type BidiClass = "R" | "L" | "N";
 
 const DIGIT = (cp: number): boolean =>
-  (cp >= 0x30 && cp <= 0x39) || (cp >= 0x06f0 && cp <= 0x06f9) || (cp >= 0x0660 && cp <= 0x0669);
+  (cp >= 0x30 && cp <= 0x39) ||
+  (cp >= 0x06f0 && cp <= 0x06f9) ||
+  (cp >= 0x0660 && cp <= 0x0669) ||
+  // جداکنندهٔ اعشار فارسی «٫» و هزارگان «٬» بخشی از عدد هستند؛ اگر خنثی
+  // شمرده شوند، «۰٫۸۰» در چیدمان دیداری به «۸۰٫۰» می‌شکند.
+  cp === 0x066b ||
+  cp === 0x066c;
 
 function bidiClass(cp: number): BidiClass {
   // مهم: ارقام فارسی/عربی هم داخل بازهٔ ۰۶۰۰..۰۶FF هستند؛ باید پیش از
