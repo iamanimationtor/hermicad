@@ -444,7 +444,7 @@ interface Sheet {
   height: number;
 }
 
-function frameOf(doc: StudioDocument): { sheet: Sheet; area: { x: number; y: number; w: number; h: number } } {
+export function frameOf(doc: StudioDocument): { sheet: Sheet; area: { x: number; y: number; w: number; h: number } } {
   const size = sheetSizeMm(doc);
   return {
     sheet: { width: size.w, height: size.h },
@@ -458,7 +458,7 @@ function frameOf(doc: StudioDocument): { sheet: Sheet; area: { x: number; y: num
 }
 
 /** کادر و کتیبهٔ برگه (همان زبان بصری برگه‌های نما). */
-function sheetChrome(scene: Scene, doc: StudioDocument, title: string, subtitle: string): void {
+export function sheetChrome(scene: Scene, doc: StudioDocument, title: string, subtitle: string): void {
   const { sheet } = frameOf(doc);
   scene.rect(MARGIN, MARGIN, sheet.width - MARGIN * 2, sheet.height - MARGIN * 2, { width: 0.45, gray: 0.45 });
   scene.rect(MARGIN + 3, MARGIN + 3, sheet.width - (MARGIN + 3) * 2, sheet.height - (MARGIN + 3) * 2, { width: 0.2, gray: 0.7 });

@@ -32,6 +32,7 @@ export default async function DesignGalleryPage({ params }: { params: Promise<{ 
     { key: "elevations", label: "برگهٔ نماها (۴ جهت)", url: `${base}?format=elevations` },
     { key: "section", label: "برش A-A", url: `${base}?format=section` },
     { key: "details", label: "جزئیات اجرایی سازه و جدول میلگرد", url: `${base}?format=details` },
+    { key: "arch-details", label: "جزئیات اجرایی معماری", url: `${base}?format=arch-details` },
     { key: "schedules", label: "جداول، کیپلان و بازشوها", url: `${base}?format=schedules` },
   ];
 
@@ -114,6 +115,12 @@ export default async function DesignGalleryPage({ params }: { params: Promise<{ 
           </a>
           <a href={`${base}?format=details-dxf`} className="btn" download>
             جزئیات سازه DXF (۱:۱)
+          </a>
+          <a href={`${base}?format=arch-details-pdf`} className="btn" download>
+            جزئیات اجرایی معماری (PDF)
+          </a>
+          <a href={`${base}?format=arch-details-dxf`} className="btn" download>
+            جزئیات معماری DXF
           </a>
           <a href={`${base}?format=section-dxf`} className="btn" download>
             برش DXF (۱:۱)

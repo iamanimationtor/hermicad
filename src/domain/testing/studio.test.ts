@@ -38,6 +38,7 @@ import { studioIfc, studioXlsx, toPersianWords } from "@/domain/studio/exporters
 import { renderStudioElevationSheet, renderStudioVertical, viewGeometry } from "@/domain/studio/vertical";
 import { renderStudioElevationsPdf, renderStudioVerticalPdf } from "@/domain/studio/verticalPdf";
 import { barArea, barWeightPerMetre, rebarSchedule, renderStudioDetailPdf, renderStudioDetailSheet } from "@/domain/studio/details";
+import { ARCH_DETAILS } from "@/domain/studio/archDetails";
 import {
   faArea,
   faMeter,
@@ -580,6 +581,38 @@ test("studio/vertical", "PDF برش: اجزای بریده‌شده poché دا�
 
 /* ─────────────────────────── جزئیات سازه و میلگرد ─────────────────────────── */
 
+test("studio/details", "جزئیات اجرایی معماری: چهار مقطع لایه‌ای و سه قالب خروجی", () => {
+  const doc = sampleDesign();
+  assert(ARCH_DETAILS.length >= 4, `تعداد مقاطع معماری کم است: ${ARCH_DETAILS.length}`);
+  for (const detail of ARCH_DETAILS) {
+    assert(detail.bands.length >= 4, `مقطع بدون لایهٔ کافی: ${detail.title}`);
+    const total = detail.bands.reduce((sum, band) => sum + band.thickness, 0);
+    assert(total >= 150 && total <= 1000, `ضخامت کل غیرمنطقی در ${detail.title}: ${total}`);
+    for (const band of detail.bands) {
+      assert(band.thickness > 0, `لایهٔ بدون ضخامت: ${detail.title}`);
+      assert(band.label.trim().length > 2, `لایهٔ بدون نام: ${detail.title}`);
+    }
+  }
+  const svg = exportStudio(doc, "arch-details");
+  const text = svg.data.toString("utf8");
+  assert(text.includes("<svg"), "SVG جزئیات معماری ساخته نشد");
+  for (const detail of ARCH_DETAILS) {
+    assert(text.includes(detail.title), `عنوان مقطع در SVG نیست: ${detail.title}`);
+  }
+  assert(text.includes("یادداشت‌های فنی"), "یادداشت‌های فنی روی برگه نیست");
+
+  const pdf = exportStudio(doc, "arch-details-pdf");
+  const raw = Buffer.from(pdf.data).toString("latin1");
+  assert(/^%PDF-1\.\d/.test(raw), "امضای PDF جزئیات معماری");
+  assert(raw.includes("/FontFile2"), "فونت فارسی در PDF جزئیات معماری جاسازی نشده");
+
+  const dxf = exportStudio(doc, "arch-details-dxf");
+  const dxfText = dxf.data.toString("utf8");
+  assert(dxf.data.length > 30_000, `حجم DXF جزئیات معماری کم است: ${dxf.data.length}`);
+  assert(dxfText.includes("AcDbHatch"), "هاشور لایه‌ها در DXF نیست");
+  assert(dxfText.includes("$INSUNITS\n70\n6"), "واحد DXF جزئیات معماری باید متر باشد");
+  return `${ARCH_DETAILS.length} مقطع معماری`;
+});
 test("studio/details", "جدول برش میلگرد (BBS): طول برش، وزن و شکل خم برای هر ردیف", () => {
   const doc = sampleDesign();
   const schedule = rebarSchedule(doc);

@@ -21,6 +21,11 @@ import { PdfWriter } from "./pdf/writer";
 import { studioIfc, studioXlsx } from "./exporters";
 import { renderStudioElevationSheet, renderStudioVertical, studioVerticalDxf } from "./vertical";
 import { renderStudioElevationsPdf, renderStudioVerticalPdf } from "./verticalPdf";
+import {
+  renderStudioArchDetailDxf,
+  renderStudioArchDetailPdf,
+  renderStudioArchDetailSheet,
+} from "./archDetails";
 import { renderStudioDetailDxf, renderStudioDetailPdf, renderStudioDetailSheet } from "./details";
 import { renderStudioSchedulePdf, renderStudioScheduleSheet } from "./schedules";
 import {
@@ -1135,6 +1140,9 @@ export const STUDIO_FORMATS = [
   "details",
   "details-pdf",
   "details-dxf",
+  "arch-details",
+  "arch-details-pdf",
+  "arch-details-dxf",
   "schedules",
   "schedules-pdf",
   "elevations-dxf",
@@ -1226,6 +1234,24 @@ export function exportStudio(
         filename: `${base}-structural-details.dxf`,
         mime: "application/dxf",
         data: Buffer.from(renderStudioDetailDxf(doc), "utf8"),
+      };
+    case "arch-details":
+      return {
+        filename: `${base}-arch-details.svg`,
+        mime: "image/svg+xml; charset=utf-8",
+        data: Buffer.from(renderStudioArchDetailSheet(doc), "utf8"),
+      };
+    case "arch-details-pdf":
+      return {
+        filename: `${base}-arch-details.pdf`,
+        mime: "application/pdf",
+        data: Buffer.from(renderStudioArchDetailPdf(doc)),
+      };
+    case "arch-details-dxf":
+      return {
+        filename: `${base}-arch-details.dxf`,
+        mime: "application/dxf",
+        data: Buffer.from(renderStudioArchDetailDxf(doc), "utf8"),
       };
     case "elevations-dxf":
       return {
