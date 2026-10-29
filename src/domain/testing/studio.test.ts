@@ -72,7 +72,7 @@ function demoDocument() {
 test("studio/catalog", "کتابخانه یکتا، کامل و با هندسهٔ نرمال‌شده است", () => {
   const ids = new Set(CATALOG.map((item) => item.id));
   assert(ids.size === CATALOG.length, "شناسهٔ تکراری در کتابخانه");
-  assert(CATALOG.length >= 160, `تعداد اشیا کمتر از انتظار: ${CATALOG.length}`);
+  assert(CATALOG.length >= 175, `تعداد اشیا کمتر از انتظار: ${CATALOG.length}`);
   assert(CATEGORIES.length >= 20, `دسته‌های کتابخانه کم است: ${CATEGORIES.length}`);
   // هر دسته دست‌کم ۳ شیء داشته باشد تا «کتابخانهٔ آماده» واقعاً کاربرد داشته باشد
   for (const category of CATEGORIES) {
