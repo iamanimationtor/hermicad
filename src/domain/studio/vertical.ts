@@ -51,6 +51,8 @@ interface ElevationBlock {
   kind: "solid" | "opening" | "column";
   /** فاصله از ناظر؛ برای مرتب‌سازی نزدیک روی دور */
   depth: number;
+  /** شناسهٔ کتابخانه — برای تمایز در/پنجره و انتخاب نماد نما */
+  catalogId?: string;
 }
 
 const n = (value: number): string => (Math.round(value * 1000) / 1000).toString();
@@ -102,10 +104,13 @@ function collectBlocks(doc: StudioDocument, direction: ElevationDirection, secti
         layer: definition.layer,
         kind: "opening",
         depth: span.depth,
+        catalogId: definition.id,
       });
       continue;
     }
     if (definition.category === "foundation") {
+      // در نما، پی زیر خاک است و دیده نمی‌شود؛ فقط در برش (که بریده می‌شود) می‌آید.
+      if (!section) continue;
       blocks.push({ x0: span.x0, x1: span.x1, y0: -Math.max(0.6, definition.defaultSize.h * 2), y1: 0, layer: definition.layer, kind: "solid", depth: span.depth });
       continue;
     }
@@ -119,6 +124,26 @@ function collectBlocks(doc: StudioDocument, direction: ElevationDirection, secti
       kind: definition.id.startsWith("column") ? "column" : "solid",
       depth: span.depth,
     });
+  }
+  /**
+   * پنهان‌سازی بازشوهای داخلی در نما.
+   *
+   * چرا: نما بدون حذف خطوط پنهان رسم می‌شود، پس در/پنجرهٔ دیوارهای داخلی از
+   * پشت نمای بیرونی «دیده» می‌شد و نقشه بی‌معنا می‌شد (دری که زیر پنجرهٔ نما
+   * آویزان است). فقط بازشوهایی می‌مانند که روی پوستهٔ بیرونیِ همان جهت‌اند.
+   */
+  if (!section) {
+    const depthOf = (block: ElevationBlock): number => block.depth;
+    const wallDepths = blocks.filter((block) => block.kind === "solid").map(depthOf);
+    if (wallDepths.length > 0) {
+      const viewerFromLow = direction === "south" || direction === "west";
+      const facade = viewerFromLow ? Math.min(...wallDepths) : Math.max(...wallDepths);
+      for (let index = blocks.length - 1; index >= 0; index -= 1) {
+        const block = blocks[index];
+        if (block.kind !== "opening") continue;
+        if (Math.abs(block.depth - facade) > 0.5) blocks.splice(index, 1);
+      }
+    }
   }
   return blocks;
 }
@@ -234,10 +259,16 @@ function drawView(doc: StudioDocument, options: VerticalViewOptions, frame: Fram
     );
   }
   // جان‌پناه بام
+  // جان‌پناه بام: در نما «حجم» است، نه خط پنهان؛ با کف‌سازی و کفسنگی بالای آن
   const parapetA = map(minX - 0.3, doc.levels * DEFAULT_FLOOR_HEIGHT);
   const parapetB = map(maxX + 0.3, doc.levels * DEFAULT_FLOOR_HEIGHT + 0.9);
+  const px = Math.min(parapetA.x, parapetB.x);
+  const py = Math.min(parapetA.y, parapetB.y);
+  const pw = Math.abs(parapetA.x - parapetB.x);
+  const ph = Math.abs(parapetA.y - parapetB.y);
   pieces.push(
-    `<rect x="${n(Math.min(parapetA.x, parapetB.x))}" y="${n(Math.min(parapetA.y, parapetB.y))}" width="${n(Math.abs(parapetA.x - parapetB.x))}" height="${n(Math.abs(parapetA.y - parapetB.y))}" fill="none" stroke="#0f172a" stroke-width="0.35" stroke-dasharray="2 1.2" data-parapet="1"/>`,
+    `<rect x="${n(px)}" y="${n(py)}" width="${n(pw)}" height="${n(ph)}" fill="#cbd5e1" stroke="#0f172a" stroke-width="0.35" data-parapet="1"/>`,
+    `<rect x="${n(px - 0.8)}" y="${n(py - 1.1)}" width="${n(pw + 1.6)}" height="${n(1.1)}" fill="#e2e8f0" stroke="#0f172a" stroke-width="0.3" data-coping="1"/>`,
   );
 
   // ترتیب رسم در نما:
@@ -260,10 +291,27 @@ function drawView(doc: StudioDocument, options: VerticalViewOptions, frame: Fram
     const isCut = isSection && block.kind !== "opening";
     const cutFill = isCut ? (block.kind === "column" ? "#64748b" : "#cbd5e1") : null;
     if (block.kind === "opening") {
+      const isDoor = (block.catalogId ?? "").startsWith("door");
+      // نماد نما: پنجره = لنگهٔ شیشه‌ای با آستانه و کف‌نشیمن؛ در = لنگهٔ توپر با
+      // آستانه. خط وسط و کادر داخلی، عمق و بازشوندگی را نشان می‌دهد.
       pieces.push(
-        `<rect x="${n(x)}" y="${n(y)}" width="${n(w)}" height="${n(h)}" fill="#ffffff" stroke="${style.stroke}" stroke-width="0.3" data-opening="1"/>`,
-        `<line x1="${n(x)}" y1="${n(y + h / 2)}" x2="${n(x + w)}" y2="${n(y + h / 2)}" stroke="${style.stroke}" stroke-width="0.18"/>`,
+        `<rect x="${n(x)}" y="${n(y)}" width="${n(w)}" height="${n(h)}" fill="#ffffff" stroke="${style.stroke}" stroke-width="0.35" data-opening="1" data-opening-kind="${isDoor ? "door" : "window"}"/>`,
+        `<rect x="${n(x + 0.6)}" y="${n(y + 0.6)}" width="${n(Math.max(w - 1.2, 0.4))}" height="${n(Math.max(h - 1.2, 0.4))}" fill="none" stroke="${style.stroke}" stroke-width="0.18"/>`,
       );
+      if (isDoor) {
+        // لنگهٔ در + دستگیره
+        pieces.push(
+          `<line x1="${n(x + w / 2)}" y1="${n(y + 0.6)}" x2="${n(x + w / 2)}" y2="${n(y + h - 0.6)}" stroke="${style.stroke}" stroke-width="0.15"/>`,
+          `<circle cx="${n(x + w / 2 - 0.8)}" cy="${n(y + h / 2)}" r="0.28" fill="${style.stroke}"/>`,
+        );
+      } else {
+        // آستانهٔ پنجره: خط کوتاه بیرون‌زده در پایین، و تقسیم عمودی لنگه‌ها
+        pieces.push(
+          `<line x1="${n(x - 0.9)}" y1="${n(y + h)}" x2="${n(x + w + 0.9)}" y2="${n(y + h)}" stroke="${style.stroke}" stroke-width="0.35"/>`,
+          `<line x1="${n(x + w / 2)}" y1="${n(y + 0.6)}" x2="${n(x + w / 2)}" y2="${n(y + h - 0.6)}" stroke="${style.stroke}" stroke-width="0.15"/>`,
+          `<line x1="${n(x + 0.6)}" y1="${n(y + h * 0.62)}" x2="${n(x + w - 0.6)}" y2="${n(y + h * 0.62)}" stroke="${style.stroke}" stroke-width="0.15"/>`,
+        );
+      }
       continue;
     }
     pieces.push(
@@ -326,7 +374,9 @@ function drawView(doc: StudioDocument, options: VerticalViewOptions, frame: Fram
 }
 
 function frameSvg(frame: Frame): string {
-  return `<rect x="${n(frame.x)}" y="${n(frame.y)}" width="${n(frame.w)}" height="${n(frame.h)}" fill="none" stroke="#94a3b8" stroke-width="0.25" stroke-dasharray="3 2"/>`;
+  // قاب هر نما خط نازک ممتد است (نه نقطه‌چین)؛ نقطه‌چین در نقشه معنای «پنهان/بالا»
+  // دارد و قاب نما نباید با آن اشتباه شود.
+  return `<rect x="${n(frame.x)}" y="${n(frame.y)}" width="${n(frame.w)}" height="${n(frame.h)}" fill="none" stroke="#cbd5e1" stroke-width="0.2"/>`;
 }
 
 function sheetBase(doc: StudioDocument, title: string, subtitle: string, body: string, footerNote: string): string {
