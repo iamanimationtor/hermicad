@@ -202,7 +202,10 @@ function bidiClass(cp: number): BidiClass {
   if (isArabicLetter(cp) || (cp >= 0xfb50 && cp <= 0xfdff) || (cp >= 0xfe70 && cp <= 0xfeff)) return "R";
   if ((cp >= 0x41 && cp <= 0x5a) || (cp >= 0x61 && cp <= 0x7a)) return "L";
   if (cp >= 0x00c0 && cp <= 0x024f) return "L"; // لاتین گسترده (é, ø, …)
-  if (cp === 0x00b2 || cp === 0x00b3 || cp === 0x00b0 || cp === 0x00d7 || cp === 0x00f7) return "L";
+  // این نویسه‌ها «جهت‌خنثی» هستند: در «م²» باید تابع بافت فارسی بمانند و در
+  // «m²» تابع بافت لاتین. اگر L ثابت بگیرند، برچسب مساحت («۱۶٫۶ م²») به‌صورت
+  // «²م» چاپ می‌شود و غلط است.
+  if (cp === 0x00b2 || cp === 0x00b3 || cp === 0x00b0 || cp === 0x00d7 || cp === 0x00f7) return "N";
   return "N";
 }
 
