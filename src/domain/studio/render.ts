@@ -718,9 +718,12 @@ export function planScene(
       for (const part of definition.parts) {
         partToScene(scene, part, item, layout, theme, definition.layer, {
           color: GHOST_COLOR[theme],
-          weight: 0.13,
+          // وزن/کدری محو: باید «زمینه» باشد نه «محتوا»، اما در برگهٔ رشته‌ای
+          // (مثلاً تأسیسات) دیوارها و بازشوها باید دیده شوند تا لوله نسبت به
+          // فضا سنجیده شود؛ با ۰٫۱۳ قبلی، فقط چند کادر شناور دیده می‌شد.
+          weight: 0.2,
           forceDash: true,
-          opacity: 0.5,
+          opacity: 0.62,
           data: `data-ghost="${item.id}"`,
         });
       }
