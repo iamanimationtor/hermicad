@@ -29,7 +29,7 @@ export interface DrawTextOptions {
 export class PdfText {
   readonly regular: Typeface | null;
   readonly bold: Typeface | null;
-  private readonly usage = new Map<"regular" | "bold", Map<number, number>>([
+  private readonly usage = new Map<"regular" | "bold", Map<number, number[]>>([
     ["regular", new Map()],
     ["bold", new Map()],
   ]);
@@ -97,10 +97,16 @@ export class PdfText {
     // جابه‌جا می‌شوند و متن کپی‌شده از PDF بی‌معنا می‌شود.
     for (let index = 0; index < encoded.glyphs.length; index += 1) {
       const glyph = encoded.glyphs[index];
-      if (!usage.has(glyph)) usage.set(glyph, encoded.bases[index] ?? 0x20);
+      if (!usage.has(glyph)) usage.set(glyph, encoded.bases[index] ?? [0x20]);
     }
 
-    // ماتریس متن: چرخش حول لنگر (چرخش صفر ⇒ همان 1 0 0 1)
+    // ماتریس متن: چرخش حول لنگر (چرخش صفر ⇒ همان 1 0 0 1).
+    //
+    // نکتهٔ استخراج متن: متن فارسی به «ترتیب دیداری» و در یک `Tj` نوشته می‌شود.
+    // آزمون عملی نشان داد خواننده‌های PDF (MuPDF/PyMuPDF و مانند آن) خودشان
+    // بلوک‌های راست‌به‌چپ را معکوس می‌کنند؛ اگر ActualText بگذاریم، همان معکوس‌سازی
+    // دوباره اعمال می‌شود و متن کپی‌شده برعکس می‌شود. پس ترتیب دیداری می‌ماند و
+    // درستی نویسه‌ها از طریق ToUnicode تأمین می‌شود (لیگاتور «لا» به دو نویسه).
     ops.push(
       `BT ${gray} ${gray} ${gray} rg ${this.fontName(Boolean(bold))} ${size.toFixed(2)} Tf ` +
         `${cos.toFixed(4)} ${sin.toFixed(4)} ${(-sin).toFixed(4)} ${cos.toFixed(4)} ${x.toFixed(2)} ${at.y.toFixed(2)} Tm ` +
@@ -109,9 +115,29 @@ export class PdfText {
     return width;
   }
 
-  usageFor(weight: "regular" | "bold"): Map<number, number> {
+  usageFor(weight: "regular" | "bold"): Map<number, number[]> {
     return this.usage.get(weight)!;
   }
+}
+
+/**
+ * رشتهٔ PDF به‌صورت UTF-16BE با BOM — قالب استاندارد مقدار ActualText برای
+ * متن‌های غیرلاتین (هر نویسه ۴ رقم هگز).
+ */
+export function utf16Hex(value: string): string {
+  let out = "FEFF";
+  for (const char of value) {
+    const cp = char.codePointAt(0) ?? 0x20;
+    if (cp > 0xffff) {
+      const high = 0xd800 + ((cp - 0x10000) >> 10);
+      const low = 0xdc00 + ((cp - 0x10000) & 0x3ff);
+      out += high.toString(16).toUpperCase().padStart(4, "0");
+      out += low.toString(16).toUpperCase().padStart(4, "0");
+    } else {
+      out += cp.toString(16).toUpperCase().padStart(4, "0");
+    }
+  }
+  return out;
 }
 
 /** فرار دادن رشتهٔ متنی PDF (پرانتز و بک‌اسلش). */

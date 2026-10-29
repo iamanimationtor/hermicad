@@ -20,7 +20,7 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 
-import { PRESENTATION_TO_BASE, shapeForDisplay } from "./arabic";
+import { LIGATURE_BASES, PRESENTATION_TO_BASE, shapeForDisplay } from "./arabic";
 import { PdfWriter } from "./writer";
 
 /** مسیرهای ممکن فونت، به ترتیب اولویت (توسعه و اجرای تولیدی). */
@@ -36,8 +36,8 @@ interface FontTables {
 export interface EncodedText {
   /** شناسهٔ گلیف‌ها به ترتیب دیداری */
   glyphs: number[];
-  /** نویسهٔ پایهٔ منطقی هر گلیف (برای ToUnicode) */
-  bases: number[];
+  /** نویسه(های) پایهٔ منطقی هر گلیف (برای ToUnicode) — لیگاتور «لا» دو نویسه دارد */
+  bases: number[][];
   /** رشتهٔ هگز برای عملگر Tj */
   hex: string;
   /** عرض متن بر حسب ۱/۱۰۰۰ em */
@@ -214,12 +214,12 @@ export class Typeface {
     const display = shapeForDisplay(text, direction);
     const glyphs: number[] = [];
     // نویسهٔ پایهٔ هر گلیف: برای ToUnicode لازم است (کپی متن از PDF)
-    const bases: number[] = [];
+    const bases: number[][] = [];
     let width = 0;
     for (const code of display) {
       const glyph = this.glyphFor(code) || this.glyphFor(0x3f) || 0;
       glyphs.push(glyph);
-      bases.push(PRESENTATION_TO_BASE.get(code) ?? code);
+      bases.push(LIGATURE_BASES.get(code) ?? [PRESENTATION_TO_BASE.get(code) ?? code]);
       width += this.advanceFor(glyph);
     }
     const hex = glyphs.map((glyph) => glyph.toString(16).padStart(4, "0")).join("");
@@ -320,17 +320,14 @@ export function embedFont(writer: PdfWriter, typeface: Typeface, glyphs: Iterabl
 }
 
 /** ساخت CMap معکوس تا متن کپی‌شده از PDF خوانا بماند. */
-export function writeToUnicode(writer: PdfWriter, font: EmbeddedFont, usedGlyphs: Map<number, number>): void {
+export function writeToUnicode(writer: PdfWriter, font: EmbeddedFont, usedGlyphs: Map<number, number[]>): void {
   const entries = [...usedGlyphs.entries()]
     .sort((a, b) => a[0] - b[0])
-    .map(([glyph, code]) => {
-      const base = PRESENTATION_TO_BASE.get(code) ?? code;
-      return [glyph, base] as const;
-    });
+    .map(([glyph, codes]) => [glyph, codes] as const);
 
   // فاصله همیشه نگاشت شود تا استخراج متن، کلمه‌ها را نچسباند
   const spaceGlyph = font.typeface.glyphFor(0x20);
-  if (spaceGlyph && !entries.some(([glyph]) => glyph === spaceGlyph)) entries.push([spaceGlyph, 0x20]);
+  if (spaceGlyph && !entries.some(([glyph]) => glyph === spaceGlyph)) entries.push([spaceGlyph, [0x20]]);
 
   const chunk = <T,>(items: T[], size: number): T[][] => {
     const groups: T[][] = [];
@@ -339,7 +336,15 @@ export function writeToUnicode(writer: PdfWriter, font: EmbeddedFont, usedGlyphs
   };
 
   const pairs = chunk(entries, 100)
-    .map((group) => `${group.length} beginbfchar\n${group.map(([glyph, base]) => `<${glyph.toString(16).padStart(4, "0")}> <${base.toString(16).padStart(4, "0")}>`).join("\n")}\nendbfchar`)
+    .map(
+      (group) =>
+        `${group.length} beginbfchar\n${group
+          .map(
+            ([glyph, codes]) =>
+              `<${glyph.toString(16).padStart(4, "0")}> <${codes.map((code) => code.toString(16).padStart(4, "0")).join("")}>`,
+          )
+          .join("\n")}\nendbfchar`,
+    )
     .join("\n");
 
   const body =

@@ -101,6 +101,21 @@ function joinType(cp: number): JoinType {
 export const isArabicLetter = (cp: number): boolean => cp >= 0x0600 && cp <= 0x06ff;
 
 /** نگاشت شکل نمایشی به حرف پایه (برای ToUnicode و کپی متن از PDF). */
+/**
+ * لیگاتورهایی که به **چند نویسه** برمی‌گردند.
+ *
+ * «لا» یک گلیف است (FEFB/FEFC) اما دو حرف. اگر تنها به یک نویسه نگاشت شود،
+ * متن کپی‌شده از PDF یک حرف کم دارد («صلاحیت» ← «صلحیت»). در ToUnicode هر
+ * گلیف می‌تواند دنباله‌ای از نویسه‌ها را برگرداند؛ از همین قابلیت استفاده شده.
+ */
+export const LIGATURE_BASES: Map<number, number[]> = new Map([
+  // ترتیب «الف، لام» است و نه «لام، الف»: کل رشته به ترتیب دیداری نوشته
+  // می‌شود و خوانندهٔ PDF بلوک را معکوس می‌کند؛ با این ترتیب، پس از معکوس‌شدن
+  // «لا» به‌دست می‌آید (آزمون‌شده با MuPDF).
+  [0xfefb, [0x0627, 0x0644]], // لا (آغازین/میانی)
+  [0xfefc, [0x0627, 0x0644]], // لا (پایانی)
+]);
+
 export const PRESENTATION_TO_BASE: Map<number, number> = (() => {
   const map = new Map<number, number>();
   for (const [base, forms] of Object.entries(FORMS)) {
