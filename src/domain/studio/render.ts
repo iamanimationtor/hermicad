@@ -888,55 +888,105 @@ export function renderStudioDxf(doc: StudioDocument, options: RenderOptions = {}
     [...usedLayers].map((layer) => ({ name: layer.toUpperCase(), color: DXF_COLORS[layer] ?? 7 })),
   );
 
+  /**
+   * نقشه به‌صورت **بلوک** نوشته می‌شود، نه خط‌های پراکنده.
+   *
+   * چرا: در اتوکد، مبل/ستون/در باید یک «بلوک» باشد تا کاربر بتواند انتخابش
+   * کند، جابه‌جا کند و نمونه‌های دیگرش را با یک کلیک عوض کند. قبلاً هر شیء به
+   * چند خط و دایره شکسته می‌شد و ویرایش نقشه عملاً ناممکن بود.
+   *
+   * هر کلید بلوک = (شناسهٔ شیء + اندازهٔ واقعی)؛ بلوک در مقیاس ۱ و در متر
+   * ساخته می‌شود تا دایره‌ها بیضی نشوند و اندازه‌گیری در اتوکد همان اندازهٔ
+   * واقعی باشد. هندسهٔ داخل بلوک حول مرکز و **آینه‌شده در محور Y** است
+   * (مختصات اشیای کتابخانه از بالا به پایین است)؛ درج با چرخش منفی همان
+   * تبدیل نقشهٔ برداری را بازتولید می‌کند.
+   */
+  const blockKey = (item: (typeof items)[number], id: string): string =>
+    `${id}@${item.w.toFixed(3)}x${item.d.toFixed(3)}`;
+  const blockName = (key: string): string => `HERMI_${key.replace(/[^A-Za-z0-9_]+/g, "_").toUpperCase()}`;
+
+  /** یک جزء را با نقش مختصات داده‌شده می‌نویسد (برای بلوک یا انفجار). */
+  const emitPart = (
+    writerRef: DxfWriter,
+    part: (typeof CATALOG_BY_ID)[string]["parts"][number],
+    itemWidth: number,
+    itemDepth: number,
+    map: (lx: number, ly: number) => [number, number],
+    layer: string,
+  ): void => {
+    if (part.kind === "rect") {
+      const x0 = (part.x - 0.5) * itemWidth;
+      const y0 = (part.y - 0.5) * itemDepth;
+      const x1 = x0 + part.w * itemWidth;
+      const y1 = y0 + part.h * itemDepth;
+      writerRef.polyline([map(x0, y0), map(x1, y0), map(x1, y1), map(x0, y1)], layer);
+    } else if (part.kind === "circle") {
+      const center = map((part.cx - 0.5) * itemWidth, (part.cy - 0.5) * itemDepth);
+      writerRef.circle(center[0], center[1], part.r * Math.min(itemWidth, itemDepth) * 0.5, layer);
+    } else if (part.kind === "mline") {
+      const a = map(part.x1, part.y1);
+      const b = map(part.x2, part.y2);
+      writerRef.line(a[0], a[1], b[0], b[1], layer);
+    } else if (part.kind === "marc") {
+      const steps = 16;
+      const points: [number, number][] = [];
+      for (let i = 0; i <= steps; i += 1) {
+        const angle = ((part.from + ((part.to - part.from) * i) / steps) * Math.PI) / 180;
+        points.push(map(part.cx + part.r * Math.cos(angle), part.cy + part.r * Math.sin(angle)));
+      }
+      for (let i = 0; i < points.length - 1; i += 1) {
+        writerRef.line(points[i][0], points[i][1], points[i + 1][0], points[i + 1][1], layer);
+      }
+    } else if (part.kind === "poly") {
+      const points = part.points.map(([u, v]) => map((u - 0.5) * itemWidth, (v - 0.5) * itemDepth));
+      if (part.closed === false) {
+        for (let i = 0; i < points.length - 1; i += 1) {
+          writerRef.line(points[i][0], points[i][1], points[i + 1][0], points[i + 1][1], layer);
+        }
+      } else {
+        writerRef.polyline(points, layer);
+      }
+    } else {
+      const a = map((part.x1 - 0.5) * itemWidth, (part.y1 - 0.5) * itemDepth);
+      const b = map((part.x2 - 0.5) * itemWidth, (part.y2 - 0.5) * itemDepth);
+      writerRef.line(a[0], a[1], b[0], b[1], layer);
+    }
+  };
+
+  // ۱) تعریف بلوک‌ها
+  const definedBlocks = new Map<string, { id: string; w: number; d: number; layer: string }>();
+  for (const item of items) {
+    const definition = CATALOG_BY_ID[item.catalogId];
+    if (!definition) continue;
+    const key = blockKey(item, definition.id);
+    if (definedBlocks.has(key)) continue;
+    definedBlocks.set(key, { id: definition.id, w: item.w, d: item.d, layer: definition.layer.toUpperCase() });
+  }
+  for (const [key, entry] of definedBlocks) {
+    const definition = CATALOG_BY_ID[entry.id];
+    if (!definition) continue;
+    writer.beginBlock(blockName(key));
+    // محلی (حول مرکز) و آینه‌شده در Y
+    const mirror = (lx: number, ly: number): [number, number] => [lx, -ly];
+    for (const part of definition.parts) emitPart(writer, part, entry.w, entry.d, mirror, entry.layer);
+    writer.endBlock();
+  }
+
+  // ۲) درج نمونه‌ها + برچسب
   for (const item of items) {
     const definition = CATALOG_BY_ID[item.catalogId];
     if (!definition) continue;
     const layer = definition.layer.toUpperCase();
-    const rad = (item.rotationDeg * Math.PI) / 180;
-    const cos = Math.cos(rad);
-    const sin = Math.sin(rad);
-    const map = (lx: number, ly: number): [number, number] => [
-      item.x + (lx * cos - ly * sin),
-      item.y - (lx * sin + ly * cos),
-    ];
-    for (const part of definition.parts) {
-      if (part.kind === "rect") {
-        const x0 = (part.x - 0.5) * item.w;
-        const y0 = (part.y - 0.5) * item.d;
-        const x1 = x0 + part.w * item.w;
-        const y1 = y0 + part.h * item.d;
-        writer.polyline([map(x0, y0), map(x1, y0), map(x1, y1), map(x0, y1)], layer);
-      } else if (part.kind === "circle") {
-        const center = map((part.cx - 0.5) * item.w, (part.cy - 0.5) * item.d);
-        writer.circle(center[0], center[1], part.r * Math.min(item.w, item.d) * 0.5, layer);
-      } else if (part.kind === "mline") {
-        const a = map(part.x1, part.y1);
-        const b = map(part.x2, part.y2);
-        writer.line(a[0], a[1], b[0], b[1], layer);
-      } else if (part.kind === "marc") {
-        const steps = 16;
-        const points: [number, number][] = [];
-        for (let i = 0; i <= steps; i += 1) {
-          const angle = ((part.from + ((part.to - part.from) * i) / steps) * Math.PI) / 180;
-          points.push(map(part.cx + part.r * Math.cos(angle), part.cy + part.r * Math.sin(angle)));
-        }
-        for (let i = 0; i < points.length - 1; i += 1) {
-          writer.line(points[i][0], points[i][1], points[i + 1][0], points[i + 1][1], layer);
-        }
-      } else if (part.kind === "poly") {
-        const points = part.points.map(([u, v]) => map((u - 0.5) * item.w, (v - 0.5) * item.d));
-        if (part.closed === false) {
-          for (let i = 0; i < points.length - 1; i += 1) {
-            writer.line(points[i][0], points[i][1], points[i + 1][0], points[i + 1][1], layer);
-          }
-        } else {
-          writer.polyline(points, layer);
-        }
-      } else {
-        const a = map((part.x1 - 0.5) * item.w, (part.y1 - 0.5) * item.d);
-        const b = map((part.x2 - 0.5) * item.w, (part.y2 - 0.5) * item.d);
-        writer.line(a[0], a[1], b[0], b[1], layer);
-      }
+    const key = blockKey(item, definition.id);
+    if (definedBlocks.has(key)) {
+      writer.insert(blockName(key), item.x, item.y, 1, 1, -item.rotationDeg, layer);
+    } else {
+      // مسیر پشتیبان: اگر بلوک ساخته نشد، هندسه انفجار می‌شود (نقشه نباید ناقص بماند)
+      const rad = (item.rotationDeg * Math.PI) / 180;
+      const cos = Math.cos(rad);
+      const sin = Math.sin(rad);
+      const map = (lx: number, ly: number): [number, number] => [item.x + (lx * cos - ly * sin), item.y - (lx * sin + ly * cos)];
+      for (const part of definition.parts) emitPart(writer, part, item.w, item.d, map, layer);
     }
     // نام لاتین فقط برای اقلامی که برچسب فارسی ندارند؛ وگرنه متن تکراری روی نقشه
     // می‌نشیند و انتخاب/ویرایش در اتوکد را شلوغ می‌کند.

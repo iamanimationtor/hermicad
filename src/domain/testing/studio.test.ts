@@ -893,6 +893,24 @@ test("studio/exporters", "DXF استاندارد R2000 است: زیرکلاس‌
   assert(dxf.includes("\\U+"), "برچسب فارسی به یونیکد DXF تبدیل نشده");
 });
 
+test("studio/exporters", "پلان DXF با بلوک واقعی: هر شیء یک INSERT قابل ویرایش", () => {
+  const doc = sampleDesign();
+  const text = renderStudioDxf(doc);
+  const inserts = (text.match(/\nINSERT\n/g) ?? []).length;
+  assert(inserts > 40, `تعداد بلوک‌های درج‌شده کم است: ${inserts}`);
+  // هر بلوک باید هم در بخش BLOCKS و هم در جدول BLOCK_RECORD ثبت شده باشد
+  const blockNames = [...text.matchAll(/\nBLOCK\n[\s\S]{0,120}?\n2\n(HERMI_[A-Z0-9_]+)\n/g)].map((m) => m[1]);
+  assert(blockNames.length > 10, `تعداد تعریف بلوک: ${blockNames.length}`);
+  for (const name of new Set(blockNames)) {
+    // نام باید سه بار بیاید: ردیف BLOCK_RECORD، سر بلوک، و ارجاع در INSERT
+    assert(text.split(`\n2\n${name}\n`).length >= 3, `بلوک ${name} در جدول/بخش ثبت نشده`);
+  }
+  // بلوک‌ها باید بین درج‌ها مشترک باشند (نه یکی برای هر نمونه)
+  assert(new Set(blockNames).size < inserts, "بلوک‌ها به‌ازای هر نمونه تکرار شده‌اند");
+  const records = (text.match(/\nBLOCK_RECORD\n/g) ?? []).length;
+  assert(records >= new Set(blockNames).size + 2, `ردیف‌های BLOCK_RECORD: ${records}`);
+  return `${inserts} درج · ${new Set(blockNames).size} بلوک`;
+});
 test("studio/exporters", "نمای DXF در مقیاس ۱:۱ با لایه‌های سازه‌ای صادر می‌شود", () => {
   const elevations = exportStudio(sampleDesign(), "elevations-dxf");
   const text = elevations.data.toString("utf8");

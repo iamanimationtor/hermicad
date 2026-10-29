@@ -37,6 +37,10 @@ export class DxfWriter {
   private readonly out: Pair[] = [];
   private handleCounter = 0x20;
   private readonly handles = { modelSpace: "", paperSpace: "", rootDict: "", groupDict: "", layers: new Map<string, string>() };
+  /** بلوک‌های تعریف‌شده: نام → موجودیت‌ها (برای INSERT). */
+  private readonly blocks = new Map<string, { handle: string; record: string; entities: Pair[] }>();
+  private target: Pair[] | null = null;
+  private openBlock: string | null = null;
 
   constructor(private readonly layers: DxfLayer[]) {}
 
@@ -46,7 +50,7 @@ export class DxfWriter {
   }
 
   private push(code: number, value: string | number): void {
-    this.out.push([code, value]);
+    (this.target ?? this.out).push([code, value]);
   }
 
   private entityStart(type: string, handle: string, layer: string, subclass: string): void {
@@ -199,6 +203,44 @@ export class DxfWriter {
     this.push(98, 0);
   }
 
+  /* ─────────────────────────── بلوک‌ها ─────────────────────────── */
+
+  /**
+   * تعریف بلوک (BLOCK) و ثبت نام آن در جدول BLOCK_RECORD.
+   * هندسهٔ بلوک در مختصات یکه (−۰٫۵..۰٫۵) نوشته می‌شود و هنگام INSERT با
+   * مقیاس طول/عرض شیء درج می‌شود؛ این‌گونه هر نمونهٔ کتابخانه در اتوکد یک
+   * «بلوک قابل انتخاب و ویرایش» است، نه چند خط پراکنده.
+   */
+  beginBlock(name: string): void {
+    if (this.openBlock) throw new Error(`بلوک باز است: ${this.openBlock}`);
+    const handle = this.nextHandle();
+    const record = this.nextHandle();
+    const entities: Pair[] = [];
+    this.blocks.set(name, { handle, record, entities });
+    this.target = entities;
+    this.openBlock = name;
+  }
+
+  endBlock(): void {
+    this.target = null;
+    this.openBlock = null;
+  }
+
+  /** درج بلوک با مقیاس محورها و چرخش (درجه). */
+  insert(name: string, x: number, y: number, sx: number, sy: number, rotation: number, layer: string): void {
+    const block = this.blocks.get(name);
+    if (!block) return;
+    this.entityStart("INSERT", this.nextHandle(), layer, "AcDbBlockReference");
+    this.push(2, name);
+    this.push(10, f(x));
+    this.push(20, f(y));
+    this.push(30, 0);
+    this.push(41, f(sx || 1));
+    this.push(42, f(sy || 1));
+    this.push(43, 1);
+    if (rotation) this.push(50, f(rotation));
+  }
+
   /* ──────────────────────── ساخت فایل کامل ──────────────────────── */
 
   build(extents: { minX?: number; minY?: number; maxX?: number; maxY?: number } = {}): string {
@@ -327,10 +369,18 @@ export class DxfWriter {
     tpush(2, "BLOCK_RECORD");
     tpush(5, this.nextHandle());
     tpush(100, "AcDbSymbolTable");
-    tpush(70, 2);
+    tpush(70, 2 + this.blocks.size);
     for (const name of ["*Model_Space", "*Paper_Space"]) {
       tpush(0, "BLOCK_RECORD");
       tpush(5, name === "*Model_Space" ? this.handles.modelSpace : this.handles.paperSpace);
+      tpush(100, "AcDbSymbolTableRecord");
+      tpush(100, "AcDbBlockTableRecord");
+      tpush(2, name);
+      tpush(70, 0);
+    }
+    for (const [name, block] of this.blocks) {
+      tpush(0, "BLOCK_RECORD");
+      tpush(5, block.record);
       tpush(100, "AcDbSymbolTableRecord");
       tpush(100, "AcDbBlockTableRecord");
       tpush(2, name);
@@ -363,6 +413,28 @@ export class DxfWriter {
       bpush(0, "ENDBLK");
       bpush(5, this.nextHandle());
       bpush(330, owner);
+      bpush(100, "AcDbEntity");
+      bpush(8, "0");
+      bpush(100, "AcDbBlockEnd");
+    }
+    for (const [name, block] of this.blocks) {
+      bpush(0, "BLOCK");
+      bpush(5, block.handle);
+      bpush(330, block.record);
+      bpush(100, "AcDbEntity");
+      bpush(8, "0");
+      bpush(100, "AcDbBlockBegin");
+      bpush(2, name);
+      bpush(70, 0);
+      bpush(10, 0);
+      bpush(20, 0);
+      bpush(30, 0);
+      bpush(3, name);
+      bpush(1, "");
+      for (const pair of block.entities) blocks.push(pair);
+      bpush(0, "ENDBLK");
+      bpush(5, this.nextHandle());
+      bpush(330, block.record);
       bpush(100, "AcDbEntity");
       bpush(8, "0");
       bpush(100, "AcDbBlockEnd");
