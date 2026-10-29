@@ -13,6 +13,7 @@
 
 import { documentFingerprint, sheetSizeMm, todayJalali, type StudioDocument } from "./document";
 import { ELEVATION_LABELS, DEFAULT_FLOOR_HEIGHT, viewGeometry, type ElevationDirection, type ViewGeometry, type VerticalViewOptions } from "./vertical";
+import { faNumber } from "./sheetKit";
 import { assemblePdf } from "./pdf/sheetPdf";
 import { PdfText } from "./pdf/text";
 import { loadTypeface } from "./pdf/typeface";
@@ -254,7 +255,7 @@ function drawViewOnCanvas(canvas: PdfCanvas, doc: StudioDocument, view: ViewGeom
       widthMm: 0.15,
     });
   }
-  canvas.text({ x: view.frame.x + 4 + 2 * mmPerMetre + 3, y: barY + 1.4 }, 1.9, `1:${scale}`, 0.3, "start", false, "ltr");
+  canvas.text({ x: view.frame.x + 4 + 2 * mmPerMetre + 3, y: barY + 1.4 }, 1.9, `۱:${faNumber(scale, 0)}`, 0.3, "start", false, "rtl");
   void blocks;
 
   // عنوان نما
@@ -283,8 +284,8 @@ export function renderStudioVerticalPdf(doc: StudioDocument, options: VerticalVi
   const frame = { x: layout.areaMm.x, y: layout.areaMm.y, w: layout.areaMm.w, h: layout.areaMm.h };
   const view = viewGeometry(doc, options, frame);
   const title = options.title ?? (options.sectionAt != null ? `برش A-A (در ${options.sectionAt.toFixed(2)} متر)` : ELEVATION_LABELS[options.direction ?? "south"]);
-  const subtitle = `${doc.project.code} · مقیاس 1:${view.scale} · ${doc.sheet.format}`;
-  drawSheetChrome(canvas, doc, title, subtitle, `1:${view.scale}`);
+  const subtitle = `${doc.project.code} · مقیاس ۱:${faNumber(view.scale, 0)} · ${doc.sheet.format}`;
+  drawSheetChrome(canvas, doc, title, subtitle, `۱:${faNumber(view.scale, 0)}`);
   drawViewOnCanvas(canvas, doc, view, title);
   return assemblePdf([{ ops: canvas.ops, layout }], text, doc);
 }
@@ -316,7 +317,7 @@ export function renderStudioElevationsPdf(doc: StudioDocument, sectionAt = 6, se
     const canvas = new PdfCanvas(size.h, text);
     const view = viewGeometry(doc, { direction }, { x: areaMm.x, y: areaMm.y, w: areaMm.w, h: areaMm.h });
     const title = ELEVATION_LABELS[direction];
-    drawSheetChrome(canvas, doc, title, `${doc.project.code} · مقیاس 1:${view.scale} · ${doc.sheet.format}`, `1:${view.scale}`);
+    drawSheetChrome(canvas, doc, title, `${doc.project.code} · مقیاس ۱:${faNumber(view.scale, 0)} · ${doc.sheet.format}`, `۱:${faNumber(view.scale, 0)}`);
     drawViewOnCanvas(canvas, doc, view, title);
     pages.push({ ops: canvas.ops, layout });
   }
@@ -327,7 +328,7 @@ export function renderStudioElevationsPdf(doc: StudioDocument, sectionAt = 6, se
     { x: areaMm.x, y: areaMm.y, w: areaMm.w, h: areaMm.h },
   );
   const sectionTitle = `برش A-A (در ${sectionAt.toFixed(2)} متر)`;
-  drawSheetChrome(sectionCanvas, doc, sectionTitle, `${doc.project.code} · مقیاس 1:${section.scale} · ${doc.sheet.format}`, `1:${section.scale}`);
+  drawSheetChrome(sectionCanvas, doc, sectionTitle, `${doc.project.code} · مقیاس ۱:${faNumber(section.scale, 0)} · ${doc.sheet.format}`, `۱:${faNumber(section.scale, 0)}`);
   drawViewOnCanvas(sectionCanvas, doc, section, sectionTitle);
   pages.push({ ops: sectionCanvas.ops, layout });
 

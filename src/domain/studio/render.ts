@@ -622,7 +622,7 @@ function scaleBarToScene(scene: Scene, layout: SheetLayout, theme: Theme): void 
     scene.text(x, y0 + 5.4, String(i), 2.2, { anchor: "middle", color: ink, data });
   }
   scene.text(x0 + totalM * layout.mmPerMetre + 3, y0 + 5.4, "متر", 2.2, { color: ink, data });
-  scene.text(x0, y0 - 2, `مقیاس 1:${Math.round(1000 / layout.mmPerMetre)}`, 2.4, { color: ink, data });
+  scene.text(x0, y0 - 2, `مقیاس ۱:${faNumber(Math.round(1000 / layout.mmPerMetre), 0)}`, 2.4, { color: ink, data });
 }
 
 function legendToScene(
