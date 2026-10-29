@@ -1,0 +1,13 @@
+node_modules/
+.next/
+out/
+.env
+.env.local
+hermicad.cookies
+.data/
+*.log
+.DS_Store
+tsconfig.tsbuildinfo
+
+# پیش‌نمایش تصویری موقت (خروجی npm run preview:design)
+.preview/

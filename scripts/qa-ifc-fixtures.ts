@@ -1,0 +1,20 @@
+/** توليد نمونه‌های مستقل IFC؛ فایل‌ها در .preview (خارج از گیت) می‌مانند. */
+import { mkdirSync, writeFileSync } from "node:fs";
+import { sampleDesign } from "../src/server/designs";
+import { studioIfc } from "../src/domain/studio/exporters";
+import { createDesignTemplate, DESIGN_TEMPLATES } from "../src/domain/studio/templates";
+import { schemeIfc } from "../src/domain/exporters/reports";
+import { FIXTURES } from "../src/domain/testing/fixtures";
+import { addItem, createStudioDocument } from "../src/domain/studio/document";
+const directory = ".preview/ifc-qa";
+mkdirSync(directory, { recursive: true });
+const write = (name: string, text: string) => writeFileSync(`${directory}/${name}.ifc`, text);
+write("studio", studioIfc(sampleDesign()));
+for (const t of DESIGN_TEMPLATES) write(t.id, studioIfc(createDesignTemplate(t.id)));
+write("scheme", schemeIfc(FIXTURES.cleanScheme));
+let doc = createStudioDocument({ name: "آزمون ' فارسی", levels: 2, floorHeightM: 4 });
+doc = addItem(doc, "window", { x: 5, y: 6 }, { label: "آزمون ' پنجره", level: 1, heightM: 1.7, sillM: 0.5, w: 1.8, d: 0.25 });
+doc = addItem(doc, "column-concrete", { x: 2, y: 2 }, { level: 1, heightM: 3.7, w: 0.4, d: 0.4, rotationDeg: 30 });
+doc = addItem(doc, "footing-isolated", { x: 2, y: 2 }, { heightM: 0.8 });
+write("parameters", studioIfc(doc));
+console.log("۶ نمونهٔ IFC برای بازخوانی مستقل ساخته شد.");
