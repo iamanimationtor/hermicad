@@ -347,7 +347,8 @@ export function sampleDesignItems(): StudioItem[] {
   push(at("dm-4", "dim-linear", 8.8, -1.1, 6.4, 0.25));
 
   /* نمادها */
-  push(at("an-1", "north-arrow", -1.2, 9.4, 1.0, 1.0));
+  // فلش شمال روی خودِ کادر برگه (chrome) رسم می‌شود؛ تکرار آن به‌صورت شیء روی
+  // پلان، هم با حباب محور «A» تداخل می‌کرد و هم نقشه را شلوغ می‌ساخت.
   for (const [index, x] of [0, 6, 12].entries()) push(at(`an-gx${index}`, "grid-bubble", x, 10.9, 0.8, 0.8));
   for (const [index, y] of [0, 5, 10].entries()) push(at(`an-gy${index}`, "grid-bubble", -0.9, y, 0.8, 0.8));
 

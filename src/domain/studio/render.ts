@@ -564,14 +564,15 @@ function drawSheetChrome(
 ): void {
   if (options.showTitleBlock === false) return;
   const effectiveScale = Math.round(1000 / layout.mmPerMetre);
-  const scaleText = layout.fitted ? `1:${effectiveScale}` : `1:${doc.sheet.scale}`;
+  // ارقام فارسی: برگه فارسی است و «1:75» لاتین در جدول عنوان ناهماهنگ دیده می‌شد
+  const scaleText = layout.fitted ? `۱:${faNumber(effectiveScale, 0)}` : `۱:${faNumber(doc.sheet.scale, 0)}`;
   drawChrome(scene, doc, {
     title: doc.project.name,
     subtitle: [
       classificationLabel(doc, options),
       layout.fitted
-        ? `مقیاس 1:${effectiveScale} (درخواست 1:${layout.requestedScale})`
-        : `مقیاس 1:${doc.sheet.scale}`,
+        ? `مقیاس ۱:${faNumber(effectiveScale, 0)} (درخواست ۱:${faNumber(layout.requestedScale, 0)})`
+        : `مقیاس ۱:${faNumber(doc.sheet.scale, 0)}`,
       `${doc.sheet.format} ${doc.sheet.orientation === "landscape" ? "افقی" : "عمودی"}`,
       `طبقه ${doc.currentLevel + 1} از ${doc.levels}`,
     ].join(" · "),

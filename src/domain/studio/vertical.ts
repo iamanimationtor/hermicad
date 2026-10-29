@@ -17,6 +17,7 @@
 import { CATALOG_BY_ID, type StudioLayerId } from "./catalog";
 import { DxfWriter, dxfText } from "./dxf";
 import { documentFingerprint, renderableItems, sheetSizeMm, todayJalali, type StudioDocument, type StudioItem } from "./document";
+import { faNumber } from "./sheetKit";
 
 export type ElevationDirection = "north" | "south" | "east" | "west";
 
@@ -382,7 +383,10 @@ export function renderStudioElevationSheet(doc: StudioDocument): string {
   }
   const views = directions.map((direction, index) => drawView(doc, { direction }, frames[index]));
   const body = frames.map((frame, index) => frameSvg(frame) + views[index].svg).join("");
-  const scaleText = views.map((view) => `1:${view.scale}`).filter((value, index, all) => all.indexOf(value) === index).join(" / ");
+  const scaleText = views
+    .map((view) => `۱:${faNumber(view.scale, 0)}`)
+    .filter((value, index, all) => all.indexOf(value) === index)
+    .join(" / ");
   return sheetBase(doc, "برگهٔ نماها و برش", `${doc.project.code} · مقیاس ${scaleText} · ${doc.sheet.format}`, body, "نماها از مدل پلان ساخته می‌شوند؛ کنترل نهایی با مهندس دارای صلاحیت است.");
 }
 

@@ -554,7 +554,8 @@ test("studio/vertical", "PDF نماها: پنج برگه، فونت جاسازی
 
   // هندسهٔ مشترک: مقیاس PDF باید همان مقیاس SVG باشد (یک منبع حقیقت)
   const svg = renderStudioElevationSheet(doc);
-  const scale = /1:(\d+)/.exec(svg)?.[1];
+  // مقیاس با ارقام فارسی نوشته می‌شود (۱:۱۰۰)، پس هر دو شکل را می‌پذیریم
+  const scale = /[۱1]\s*:\s*([۰-۹\d]+)/.exec(svg)?.[1];
   assert(scale != null, "مقیاس SVG پیدا نشد");
   assert(viewGeometry(doc, { direction: "south" }, { x: 0, y: 0, w: 300, h: 200 }).scale > 0, "مقیاس نمای جنوبی");
 
