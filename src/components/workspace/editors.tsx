@@ -170,10 +170,10 @@ export function SiteView(ctx: Ctx) {
             </div>
           </div>
           <div className="mt-3 flex flex-wrap gap-2">
-            <button className="btn btn-primary" onClick={save} disabled={ctx.busy !== null || !validation.ok || coordinateErrors.length > 0}>
+            <button className="btn btn-primary" onClick={save} disabled={ctx.busy !== null || !validation.ok || coordinateErrors.length > 0} type="button">
               {ctx.busy === "site" ? "در حال ذخیره…" : "ذخیره زمین و نسخه جدید"}
             </button>
-            <button className="btn" onClick={() => { setDraft(DEFAULT_PROJECT_SITE); setText(boundaryToText(DEFAULT_PROJECT_SITE.boundary)); setSpotText(DEFAULT_PROJECT_SITE.spotLevels.map((s) => `${s.x}, ${s.y}, ${s.z}`).join("\n")); }}>
+            <button className="btn" onClick={() => { setDraft(DEFAULT_PROJECT_SITE); setText(boundaryToText(DEFAULT_PROJECT_SITE.boundary)); setSpotText(DEFAULT_PROJECT_SITE.spotLevels.map((s) => `${s.x}, ${s.y}, ${s.z}`).join("\n")); }} type="button">
               بازیابی هندسهٔ نمونه (خاک و لرزه نامشخص)
             </button>
           </div>
@@ -332,7 +332,7 @@ export function RequirementsView(ctx: Ctx) {
             setParse({ confidence: 0, warnings: ["متن تغییر کرده و هنوز استخراج مجدد نشده است؛ مقادیر ساختاریافتهٔ فعلی بدون تغییر می‌مانند."], trace: [], matched: [] });
           }} />
           <div className="mt-2 flex flex-wrap items-center gap-2">
-            <button className="btn" onClick={runParse}>استخراج و اعمال پیش‌نویس</button>
+            <button className="btn" onClick={runParse} type="button">استخراج و اعمال پیش‌نویس</button>
             <span className="chip">اطمینان پارس: {fmt(parse.confidence * 100, 0)}٪</span>
             <span className="chip">{parse.matched.length} تطبیق</span>
           </div>
@@ -440,7 +440,7 @@ export function RequirementsView(ctx: Ctx) {
             </ul>
           )}
           <div className="mt-3 flex flex-wrap gap-2">
-            <button className="btn btn-primary" onClick={save} disabled={ctx.busy === "requirements" || !validation.ok}>
+            <button className="btn btn-primary" onClick={save} disabled={ctx.busy === "requirements" || !validation.ok} type="button">
               {ctx.busy === "requirements" ? "در حال ذخیره…" : "ذخیره نیازمندی"}
             </button>
             <span className="chip">نسخه فعلی: {project.requirementRevision}</span>

@@ -1,14 +1,50 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import type { ReactNode } from "react";
 import Link from "next/link";
 import "./globals.css";
 import { CODE_SET, ENGINE_VERSION } from "@/domain/constants";
 import { RULE_COUNT } from "@/domain/codes";
 
+/**
+ * فرادادهٔ سراسری.
+ *
+ * metadataBase از `HERMICAD_PUBLIC_URL` خوانده می‌شود تا نشانی‌های مطلق
+ * (Open Graph، canonical) به دامنهٔ واقعی استقرار اشاره کنند. بدون آن، Next
+ * نشانی نسبی می‌سازد که در اشتراک‌گذاری لینک کار نمی‌کند.
+ */
+const publicUrl = process.env.HERMICAD_PUBLIC_URL?.replace(/\/+$/, "");
+
 export const metadata: Metadata = {
-  title: "HERMICAD — هوش مهندسی ساختمان",
+  ...(publicUrl ? { metadataBase: new URL(publicUrl) } : {}),
+  title: {
+    default: "HERMICAD — هوش مهندسی ساختمان",
+    template: "%s | HERMICAD",
+  },
   description:
     "HERMICAD: ابزار ترسیم و غربالگری مقدماتی، با مدل‌ها و آستانه‌های داخلی تأییدنشده؛ بدون ادعای انطباق یا آمادگی اجرایی.",
+  applicationName: "HERMICAD",
+  keywords: ["طراحی معماری", "پلان", "متره", "سازه", "هوش مهندسی", "HERMICAD"],
+  openGraph: {
+    type: "website",
+    siteName: "HERMICAD",
+    locale: "fa_IR",
+    title: "HERMICAD — هوش مهندسی ساختمان",
+    description:
+      "از زمین نامنظم تا چند طرح قابل‌مقایسه، با محاسبه و ردیابی واقعی. خروجی‌ها طرح مقدماتی‌اند، نه تأییدیهٔ مهندسی.",
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "HERMICAD — هوش مهندسی ساختمان",
+    description: "پلتفرم تولید و ترسیم طرح مقدماتی با موتور قطعی و خروجی‌های مهندسی.",
+  },
+  robots: { index: true, follow: true },
+};
+
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
+  themeColor: "#05080f",
+  colorScheme: "dark",
 };
 
 const nav = [

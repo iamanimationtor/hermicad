@@ -1,11 +1,17 @@
 import Link from "next/link";
 import { CODE_SET, ENGINE_VERSION } from "@/domain/constants";
 import { RULE_COUNT } from "@/domain/codes";
-import { runQualitySuite } from "@/domain/testing/suite";
+import { qualitySummary } from "@/domain/testing/suite";
 import { WEIGHT_GROUPS } from "@/domain/optimize";
 import { Panel, Stat } from "@/components/ui";
 
-export const dynamic = "force-dynamic";
+/**
+ * این صفحه هیچ دادهٔ زمان‌درخواستی ندارد: فقط ثابت‌های نسخه و خلاصهٔ مجموعهٔ
+ * آزمون را نشان می‌دهد. پس در زمان ساخت آماده می‌شود و بازدیدکنندهٔ اول هزینهٔ
+ * اجرای موتور آزمون را نمی‌پردازد. عددهای نمایش‌داده‌شده متعلق به همین بیلد
+ * هستند که از نظر معنایی درست‌تر از اجرای دوباره در هر بازدید است.
+ */
+export const dynamic = "force-static";
 
 const capabilities: { area: string; detail: string; status: "done" | "limited" | "out" }[] = [
   { area: "دادهٔ پروژه و سند استودیو", detail: "مدل‌ها و سند ذخیره می‌شوند؛ نگاشت کامل ترسیم، تحلیل، طراحی و تاریخچهٔ همهٔ نسخه‌ها هنوز موجود نیست.", status: "limited" },
@@ -28,7 +34,8 @@ const statusMap = {
 };
 
 export default function HomePage() {
-  const suite = runQualitySuite();
+  // خلاصهٔ ماندگار: اجرای کامل مجموعه در هر بازدید، صفحهٔ فرود را کند می‌کرد.
+  const suite = qualitySummary();
   return (
     <main>
       <section className="grid-bg border-b border-white/10">
@@ -55,12 +62,12 @@ export default function HomePage() {
                 دامنه و محدودیت‌ها
               </Link>
               <Link href="/quality" className="btn px-5 py-2.5 text-sm">
-                دروازه کیفیت ({suite.passed}/{suite.results.length})
+                دروازه کیفیت ({suite.passed}/{suite.total})
               </Link>
             </div>
             <div className="mt-7 grid gap-2 sm:grid-cols-4">
               <Stat label="کنترل‌های داخلی/اظهاری" value={RULE_COUNT} hint={`${CODE_SET.code}@${CODE_SET.edition} · تأییدنشده`} />
-              <Stat label="آزمون خودکار" value={`${suite.passed}/${suite.results.length}`} tone={suite.failed === 0 ? "good" : "bad"} hint="unit · integration · regression" />
+              <Stat label="آزمون خودکار" value={`${suite.passed}/${suite.total}`} tone={suite.failed === 0 ? "good" : "bad"} hint="unit · integration · regression" />
               <Stat label="معیارهای بهینه‌سازی" value={10} hint="رتبه‌بندی وزنی + جبهه پارتو" />
               <Stat label="قالب خروجی واقعی" value={7} hint="PDF, DXF, SVG, IFC, XLSX, CSV, JSON" />
             </div>

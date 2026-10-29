@@ -71,7 +71,7 @@ export function WorkspaceAccess() {
       {account?.username ? (
         <div className="flex flex-wrap items-center gap-2">
           <span>حساب: {account.username}</span>
-          <button className="btn" disabled={busy} onClick={() => submit("logout")}>
+          <button className="btn" disabled={busy} onClick={() => submit("logout")} type="button">
             خروج از حساب
           </button>
         </div>
@@ -147,6 +147,7 @@ export function WorkspaceAccess() {
         onClick={() => {
           if (!account?.hasRecovery || window.confirm("کلید قبلی لغو می‌شود. کلید جدید را ذخیره خواهید کرد؟")) void submit("recovery-key");
         }}
+        type="button"
       >
         ساخت کلید بازیابی جدید
       </button>
@@ -158,7 +159,7 @@ export function WorkspaceAccess() {
           <code dir="ltr" className="my-2 block break-all select-all">
             {recovery}
           </code>
-          <button className="btn" onClick={download}>
+          <button className="btn" onClick={download} type="button">
             دریافت فایل کلید
           </button>
         </div>

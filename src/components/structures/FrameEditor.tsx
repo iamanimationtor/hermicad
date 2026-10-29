@@ -43,7 +43,7 @@ export function FrameEditor({
           برای مدل‌های قابل نمایش با اعضای خطی صفحه‌ای: تعریف گره، عضو، تکیه‌گاه، بار و ترکیب بار. این ابزار جای مدل تخصصی کل سازه، تحلیل
           سه‌بعدی یا طراحی مقاومت را نمی‌گیرد.
         </p>
-        <button className="btn" onClick={() => onChange(emptyFrame())}>
+        <button className="btn" onClick={() => onChange(emptyFrame())} type="button">
           ایجاد مدل تحلیل دوبعدی
         </button>
       </section>
@@ -125,7 +125,7 @@ export function FrameEditor({
               ["combos", "ترکیب‌های بار"],
               ["results", "نتایج تحلیل"],
             ].map(([id, label]) => (
-              <button key={id} aria-pressed={tab === id} className={`btn ${tab === id ? "btn-primary" : ""}`} onClick={() => setTab(id)}>
+              <button key={id} aria-pressed={tab === id} className={`btn ${tab === id ? "btn-primary" : ""}`} onClick={() => setTab(id)} type="button">
                 {label}
               </button>
             ))}
@@ -169,6 +169,7 @@ export function FrameEditor({
                           })),
                         });
                       }}
+                      type="button"
                     >
                       حذف گره و اعضا/بارهای وابسته
                     </button>
@@ -190,6 +191,7 @@ export function FrameEditor({
                       ],
                     })
                   }
+                  type="button"
                 >
                   افزودن گره
                 </button>
@@ -231,7 +233,7 @@ export function FrameEditor({
                         />
                       ))}
                     </div>
-                    <button className="mt-2 text-xs text-rose-200" onClick={() => onChange(removeMember(m.id))}>
+                    <button className="mt-2 text-xs text-rose-200" onClick={() => onChange(removeMember(m.id))} type="button">
                       حذف عضو و بارهای آن
                     </button>
                   </div>
@@ -255,6 +257,7 @@ export function FrameEditor({
                       ],
                     })
                   }
+                  type="button"
                 >
                   افزودن عضو
                 </button>
@@ -283,6 +286,7 @@ export function FrameEditor({
                       patch({ cases: [...model.cases, { id, name: "", source: "", nodes: [], members: [] }] });
                       setLoadId(id);
                     }}
+                    type="button"
                   >
                     افزودن حالت بار
                   </button>
@@ -338,6 +342,7 @@ export function FrameEditor({
                         <button
                           className="mt-2 text-xs text-rose-200"
                           onClick={() => updateCase({ nodes: loadCase.nodes.filter((_, j) => i !== j) })}
+                          type="button"
                         >
                           حذف بار گره‌ای
                         </button>
@@ -350,6 +355,7 @@ export function FrameEditor({
                         const n = model.nodes.find((n) => !loadCase.nodes.some((l) => l.node === n.id));
                         if (n) updateCase({ nodes: [...loadCase.nodes, { node: n.id, fx: 0, fy: 0, mz: 0 }] });
                       }}
+                      type="button"
                     >
                       افزودن بار گره‌ای
                     </button>
@@ -384,6 +390,7 @@ export function FrameEditor({
                         <button
                           className="mt-2 text-xs text-rose-200"
                           onClick={() => updateCase({ members: loadCase.members.filter((_, j) => i !== j) })}
+                          type="button"
                         >
                           حذف بار گسترده
                         </button>
@@ -396,6 +403,7 @@ export function FrameEditor({
                         const m = model.members.find((m) => !loadCase.members.some((l) => l.member === m.id));
                         if (m) updateCase({ members: [...loadCase.members, { member: m.id, qx: 0, qy: 0 }] });
                       }}
+                      type="button"
                     >
                       افزودن بار گسترده
                     </button>
@@ -411,6 +419,7 @@ export function FrameEditor({
                         });
                         setLoadId("");
                       }}
+                      type="button"
                     >
                       حذف حالت و ضرایب وابسته
                     </button>
@@ -469,6 +478,7 @@ export function FrameEditor({
                     <button
                       className="text-xs text-rose-200"
                       onClick={() => patch({ combinations: model.combinations.filter((x) => x.id !== c.id) })}
+                      type="button"
                     >
                       حذف ترکیب
                     </button>
@@ -482,6 +492,7 @@ export function FrameEditor({
                       combinations: [...model.combinations, { id: uid("CB", model.combinations), name: "", source: "", factors: {} }],
                     })
                   }
+                  type="button"
                 >
                   افزودن ترکیب بار
                 </button>
@@ -544,10 +555,10 @@ function FramePlot({ model, result, view = "model" }: { model: FrameModel; resul
   return (
     <div className="min-w-0 space-y-2">
       <div className="flex flex-wrap items-center gap-2">
-        <button className="btn" aria-label="بزرگنمایی مدل" disabled={zoom >= 4} onClick={() => setZoom((z) => Math.min(4, z + 0.5))}>
+        <button className="btn" aria-label="بزرگنمایی مدل" disabled={zoom >= 4} onClick={() => setZoom((z) => Math.min(4, z + 0.5))} type="button">
           +
         </button>
-        <button className="btn" aria-label="کوچک‌نمایی مدل" disabled={zoom <= 1} onClick={() => setZoom((z) => Math.max(1, z - 0.5))}>
+        <button className="btn" aria-label="کوچک‌نمایی مدل" disabled={zoom <= 1} onClick={() => setZoom((z) => Math.max(1, z - 0.5))} type="button">
           −
         </button>
         <span className="text-xs">بزرگنمایی نمایش: {zoom}×؛ برای جابه‌جایی، داخل نما پیمایش کنید.</span>
@@ -609,7 +620,7 @@ function FrameResults({ model, result }: { model: FrameModel; result: FrameResul
                 ["moment", "نمودار لنگر"],
               ] as const
             ).map(([id, label]) => (
-              <button key={id} className={`btn ${view === id ? "btn-primary" : ""}`} onClick={() => setView(id)}>
+              <button key={id} className={`btn ${view === id ? "btn-primary" : ""}`} onClick={() => setView(id)} type="button">
                 {label}
               </button>
             ))}

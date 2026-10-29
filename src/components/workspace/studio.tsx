@@ -54,10 +54,10 @@ function PlanFigure({ ctx }: { ctx: Ctx }) {
     <div>
       <div className="mb-2 flex flex-wrap items-center gap-2">
         <div className="flex overflow-hidden rounded-lg border border-white/15">
-          <button className={`px-3 py-1.5 text-[11px] ${ctx.planMode === "site" ? "bg-teal-400/20 text-teal-100" : "text-slate-300"}`} onClick={() => ctx.setPlanMode("site")}>
+          <button className={`px-3 py-1.5 text-[11px] ${ctx.planMode === "site" ? "bg-teal-400/20 text-teal-100" : "text-slate-300"}`} onClick={() => ctx.setPlanMode("site")} type="button">
             پلان زمین
           </button>
-          <button className={`px-3 py-1.5 text-[11px] ${ctx.planMode === "floor" ? "bg-teal-400/20 text-teal-100" : "text-slate-300"}`} onClick={() => ctx.setPlanMode("floor")}>
+          <button className={`px-3 py-1.5 text-[11px] ${ctx.planMode === "floor" ? "bg-teal-400/20 text-teal-100" : "text-slate-300"}`} onClick={() => ctx.setPlanMode("floor")} type="button">
             پلان طبقه نمونه
           </button>
         </div>
@@ -124,7 +124,7 @@ export function PlanView(ctx: Ctx) {
           <span className="chip">الگوی چیدمان: {level.unitLayouts?.[0]?.patternLabel ?? "—"}</span>
           <span className="chip">{level.unitLayouts?.filter((u) => u.feasible).length ?? 0}/{level.unitLayouts?.length ?? 0} واحد با ابعاد قابل قبول</span>
           {highlight.length > 0 && (
-            <button className="btn px-2 py-1 text-[10px]" onClick={() => setHighlight([])}>پاک‌کردن نمایش مشکل</button>
+            <button className="btn px-2 py-1 text-[10px]" onClick={() => setHighlight([])} type="button">پاک‌کردن نمایش مشکل</button>
           )}
         </div>
         <DrawingBoard
@@ -165,6 +165,7 @@ export function PlanView(ctx: Ctx) {
                       <button
                         className="mt-1 block text-[10px] text-teal-300 underline"
                         onClick={() => setHighlight(check.roomIds ?? [])}
+                        type="button"
                       >
                         نمایش {check.roomIds!.length} فضای مرتبط در پلان
                       </button>
@@ -367,7 +368,7 @@ export function SchemesView(ctx: Ctx) {
             <span className="label">تعداد راهبرد</span>
             <input type="range" min={1} max={5} value={ctx.variants} onChange={(e) => ctx.setVariants(Number(e.target.value))} className="w-40" />
           </div>
-          <button className="btn btn-primary" onClick={ctx.onGenerate} disabled={ctx.busy === "generate"}>
+          <button className="btn btn-primary" onClick={ctx.onGenerate} disabled={ctx.busy === "generate"} type="button">
             {ctx.busy === "generate" ? "در حال تولید…" : "تولید طرح‌ها"}
           </button>
         </div>
@@ -390,10 +391,10 @@ export function SchemesView(ctx: Ctx) {
               <span className="label">راهبردها: {ctx.variants}</span>
               <input type="range" min={1} max={5} value={ctx.variants} onChange={(e) => ctx.setVariants(Number(e.target.value))} className="w-28" />
             </div>
-            <button className="btn" onClick={ctx.onGenerate} disabled={ctx.busy === "generate"}>
+            <button className="btn" onClick={ctx.onGenerate} disabled={ctx.busy === "generate"} type="button">
               {ctx.busy === "generate" ? "تولید…" : "بازتولید"}
             </button>
-            <button className="btn" onClick={ctx.onSaveWeights} disabled={ctx.busy !== null || active?.freshness.state !== "current"}>
+            <button className="btn" onClick={ctx.onSaveWeights} disabled={ctx.busy !== null || active?.freshness.state !== "current"} type="button">
               ذخیره وزن‌ها
             </button>
           </div>
@@ -428,6 +429,7 @@ export function SchemesView(ctx: Ctx) {
               key={stored.rowId}
               onClick={() => ctx.onSelectScheme(stored.model.id)}
               className={`panel-soft p-3 text-right transition ${isActive ? "border-teal-400/60 bg-teal-400/10" : "hover:border-white/25"}`}
+              type="button"
             >
               <div className="flex items-center justify-between">
                 <span className="mono text-[10px] text-teal-200">{stored.model.code}</span>
@@ -646,7 +648,7 @@ export function ValidationView(ctx: Ctx) {
         title="اصلاح خودکار و بازاعتبارسنجی"
         subtitle="حلقه اصلاح فقط تغییرات قابل‌اجرا را اعمال می‌کند و اقدامات غیرقابل‌اجرا را صریحاً گزارش می‌دهد."
         action={
-          <button className="btn btn-primary" onClick={ctx.onRepair} disabled={ctx.busy !== null || active.freshness.state !== "current"}>
+          <button className="btn btn-primary" onClick={ctx.onRepair} disabled={ctx.busy !== null || active.freshness.state !== "current"} type="button">
             {ctx.busy === "repair" ? "در حال اصلاح…" : "اجرای حلقه اصلاح"}
           </button>
         }

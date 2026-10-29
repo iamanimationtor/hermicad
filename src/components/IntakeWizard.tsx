@@ -322,7 +322,7 @@ export function IntakeWizard() {
                 <Link href={`/projects/${createdProjectId}`} className="btn mt-2 block text-center">باز کردن پروژهٔ ثبت‌شده</Link>
               </div>
             ) : (
-              <button className="btn btn-primary w-full" onClick={submit} disabled={!review.ready || busy !== "idle" || createdProjectId !== null}>
+              <button className="btn btn-primary w-full" onClick={submit} disabled={!review.ready || busy !== "idle" || createdProjectId !== null} type="button">
                 {busy === "creating" ? "در حال ساخت پروژه…" : busy === "generating" ? "تولید طرح‌ها و اعتبارسنجی…" : "ساخت پروژه و تولید ۵ طرح"}
               </button>
             )}

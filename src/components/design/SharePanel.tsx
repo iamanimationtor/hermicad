@@ -58,10 +58,10 @@ export function SharePanel({ designId }: { designId: string }) {
         </select>
       </label>
       <div className="my-2 flex gap-2">
-        <button className="btn" disabled={busy} onClick={() => act("create")}>
+        <button className="btn" disabled={busy} onClick={() => act("create")} type="button">
           ساخت لینک بازبینی
         </button>
-        <button className="btn" disabled={busy} onClick={() => act("load")}>
+        <button className="btn" disabled={busy} onClick={() => act("load")} type="button">
           فهرست لینک‌ها
         </button>
       </div>
@@ -81,7 +81,7 @@ export function SharePanel({ designId }: { designId: string }) {
       {shares.map((s) => (
         <div key={s.id} className="my-2 flex justify-between gap-1">
           <span>تا {new Date(s.expiresAt).toLocaleDateString("fa-IR")}</span>
-          <button className="btn" disabled={busy} onClick={() => act("revoke", s.id)}>
+          <button className="btn" disabled={busy} onClick={() => act("revoke", s.id)} type="button">
             لغو لینک
           </button>
         </div>

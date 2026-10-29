@@ -213,8 +213,8 @@ export function Workspace({ initialBundle }: { initialBundle: ProjectBundle }) {
             {project.client && <p className="mt-0.5 text-[11px] text-slate-400">کارفرما: {project.client}</p>}
           </div>
           <div className="flex flex-wrap items-center gap-2">
-            <button className="btn" onClick={refresh} disabled={busy !== null}>بازخوانی پروژه</button>
-            <button className="btn btn-primary" onClick={onGenerate} disabled={busy !== null}>
+            <button className="btn" onClick={refresh} disabled={busy !== null} type="button">بازخوانی پروژه</button>
+            <button className="btn btn-primary" onClick={onGenerate} disabled={busy !== null} type="button">
               {busy === "generate" ? "اجرای پایپ‌لاین…" : bundle.schemes.length ? "تولید مجدد پنج طرح" : "تولید طرح‌ها"}
             </button>
             {active?.freshness.state === "current" && unsafeOutputs.length === 0 && (
@@ -290,7 +290,7 @@ export function Workspace({ initialBundle }: { initialBundle: ProjectBundle }) {
 
       <nav className="mb-4 flex flex-wrap gap-x-5 overflow-x-auto border-b border-white/10 px-1">
         {TABS.map((item) => (
-          <button key={item.id} className="tab" data-active={tab === item.id} onClick={() => setTab(item.id)}>
+          <button key={item.id} className="tab" data-active={tab === item.id} onClick={() => setTab(item.id)} type="button">
             <span className="font-semibold">{item.label}</span>
             <span className="mr-1 text-[10px] text-slate-500">{item.hint}</span>
           </button>

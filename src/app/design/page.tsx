@@ -1,6 +1,6 @@
 import { WorkspaceAccess } from "@/components/design/WorkspaceAccess";
 import Link from "next/link";
-import { ensureSampleDesign, listDesigns } from "@/server/designs";
+import { listDesigns, seedSampleDesign } from "@/server/designs";
 import { CATALOG_STATS, CATEGORIES } from "@/domain/studio/catalog";
 import { Panel, Stat } from "@/components/ui";
 import { NewDesignPanel } from "@/components/design/NewDesignPanel";
@@ -14,7 +14,7 @@ export default async function DesignIndexPage() {
   let error: string | null = null;
   try {
     const workspace = await currentWorkspace();
-    await ensureSampleDesign(workspace);
+    await seedSampleDesign(workspace);
     designs = await listDesigns(workspace);
   } catch (e) {
     error = safePageError(e);

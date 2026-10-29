@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { listDesigns, ensureSampleDesign } from "@/server/designs";
+import { listDesigns, seedSampleDesign } from "@/server/designs";
 import { currentWorkspace } from "@/server/workspace";
 import { JourneyStart } from "@/components/journey/JourneyStart";
 export const dynamic = "force-dynamic";
@@ -9,7 +9,7 @@ export default async function GuidePage() {
   let error = "";
   try {
     const ws = await currentWorkspace();
-    await ensureSampleDesign(ws);
+    await seedSampleDesign(ws);
     designs = await listDesigns(ws);
   } catch {
     error = "دسترسی به فضای کار ممکن نشد؛ از صفحهٔ حساب وارد شوید یا بازیابی کنید.";

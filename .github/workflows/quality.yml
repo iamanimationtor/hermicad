@@ -62,3 +62,54 @@ jobs:
       - run: npm ci
       - run: npm run build
       - run: npm run test:http
+
+  # دود-تست جریان کامل کاربر روی یک سرور واقعیِ production.
+  # چرا اینجا: lint/test/typecheck انسجام درونی را می‌سنجند، ولی این کار
+  # مسیر واقعی مرورگر (کوکی، Origin، تولید طرح، استودیو، خروجی) را روی
+  # همان خروجی build می‌آزماید. هر شکستی متن خطای واقعی سرور را چاپ می‌کند.
+  smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      NODE_ENV: production
+      PGLITE_DATA_DIR: ${{ github.workspace }}/.data/smoke
+      HERMICAD_ALLOW_PGLITE_IN_PRODUCTION: '1'
+      HERMICAD_RUN_RETENTION: '5'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run build
+      - name: اجرای سرور و دود-تست
+        run: |
+          npx next start --port 3000 --hostname 127.0.0.1 > "$RUNNER_TEMP/server.log" 2>&1 &
+          echo $! > "$RUNNER_TEMP/server.pid"
+          for i in $(seq 1 60); do
+            if curl -fsS http://127.0.0.1:3000/api/health > /dev/null; then
+              echo "سرور آماده است (پس از ${i} تلاش)"
+              break
+            fi
+            if [ "$i" = "60" ]; then
+              echo "::error::سرور در ۶۰ ثانیه بالا نیامد"
+              cat "$RUNNER_TEMP/server.log"
+              exit 1
+            fi
+            sleep 1
+          done
+          npm run test:smoke
+      - name: گزارش لاگ سرور
+        if: always()
+        run: |
+          if [ -f "$RUNNER_TEMP/server.log" ]; then
+            echo "=== ۲۰۰ خط آخر لاگ سرور ==="
+            tail -n 200 "$RUNNER_TEMP/server.log"
+          fi
+      - name: توقف سرور
+        if: always()
+        run: |
+          if [ -f "$RUNNER_TEMP/server.pid" ]; then
+            kill "$(cat "$RUNNER_TEMP/server.pid")" 2>/dev/null || true
+          fi

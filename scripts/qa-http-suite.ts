@@ -64,7 +64,7 @@ async function main() {
       await delay(250);
     }
     if (!ready) throw new Error("سرور آزمون در مهلت مقرر آماده نشد.");
-    for (const script of ["qa-db-failclosed.ts", "qa-scope-http.ts", "qa-foundation-http.ts", "qa-seismic-http.ts", "qa-method-domain-http.ts", "qa-legacy-http.ts", "qa-provenance-http.ts", "qa-access-http.ts", "qa-studio-http.ts", "qa-journey-http.ts", "qa-structures-http.ts", "qa-frame-http.ts"]) {
+    for (const script of ["qa-db-failclosed.ts", "qa-scope-http.ts", "qa-foundation-http.ts", "qa-seismic-http.ts", "qa-method-domain-http.ts", "qa-legacy-http.ts", "qa-retention-http.ts", "qa-provenance-http.ts", "qa-access-http.ts", "qa-studio-http.ts", "qa-journey-http.ts", "qa-structures-http.ts", "qa-frame-http.ts"]) {
       const child = spawn(process.execPath, ["--import", "tsx", "scripts/" + script], { env, stdio: "inherit" });
       const [code] = await once(child, "exit");
       if (code !== 0) throw new Error(`آزمون ${script} ناموفق بود.`);

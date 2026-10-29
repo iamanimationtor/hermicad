@@ -1,10 +1,10 @@
-import { runQualitySuite } from "@/domain/testing/suite";
+import { runQualitySuiteCached } from "@/domain/testing/suite";
 import { Panel, Stat, StatusBadge } from "@/components/ui";
 
 export const dynamic = "force-dynamic";
 
 export default function QualityPage() {
-  const suite = runQualitySuite();
+  const suite = runQualitySuiteCached();
   const suites = Array.from(new Set(suite.results.map((r) => r.suite)));
   return (
     <main className="mx-auto max-w-[1200px] px-5 py-10">
@@ -12,10 +12,11 @@ export default function QualityPage() {
         <div>
           <h1 className="text-2xl font-extrabold text-white">دروازه کیفیت HERMICAD</h1>
           <p className="mt-2 max-w-3xl text-sm leading-7 text-slate-300">
-            این مجموعه، هر بار که صفحه/API فراخوانی می‌شود روی داده نمونه واقعی اجرا می‌شود: هندسه با مقادیر دستی
-            مستقل، آزمون مثبت و منفی قاعده‌به‌قاعده، بازمحاسبه مستقل سازه/تأسیسات/پارکینگ، زنجیره یکپارچگی هندسی،
-            اعتبارسنجی محتوایی هفت قالب خروجی، و خط مبنای رگرسیون. «سبز» بودن یعنی محتوا بررسی شده است، نه فقط
-            پاسخ HTTP.
+            این مجموعه روی داده نمونهٔ واقعی اجرا می‌شود: هندسه با مقادیر دستی مستقل، آزمون مثبت و منفی
+            قاعده‌به‌قاعده، بازمحاسبهٔ مستقل سازه/تأسیسات/پارکینگ، زنجیرهٔ یکپارچگی هندسی، اعتبارسنجی محتوایی هفت
+            قالب خروجی، و خط مبنای رگرسیون. «سبز» بودن یعنی محتوا بررسی شده است، نه فقط پاسخ HTTP. برای جلوگیری از
+            مصرف بی‌رویهٔ پردازنده، نتیجه حداکثر هر ۱۵ ثانیه یک‌بار از نو محاسبه می‌شود؛ «زمان اجرا» و «زمان آخرین
+            اجرا» همان اجرای نمایش‌داده‌شده است. CI همان مجموعه را با `npm test` تازه و کامل اجرا می‌کند.
           </p>
         </div>
         <div className="flex gap-2">

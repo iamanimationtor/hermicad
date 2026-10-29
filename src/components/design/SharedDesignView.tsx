@@ -61,7 +61,7 @@ export function SharedDesignView() {
       {url && (
         <>
           <div className="my-3 flex items-center gap-2">
-            <button className="btn" onClick={download}>
+            <button className="btn" onClick={download} type="button">
               دریافت PDF بازبینی
             </button>
             <label>

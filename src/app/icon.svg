@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="HERMICAD">
+  <rect width="64" height="64" rx="14" fill="#05080f"/>
+  <rect x="9" y="9" width="46" height="46" rx="9" fill="none" stroke="#2dd4bf" stroke-opacity="0.55" stroke-width="2.5"/>
+  <path d="M14 40 H50" stroke="#2dd4bf" stroke-opacity="0.55" stroke-width="2.5"/>
+  <path d="M14 24 H50 M32 24 V50" stroke="#5eead4" stroke-opacity="0.35" stroke-width="2"/>
+  <path d="M22 34 V22 H30 V34 M34 34 V22 H42 V34" fill="none" stroke="#99f6e4" stroke-width="3.2" stroke-linecap="round"/>
+  <circle cx="32" cy="49" r="2.6" fill="#2dd4bf"/>
+</svg>

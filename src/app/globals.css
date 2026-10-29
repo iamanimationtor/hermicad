@@ -211,3 +211,32 @@ input[type="range"] {
 a {
   color: inherit;
 }
+
+/* ── اسکلت بارگذاری ────────────────────────────────────────────────
+ * نبض ملایم برای بلوک‌های skeleton. اگر کاربر prefers-reduced-motion داشته
+ * باشد، انیمیشن خاموش می‌شود و فقط بلوک ثابت می‌ماند.
+ */
+.skeleton {
+  background: linear-gradient(90deg, rgba(148, 163, 184, 0.10), rgba(148, 163, 184, 0.20), rgba(148, 163, 184, 0.10));
+  background-size: 200% 100%;
+  animation: skeleton-shimmer 1.6s ease-in-out infinite;
+}
+
+@keyframes skeleton-shimmer {
+  0% { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .skeleton {
+    animation: none;
+    background: rgba(148, 163, 184, 0.15);
+  }
+}
+
+/* پرش صریح فوکوس برای کاربران کیبورد؛ رنگ با تم هماهنگ است */
+:where(a, button, input, textarea, select, [tabindex]):focus-visible {
+  outline: 2px solid #38e1c4;
+  outline-offset: 2px;
+  border-radius: 6px;
+}

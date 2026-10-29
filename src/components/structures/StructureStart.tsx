@@ -64,7 +64,7 @@ export function StructureStart() {
           placeholder="نام قابل تشخیص برای این سازه"
         />
       </label>
-      <button disabled={busy || !name.trim()} className="btn btn-primary">
+      <button type="submit" disabled={busy || !name.trim()} className="btn btn-primary">
         {busy ? "در حال ایجاد…" : "ایجاد پروندهٔ تخصصی"}
       </button>
       {error && (

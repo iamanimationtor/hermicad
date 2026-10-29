@@ -1,0 +1,27 @@
+# وابستگی‌ها و خروجی‌های بازتولیدشدنی
+node_modules
+.next
+out
+build
+dist
+coverage
+
+# دادهٔ محلی و آزمون
+.data
+.preview
+*.log
+
+# تنظیمات محیطی: نباید هیچ‌گاه در تصویر پخته شود
+.env
+.env.*
+!.env.example
+
+# ابزار و متادیتای توسعه
+.git
+.gitignore
+.github
+.vscode
+.idea
+*.md
+!README.md
+/tmp

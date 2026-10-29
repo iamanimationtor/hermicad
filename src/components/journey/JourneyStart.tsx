@@ -56,7 +56,7 @@ export function JourneyStart() {
       <p className="text-xs leading-6 text-slate-400">
         نمونه‌ها برای آشنایی و شروع ویرایش‌اند؛ با زمین و برنامهٔ شما خودکار تطبیق نمی‌یابند. برای پروژه‌های دیگر سند خالی انتخاب کنید.
       </p>
-      <button disabled={busy || !name.trim()} className="btn btn-primary">
+      <button type="submit" disabled={busy || !name.trim()} className="btn btn-primary">
         {busy ? "در حال ساخت…" : "شروع مسیر راهنما"}
       </button>
       {error && (

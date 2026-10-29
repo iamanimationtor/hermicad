@@ -19,9 +19,22 @@ export function proxy(request: NextRequest): NextResponse {
       return NextResponse.json({ error: "مبدأ درخواست معتبر نیست.", detail: [] }, { status: 403, headers: PRIVATE_HEADERS });
     }
   }
+  /**
+   * مسیرهای API که پاسخشان واقعاً عمومی و مستقل از فضای کار است.
+   *
+   * چرا فهرست صریح: در لایهٔ middleware، پاسخِ خودِ مسیر هنوز ساخته نشده؛ پس
+   * نمی‌توان دید کدام مسیر Cache-Control اعلام کرده. سرآیند no-store این لایه روی
+   * خروجی نهایی می‌نشیند و اعلام کش عمومی مسیر را بی‌اثر می‌کند. فقط مسیرهایی که
+   * در تست و بازبینی «بدون دادهٔ کاربر» تأیید شده‌اند از این استثنا استفاده می‌کنند.
+   */
+  const PUBLIC_API = new Set(["/api/catalog"]);
   const privateResponse = (response: NextResponse) => {
-    if (request.nextUrl.pathname.startsWith("/api/"))
-      for (const [key, value] of Object.entries(PRIVATE_HEADERS)) response.headers.set(key, value);
+    const pathname = request.nextUrl.pathname;
+    if (pathname.startsWith("/api/")) {
+      const publicCacheable = PUBLIC_API.has(pathname);
+      for (const [key, value] of Object.entries(PRIVATE_HEADERS))
+        if (!(publicCacheable && key === "Cache-Control")) response.headers.set(key, value);
+    }
     return response;
   };
   const existing = request.cookies.get(WORKSPACE_COOKIE)?.value;

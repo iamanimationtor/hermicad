@@ -153,13 +153,14 @@ export function JourneyWorkspace({ initial }: { initial: StudioDocument }) {
               a.click();
               setTimeout(() => URL.revokeObjectURL(url), 1000);
             }}
+            type="button"
           >
             پشتیبان محلی JSON
           </button>
-          <button disabled={busy} onClick={() => save()} className="btn">
+          <button disabled={busy} onClick={() => save()} className="btn" type="button">
             ذخیرهٔ پرونده
           </button>
-          <button disabled={busy} onClick={openModel} className="btn">
+          <button disabled={busy} onClick={openModel} className="btn" type="button">
             ذخیره و بازکردن نقشه
           </button>
         </div>
@@ -188,6 +189,7 @@ export function JourneyWorkspace({ initial }: { initial: StudioDocument }) {
                 aria-current={i === step ? "step" : undefined}
                 onClick={() => change({ step: i })}
                 className={`flex w-full items-center gap-3 rounded-lg p-3 text-right text-sm ${i === step ? "bg-teal-400/15 text-teal-200" : "text-slate-300 hover:bg-white/5"}`}
+                type="button"
               >
                 <span className="mono text-xs">{i + 1}</span>
                 {label}
@@ -369,12 +371,12 @@ export function JourneyWorkspace({ initial }: { initial: StudioDocument }) {
                             <h3 className="mt-2 text-sm font-bold">{f.message}</h3>
                             <p className="my-2 text-xs leading-7 text-slate-300">{f.action}</p>
                             {f.step < 4 ? (
-                              <button className="btn text-xs" onClick={() => change({ step: f.step })}>
+                              <button className="btn text-xs" onClick={() => change({ step: f.step })} type="button">
                                 رفتن به {STEPS[f.step]}
                               </button>
                             ) : (
                               f.id !== "engineering" && (
-                                <button className="btn text-xs" onClick={openModel}>
+                                <button className="btn text-xs" onClick={openModel} type="button">
                                   ذخیره و اصلاح نقشه
                                 </button>
                               )
@@ -425,6 +427,7 @@ export function JourneyWorkspace({ initial }: { initial: StudioDocument }) {
                     disabled={!report?.canDownloadReview || busy || errors.length > 0}
                     onClick={download}
                     className="btn btn-primary w-full justify-center py-3"
+                    type="button"
                   >
                     {busy ? "در حال آماده‌سازی…" : "دریافت بستهٔ بازبینی (ZIP)"}
                   </button>
@@ -448,11 +451,11 @@ export function JourneyWorkspace({ initial }: { initial: StudioDocument }) {
               </div>
             )}
             <div className="mt-7 flex flex-wrap justify-between gap-3 border-t border-white/10 pt-5">
-              <button className="btn" disabled={step === 0 || busy} onClick={() => change({ step: step - 1 })}>
+              <button className="btn" disabled={step === 0 || busy} onClick={() => change({ step: step - 1 })} type="button">
                 مرحلهٔ قبل
               </button>
               {step < 5 && (
-                <button className="btn btn-primary" disabled={busy || errors.length > 0} onClick={next}>
+                <button className="btn btn-primary" disabled={busy || errors.length > 0} onClick={next} type="button">
                   {busy ? "در حال ذخیره…" : "ذخیره و مرحلهٔ بعد"}
                 </button>
               )}
