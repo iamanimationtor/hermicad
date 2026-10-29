@@ -1707,7 +1707,9 @@ export const CATALOG: CatalogItem[] = [
     layer: "grid",
     ifcClass: "IfcAnnotation",
     defaultSize: { w: 0.9, d: 0.9, h: 0 },
-    parts: [C(0.5, 0.5, 0.46, { fill: "none" })],
+    // حباب با کاغذ پوشیده می‌شود تا خط محور از میانش رد نشود و با خط ضخیم‌تر
+    // (۰٫۱۸ م‌م) ترسیم می‌شود؛ وزن لایهٔ محور به‌تنهایی برای حباب نازک است.
+    parts: [C(0.5, 0.5, 0.46, { fill: "soft", thick: true })],
   }),
   item({
     id: "section-marker",

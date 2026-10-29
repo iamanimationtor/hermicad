@@ -11,6 +11,8 @@
  */
 
 import { CATALOG_BY_ID, STUDIO_LAYERS, type Part, type StudioLayerId } from "./catalog";
+import { Scene, scenePdfOps, sceneSvg } from "./draw";
+import { drawChrome, faArea, faNumber, sheetFrame } from "./sheetKit";
 import { shapeForDisplay } from "./pdf/arabic";
 import { PdfText, type TextAnchor } from "./pdf/text";
 import { embedFont, loadTypeface, writeToUnicode } from "./pdf/typeface";
@@ -23,6 +25,7 @@ import { renderStudioSchedulePdf, renderStudioScheduleSheet } from "./schedules"
 import {
   documentBounds,
   documentFingerprint,
+  itemCorners,
   mmPerMetre,
   renderableItems,
   SHARED_LAYERS,
@@ -108,24 +111,39 @@ export interface RenderOptions {
   sectionWidth?: number;
 }
 
-const MARGIN = 10;
-const TITLE_H = 34;
-
 export function sheetLayout(doc: StudioDocument, options: RenderOptions = {}): SheetLayout {
-  const sheet = sheetSizeMm(doc);
-  const titleBlock = {
-    x: MARGIN,
-    y: sheet.h - MARGIN - TITLE_H,
-    w: sheet.w - MARGIN * 2,
-    h: TITLE_H,
-  };
-  const areaMm = {
-    x: MARGIN,
-    y: MARGIN,
-    w: sheet.w - MARGIN * 2,
-    h: sheet.h - MARGIN * 2 - TITLE_H - 4,
-  };
-  const bounds = documentBounds(doc);
+  // کادر و کتیبه از ابزار مشترک برگه‌سازی می‌آید تا پلان با نما/برش/جزئیات/جداول
+  // یک خانوادهٔ بصری باشد (همان حاشیه، همان سرصفحه، همان کتیبه).
+  const frame = sheetFrame(doc);
+  const sheet = frame.sheet;
+  const titleBlock = frame.titleBlock;
+  const areaMm = frame.area;
+  // محدودهٔ نقشه: اشیای «محتوا» (نه اندازه‌گذاری/محور/برچسب).
+  // چرا: یک اندازه‌گذاری یا نشانهٔ محوطه که چند متر بیرون نقشه است، کادر را
+  // باد می‌کند و نتیجه‌اش این است که پلان بی‌دلیل کوچک‌تر (مثلاً ۱:۷۵ به‌جای
+  // ۱:۵۰) و از مرکز برگه جابه‌جا چاپ می‌شود. حاشیهٔ ۱٫۲ متر برای همان
+  // اندازه‌گذاری‌ها و حباب‌های بیرونی در نظر گرفته می‌شود.
+  const ANNOTATION_LAYERS = new Set(["annotation", "grid", "dimension"]);
+  const contentItems = doc.items.filter(
+    (item) => !ANNOTATION_LAYERS.has(CATALOG_BY_ID[item.catalogId]?.layer ?? ""),
+  );
+  let bounds = documentBounds(doc);
+  if (contentItems.length > 0 && contentItems.length < doc.items.length) {
+    let minX = Infinity;
+    let minY = Infinity;
+    let maxX = -Infinity;
+    let maxY = -Infinity;
+    for (const item of contentItems) {
+      for (const corner of itemCorners(item)) {
+        minX = Math.min(minX, corner.x);
+        minY = Math.min(minY, corner.y);
+        maxX = Math.max(maxX, corner.x);
+        maxY = Math.max(maxY, corner.y);
+      }
+    }
+    const pad = 1.2;
+    bounds = { x: minX - pad, y: minY - pad, w: maxX - minX + pad * 2, h: maxY - minY + pad * 2 };
+  }
   const requested = Math.max(1, doc.sheet.scale);
   let scale = requested;
   let fitted = false;
@@ -209,22 +227,132 @@ interface PartOverride {
   forceDash?: boolean;
 }
 
-function partToSvg(
+/* ─────────────────── نام‌گذاری محورها و برچسب PDF/DXF ─────────────────── */
+
+/**
+ * نام‌گذاری خودکار حباب‌های محور (گرید).
+ *
+ * در نقشه‌های اجرایی، محورهای عمودی با عدد (۱، ۲، ۳ …) و محورهای افقی با حرف
+ * (A، B، C …) نام‌گذاری می‌شوند. کاربر فقط حباب را می‌گذارد؛ نام باید خودکار و
+ * پایدار باشد. تشخیص محور از موقعیت حباب نسبت به محدودهٔ ساختمان انجام می‌شود:
+ * حباب بالای/پایین نقشه ⇒ محور عمودی (عدد)، حباب چپ/راست ⇒ محور افقی (حرف).
+ */
+const AXIS_LETTERS = "ABCDEFGHIJKLMNOPQRSTUVWXYZ".split("");
+const FA_DIGITS = "۰۱۲۳۴۵۶۷۸۹";
+
+export function withAxisLabels(doc: StudioDocument): StudioDocument {
+  const bubbles = doc.items.filter((item) => item.catalogId === "grid-bubble");
+  if (bubbles.length === 0) return doc;
+  // محدودهٔ مرجع باید «بدنهٔ ساختمان» باشد؛ اگر همهٔ اشیا (اندازه‌گذاری، محوطه،
+  // برچسب‌ها) در نظر گرفته شوند، کادر چنان بزرگ می‌شود که حباب‌های کنار نقشه
+  // داخل آن بیفتند و هرگز نام نگیرند (ایراد دیده‌شده در نقشهٔ نمونه).
+  const BUILDING_LAYERS = new Set(["walls", "structure", "foundation"]);
+  const onBuilding = doc.items.filter(
+    (item) => item.catalogId !== "grid-bubble" && BUILDING_LAYERS.has(CATALOG_BY_ID[item.catalogId]?.layer ?? ""),
+  );
+  const structural =
+    onBuilding.length > 0
+      ? onBuilding
+      : doc.items.filter((item) => item.catalogId !== "grid-bubble" && item.catalogId !== "dim-linear");
+  if (structural.length === 0) return doc;
+  // نیم‌عرض/نیم‌ارتفاع مؤثر با احتساب چرخش: دیوارهای عمودی با w=طول و چرخش ۹۰
+  // درجه ذخیره می‌شوند، پس کادر ساده (x ± w/2) آن‌ها را چند متر جابه‌جا می‌کرد.
+  const halfExtent = (item: StudioItem) => {
+    const rad = (item.rotationDeg * Math.PI) / 180;
+    const cos = Math.abs(Math.cos(rad));
+    const sin = Math.abs(Math.sin(rad));
+    return {
+      hw: (item.w / 2) * cos + (item.d / 2) * sin,
+      hh: (item.w / 2) * sin + (item.d / 2) * cos,
+    };
+  };
+  const extents = structural.map((item) => ({ item, ...halfExtent(item) }));
+  const box = {
+    minX: Math.min(...extents.map(({ item, hw }) => item.x - hw)),
+    maxX: Math.max(...extents.map(({ item, hw }) => item.x + hw)),
+    minY: Math.min(...extents.map(({ item, hh }) => item.y - hh)),
+    maxY: Math.max(...extents.map(({ item, hh }) => item.y + hh)),
+  };
+  const vertical: { id: string; key: number }[] = [];
+  const horizontal: { id: string; key: number }[] = [];
+  for (const bubble of bubbles) {
+    if (bubble.label?.trim()) continue; // برچسب دستی کاربر مقدم است
+    if (bubble.y < box.minY || bubble.y > box.maxY) vertical.push({ id: bubble.id, key: bubble.x });
+    else if (bubble.x < box.minX || bubble.x > box.maxX) horizontal.push({ id: bubble.id, key: bubble.y });
+  }
+  const labels = new Map<string, string>();
+  const unique = (values: number[]) =>
+    [...new Set(values.map((value) => Math.round(value * 100) / 100))].sort((a, b) => a - b);
+  // شمارهٔ محورهای عمودی از راست به چپ افزایش می‌یابد (روش رایج نقشه‌های
+  // ایرانی: محور ۱ در سمت راست برگه و آخرین شماره در سمت چپ).
+  const verticalKeys = unique(vertical.map((entry) => entry.key)).reverse();
+  const horizontalKeys = unique(horizontal.map((entry) => entry.key)).reverse(); // بالای نقشه ⇒ A
+  for (const entry of vertical) {
+    const index = verticalKeys.indexOf(Math.round(entry.key * 100) / 100);
+    // شمارهٔ محور در نقشه‌های ایرانی با ارقام فارسی نوشته می‌شود.
+    if (index >= 0) labels.set(entry.id, `${index + 1}`.replace(/[0-9]/g, (digit) => FA_DIGITS[Number(digit)]));
+  }
+  for (const entry of horizontal) {
+    const index = horizontalKeys.indexOf(Math.round(entry.key * 100) / 100);
+    if (index >= 0 && index < AXIS_LETTERS.length) labels.set(entry.id, AXIS_LETTERS[index]);
+  }
+  if (labels.size === 0) return doc;
+  return {
+    ...doc,
+    items: doc.items.map((item) => (labels.has(item.id) ? { ...item, label: labels.get(item.id) } : item)),
+  };
+}
+
+/** برچسب قابل نوشتن برای یک شیء در PDF/DXF (هم‌خوان با منطق صحنه). */
+function pdfLabelFor(item: StudioItem, definition: (typeof CATALOG_BY_ID)[string]): string | null {
+  if (SPACE_IDS.has(item.catalogId)) {
+    const area = (item.w * item.d).toFixed(1);
+    const name = item.label?.trim() || (item.catalogId === "space-terrace" ? "تراس" : item.catalogId === "space-shaft" ? "شفت" : "فضا");
+    return `${name} (${area} m²)`;
+  }
+  if (item.catalogId === "dim-linear") return `${item.w.toFixed(2)} m`;
+  if (UNLABELLED_IDS.has(item.catalogId)) return null;
+  if (!LABELLED_CATEGORIES.has(definition.category) && !item.label) return null;
+  if (!item.label && (Math.min(item.w, item.d) < 0.75 || item.w * item.d < 0.4)) return null;
+  return item.label ?? definition.nameFa;
+}
+
+/* ─────────────── صحنهٔ برگه: یک منبع برای SVG و PDF ─────────────── */
+
+/**
+ * چرا صحنهٔ مشترک: پیش‌تر پلان با یک رندرکنندهٔ رشته‌ای برای SVG و یک نویسندهٔ
+ * جداگانه برای PDF ساخته می‌شد و نتیجه این بود که PDF پلان بدون کادر و راهنما و
+ * با دیوارهای توخالی درمی‌آمد. حالا برگه یک بار به‌صورت «صحنه» (draw.ts) ساخته
+ * می‌شود و هم SVG رنگی و هم PDF برداری از همان صحنه بیرون می‌آید؛ پس هر اصلاحی
+ * در هر دو خروجی هم‌زمان دیده می‌شود.
+ */
+interface PartOverride {
+  color?: string;
+  weight?: number;
+  forceDash?: boolean;
+  opacity?: number;
+  data?: string;
+}
+
+function partToScene(
+  scene: Scene,
   part: Part,
   item: StudioItem,
   layout: SheetLayout,
   theme: Theme,
   layer: StudioLayerId,
   override: PartOverride = {},
-): string {
+): void {
   const transform = itemTransform(item, layout);
-  const fill = FILL_TOKENS[theme][part.fill ?? "none"] ?? "none";
-  const stroke = override.stroke ?? STROKE[theme][layer] ?? "#0f172a";
+  const fillColor = part.fill && part.fill !== "none" ? FILL_TOKENS[theme][part.fill] : undefined;
+  const color = override.color ?? STROKE[theme][layer] ?? "#0f172a";
   const weight = override.weight ?? (LAYER_BY_ID[layer]?.weight ?? 0.2) * (part.thick ? 1.8 : 1);
   const dashed = override.forceDash ? true : part.dashed;
-  const dash = dashed ? ` stroke-dasharray="${n(Math.max(0.6, weight * 5))} ${n(Math.max(0.4, weight * 3))}"` : "";
-  const opacity = part.opacity != null ? ` fill-opacity="${part.opacity}"` : "";
-  const common = `fill="${fill}"${opacity} stroke="${stroke}" stroke-width="${n(weight)}"${dash}`;
+  const dash: [number, number] | undefined = dashed
+    ? [Math.max(0.6, weight * 5), Math.max(0.4, weight * 3)]
+    : undefined;
+  const style = { color, width: weight, dash, opacity: override.opacity, data: override.data };
+  const fill = fillColor ? { fillColor } : {};
   const w = item.w;
   const d = item.d;
   switch (part.kind) {
@@ -233,52 +361,56 @@ function partToSvg(
       const y0 = (part.y - 0.5) * d;
       const x1 = x0 + part.w * w;
       const y1 = y0 + part.h * d;
-      const points = [
-        transform.map(x0, y0),
-        transform.map(x1, y0),
-        transform.map(x1, y1),
-        transform.map(x0, y1),
-      ]
-        .map((point) => `${n(point.x)},${n(point.y)}`)
-        .join(" ");
-      return `<polygon points="${points}" ${common}/>`;
+      const points: [number, number][] = [
+        [x0, y0],
+        [x1, y0],
+        [x1, y1],
+        [x0, y1],
+      ].map(([x, y]) => {
+        const point = transform.map(x, y);
+        return [point.x, point.y] as [number, number];
+      });
+      scene.poly(points, { ...style, ...fill });
+      return;
     }
     case "circle": {
       const center = transform.map((part.cx - 0.5) * w, (part.cy - 0.5) * d);
-      const radius = part.r * Math.min(item.w, item.d) * 0.5 * layout.mmPerMetre;
-      return `<circle cx="${n(center.x)}" cy="${n(center.y)}" r="${n(radius)}" ${common}/>`;
+      scene.circle(center.x, center.y, part.r * Math.min(item.w, item.d) * 0.5 * layout.mmPerMetre, {
+        ...style,
+        ...fill,
+      });
+      return;
     }
     case "poly": {
-      const points = part.points
-        .map(([u, v]) => transform.map((u - 0.5) * w, (v - 0.5) * d))
-        .map((point) => `${n(point.x)},${n(point.y)}`)
-        .join(" ");
-      if (part.closed === false) {
-        return `<polyline points="${points}" fill="none" stroke="${stroke}" stroke-width="${n(weight)}"${dash}/>`;
-      }
-      return `<polygon points="${points}" ${common}/>`;
+      const points: [number, number][] = part.points.map(([u, v]) => {
+        const point = transform.map((u - 0.5) * w, (v - 0.5) * d);
+        return [point.x, point.y] as [number, number];
+      });
+      scene.poly(points, part.closed === false ? { ...style, closed: false } : { ...style, ...fill });
+      return;
     }
     case "mline": {
       const a = transform.map(part.x1, part.y1);
       const b = transform.map(part.x2, part.y2);
-      const lineStyle = `stroke="${stroke}" stroke-width="${n(weight)}"${dash}`;
-      return `<line x1="${n(a.x)}" y1="${n(a.y)}" x2="${n(b.x)}" y2="${n(b.y)}" fill="none" ${lineStyle}/>`;
+      scene.line(a.x, a.y, b.x, b.y, style);
+      return;
     }
     case "marc": {
       const steps = 16;
-      const points: string[] = [];
+      const points: [number, number][] = [];
       for (let i = 0; i <= steps; i += 1) {
         const angle = ((part.from + ((part.to - part.from) * i) / steps) * Math.PI) / 180;
         const point = transform.map(part.cx + part.r * Math.cos(angle), part.cy + part.r * Math.sin(angle));
-        points.push(`${n(point.x)},${n(point.y)}`);
+        points.push([point.x, point.y]);
       }
-      return `<polyline points="${points.join(" ")}" fill="none" stroke="${stroke}" stroke-width="${n(weight)}"${dash}/>`;
+      scene.poly(points, { ...style, closed: false });
+      return;
     }
-    case "line": {
+    default: {
       const a = transform.map((part.x1 - 0.5) * w, (part.y1 - 0.5) * d);
       const b = transform.map((part.x2 - 0.5) * w, (part.y2 - 0.5) * d);
-      const lineStyle = `stroke="${stroke}" stroke-width="${n(weight)}"${dash}`;
-      return `<line x1="${n(a.x)}" y1="${n(a.y)}" x2="${n(b.x)}" y2="${n(b.y)}" fill="none" ${lineStyle}/>`;
+      scene.line(a.x, a.y, b.x, b.y, style);
+      return;
     }
   }
 }
@@ -288,144 +420,212 @@ function partToSvg(
  * و نماد، نقشه را شلوغ می‌کند و در نقشهٔ اجرایی هم مرسوم نیست.
  */
 /** اقلام تزئینی که برچسبشان فقط نقشه را شلوغ می‌کند. */
-const UNLABELLED_IDS = new Set(["rug", "planter", "tree", "coffee-table", "floor-drain", "socket", "data-outlet", "smoke-detector", "sprinkler", "light-fixture"]);
+const UNLABELLED_IDS = new Set([
+  "rug",
+  "planter",
+  "tree",
+  "coffee-table",
+  "floor-drain",
+  "socket",
+  "data-outlet",
+  "smoke-detector",
+  "sprinkler",
+  "light-fixture",
+]);
 
-const LABELLED_CATEGORIES = new Set(["seating", "dining", "bedroom", "kitchen", "sanitary", "laundry", "office", "retail", "healthcare", "education", "hospitality", "industrial", "mep"]);
+const LABELLED_CATEGORIES = new Set([
+  "seating",
+  "dining",
+  "bedroom",
+  "kitchen",
+  "sanitary",
+  "laundry",
+  "office",
+  "retail",
+  "healthcare",
+  "education",
+  "hospitality",
+  "industrial",
+  "mep",
+]);
 
 const SPACE_IDS = new Set(["space-room", "space-terrace", "space-shaft"]);
+
+const INK: Record<Theme, string> = { print: "#0f172a", screen: "#cbd5e1" };
+const MUTED: Record<Theme, string> = { print: "#475569", screen: "#94a3b8" };
 
 /** مرکز شیء روی برگه (میلی‌متر) — برای جای‌گذاری برچسب و بررسی تداخل. */
 function spaceCenter(item: StudioItem, layout: SheetLayout): { x: number; y: number } {
   return itemTransform(item, layout).origin;
 }
 
-function itemLabelSvg(item: StudioItem, definition: (typeof CATALOG_BY_ID)[string], layout: SheetLayout, theme: Theme): string {
-  if (theme === "screen") return "";
-  if (UNLABELLED_IDS.has(item.catalogId)) return "";
+/** برچسب شیء روی صحنه؛ `true` اگر چیزی نوشته شد. */
+function itemLabelToScene(
+  scene: Scene,
+  item: StudioItem,
+  definition: (typeof CATALOG_BY_ID)[string],
+  layout: SheetLayout,
+  theme: Theme,
+  offset: { dx: number; dy: number },
+): boolean {
+  if (theme === "screen") return false;
+  if (UNLABELLED_IDS.has(item.catalogId)) return false;
+  const data = `data-label-of="${item.id}"`;
   if (SPACE_IDS.has(item.catalogId)) {
     const { origin } = itemTransform(item, layout);
-    const area = (item.w * item.d).toFixed(1);
-    const name = item.label?.trim() || (item.catalogId === "space-terrace" ? "تراس" : item.catalogId === "space-shaft" ? "شفت" : "فضا");
-    const size = 2.4;
-    return `<g data-space="${esc(item.id)}"><text direction="rtl" x="${n(origin.x)}" y="${n(origin.y - 0.6)}" font-size="${size}" text-anchor="middle" fill="#0f172a" font-family="Vazirmatn, Tahoma, sans-serif">${esc(name)}</text><text direction="rtl" x="${n(origin.x)}" y="${n(origin.y + 2.2)}" font-size="${size - 0.3}" text-anchor="middle" fill="#334155" font-family="Vazirmatn, Tahoma, sans-serif">${area} m²</text></g>`;
+    const name =
+      item.label?.trim() || (item.catalogId === "space-terrace" ? "تراس" : item.catalogId === "space-shaft" ? "شفت" : "فضا");
+    scene.text(
+      origin.x + offset.dx,
+      origin.y - 0.6 + offset.dy,
+      name,
+      2.4,
+      { anchor: "middle", color: "#0f172a", data: `data-space="${item.id}"` },
+    );
+    // مساحت با ارقام فارسی و واحد «م²» — همان قاعدهٔ برگه‌های دیگر
+    scene.text(origin.x + offset.dx, origin.y + 2.2 + offset.dy, faArea(item.w * item.d, 1), 2.1, {
+      anchor: "middle",
+      color: "#334155",
+      data,
+    });
+    return true;
+  }
+  if (item.catalogId === "grid-bubble" && item.label) {
+    // نام محور دقیقاً در مرکز حباب (حباب کوچک است؛ قاعدهٔ «فقط اقلام بزرگ» نباید
+    // آن را حذف کند، وگرنه همهٔ حباب‌ها بی‌نام می‌مانند).
+    const { origin } = itemTransform(item, layout);
+    scene.text(origin.x + offset.dx, origin.y + 0.9 + offset.dy, item.label, 2.3, {
+      anchor: "middle",
+      color: "#0f172a",
+      bold: true,
+      direction: "ltr",
+      data,
+    });
+    return true;
   }
   if (item.catalogId === "dim-linear") {
     const { origin } = itemTransform(item, layout);
-    return `<text direction="rtl" x="${n(origin.x)}" y="${n(origin.y - 1.2)}" font-size="2.3" text-anchor="middle" fill="#0f172a" font-family="Vazirmatn, Tahoma, sans-serif">${item.w.toFixed(2)} m</text>`;
+    // اندازه‌گذاری با ارقام فارسی؛ واحد در خط‌کش مقیاس اعلام شده است.
+    scene.text(origin.x + offset.dx, origin.y - 1.2 + offset.dy, faNumber(item.w, 2), 2.3, {
+      anchor: "middle",
+      color: "#0f172a",
+      data,
+    });
+    return true;
   }
-  if (!LABELLED_CATEGORIES.has(definition.category) && !item.label) return "";
+  if (!LABELLED_CATEGORIES.has(definition.category) && !item.label) return false;
   // برچسب فقط برای اقلامی که جای کافی دارند؛ در غیر این صورت نقشه شلوغ می‌شود.
   const minSide = Math.min(item.w, item.d);
-  if (!item.label && (minSide < 0.75 || item.w * item.d < 0.4)) return "";
+  if (!item.label && (minSide < 0.75 || item.w * item.d < 0.4)) return false;
   const widthMm = minSide * layout.mmPerMetre;
-  if (!item.label && widthMm < 9) return "";
+  if (!item.label && widthMm < 9) return false;
   const { origin } = itemTransform(item, layout);
   const name = item.label ?? definition.nameFa;
-  if (!name) return "";
+  if (!name) return false;
   const size = Math.max(1.5, Math.min(2.2, Math.min(item.w, item.d) * layout.mmPerMetre * 0.2));
-  return `<text direction="rtl" x="${n(origin.x)}" y="${n(origin.y + size * 0.35)}" font-size="${n(size)}" text-anchor="middle" fill="#0f172a" font-family="Vazirmatn, Tahoma, sans-serif" opacity="0.8">${esc(name)}</text>`;
+  scene.text(origin.x + offset.dx, origin.y + size * 0.35 + offset.dy, name, size, {
+    anchor: "middle",
+    color: "#0f172a",
+    opacity: 0.8,
+    data,
+  });
+  return true;
 }
 
-function gridSvg(layout: SheetLayout, grid: number, theme: Theme): string {
-  if (!grid || grid <= 0) return "";
+function gridToScene(scene: Scene, layout: SheetLayout, grid: number, theme: Theme): void {
+  if (!grid || grid <= 0) return;
   const step = grid * layout.mmPerMetre;
-  if (step < 4) return "";
+  if (step < 4) return;
   const { areaMm, bounds } = layout;
   const drawW = bounds.w * layout.mmPerMetre;
   const drawH = bounds.h * layout.mmPerMetre;
   const offsetX = areaMm.x + (areaMm.w - drawW) / 2;
   const offsetY = areaMm.y + (areaMm.h - drawH) / 2;
-  const color = theme === "print" ? "#e2e8f0" : "rgba(148,163,184,0.14)";
-  const lines: string[] = [];
-  for (let x = 0; x <= drawW + 0.01; x += step) {
-    lines.push(`<line x1="${n(offsetX + x)}" y1="${n(offsetY)}" x2="${n(offsetX + x)}" y2="${n(offsetY + drawH)}" stroke="${color}" stroke-width="0.1"/>`);
-  }
-  for (let y = 0; y <= drawH + 0.01; y += step) {
-    lines.push(`<line x1="${n(offsetX)}" y1="${n(offsetY + y)}" x2="${n(offsetX + drawW)}" y2="${n(offsetY + y)}" stroke="${color}" stroke-width="0.1"/>`);
-  }
-  return `<g data-grid="1">${lines.join("")}</g>`;
+  const style =
+    theme === "print"
+      ? { color: "#e2e8f0", width: 0.1, data: 'data-grid="1"' }
+      : { color: "#94a3b8", width: 0.1, opacity: 0.14, data: 'data-grid="1"' };
+  for (let x = 0; x <= drawW + 0.01; x += step) scene.line(offsetX + x, offsetY, offsetX + x, offsetY + drawH, style);
+  for (let y = 0; y <= drawH + 0.01; y += step) scene.line(offsetX, offsetY + y, offsetX + drawW, offsetY + y, style);
 }
 
-function titleBlockSvg(doc: StudioDocument, layout: SheetLayout, options: RenderOptions, theme: Theme): string {
-  if (options.showTitleBlock === false) return "";
-  const block = layout.titleBlock;
-  const ink = theme === "print" ? "#0f172a" : "#cbd5e1";
-  const muted = theme === "print" ? "#475569" : "#94a3b8";
-  const bg = theme === "print" ? "#ffffff" : "rgba(15,23,42,0.55)";
+/**
+ * کتیبه و سرصفحهٔ برگه از ابزار مشترک (`drawChrome`): کادر دوگانه، سرصفحه با کد
+ * پروژه، اثر انگشت سند و کتیبهٔ چهارستونه. پلان دیگر کتیبهٔ اختصاصی نمی‌کشد تا
+ * با برگه‌های نما/برش/جزئیات/جداول ناهمگون نشود.
+ */
+function drawSheetChrome(
+  scene: Scene,
+  doc: StudioDocument,
+  layout: SheetLayout,
+  options: RenderOptions,
+  theme: Theme,
+): void {
+  if (options.showTitleBlock === false) return;
   const effectiveScale = Math.round(1000 / layout.mmPerMetre);
-  const scaleText = layout.fitted ? `1:${effectiveScale} (تنظیم خودکار)` : `1:${doc.sheet.scale}`;
-  const sheetSub = `${doc.sheet.format} · ${doc.sheet.orientation === "landscape" ? "افقی" : "عمودی"}${layout.fitted ? ` · درخواست 1:${layout.requestedScale}` : ""}`;
-  const cols = [
-    { w: 0.34, title: "پروژه", value: doc.project.name, sub: `${doc.project.code} · کارفرما: ${doc.project.client || "—"}` },
-    { w: 0.24, title: "نقشه", value: classificationLabel(doc, options), sub: `طبقه: ${doc.currentLevel + 1} از ${doc.levels} · تجدیدنظر ${doc.revision}` },
-    { w: 0.18, title: "مقیاس و برگه", value: scaleText, sub: sheetSub },
-    { w: 0.24, title: "کنترل", value: doc.project.designer || "—", sub: `تاریخ: ${doc.project.date} · ${documentFingerprint(doc)}` },
-  ];
-  const parts: string[] = [
-    `<rect x="${n(block.x)}" y="${n(block.y)}" width="${n(block.w)}" height="${n(block.h)}" fill="${bg}" stroke="${ink}" stroke-width="0.45"/>`,
-  ];
-  let cursor = block.x;
-  const clamp = (text: string, maxMm: number, sizeMm: number): string => {
-    const maxChars = Math.max(4, Math.floor(maxMm / (sizeMm * 0.52)));
-    return text.length > maxChars ? `${text.slice(0, maxChars - 1)}…` : text;
-  };
-  for (const col of cols) {
-    const width = block.w * col.w;
-    const value = clamp(col.value, width - 5, 4);
-    const sub = clamp(col.sub, width - 5, 2.4);
-    parts.push(`<line x1="${n(cursor)}" y1="${n(block.y)}" x2="${n(cursor)}" y2="${n(block.y + block.h)}" stroke="${ink}" stroke-width="0.25"/>`);
-    parts.push(
-      `<text direction="rtl" x="${n(cursor + width - 2.5)}" y="${n(block.y + 6)}" font-size="2.5" text-anchor="end" fill="${muted}" font-family="Vazirmatn, Tahoma, sans-serif">${esc(col.title)}</text>`,
-      `<text direction="rtl" x="${n(cursor + width - 2.5)}" y="${n(block.y + 14)}" font-size="4" text-anchor="end" fill="${ink}" font-family="Vazirmatn, Tahoma, sans-serif" font-weight="600">${esc(value)}</text>`,
-      `<text direction="rtl" x="${n(cursor + width - 2.5)}" y="${n(block.y + 21)}" font-size="2.4" text-anchor="end" fill="${muted}" font-family="Vazirmatn, Tahoma, sans-serif">${esc(sub)}</text>`,
-    );
-    cursor += width;
-  }
-  parts.push(
-    `<text direction="rtl" x="${n(block.x + 2.5)}" y="${n(block.y + block.h - 2.5)}" font-size="2.2" fill="${muted}" font-family="Vazirmatn, Tahoma, sans-serif">${esc(
-      `${ENGINE_LABEL} · ${doc.project.note}`,
-    )}</text>`,
-  );
-  return `<g data-title-block="1">${parts.join("")}</g>`;
+  const scaleText = layout.fitted ? `1:${effectiveScale}` : `1:${doc.sheet.scale}`;
+  drawChrome(scene, doc, {
+    title: doc.project.name,
+    subtitle: [
+      classificationLabel(doc, options),
+      layout.fitted
+        ? `مقیاس 1:${effectiveScale} (درخواست 1:${layout.requestedScale})`
+        : `مقیاس 1:${doc.sheet.scale}`,
+      `${doc.sheet.format} ${doc.sheet.orientation === "landscape" ? "افقی" : "عمودی"}`,
+      `طبقه ${doc.currentLevel + 1} از ${doc.levels}`,
+    ].join(" · "),
+    drawingTitle: classificationLabel(doc, options),
+    scaleText,
+    footnote: `${ENGINE_LABEL} · ${doc.project.note}`,
+  });
+  void theme;
 }
 
-function northArrowSvg(layout: SheetLayout, theme: Theme): string {
+function northArrowToScene(scene: Scene, layout: SheetLayout, theme: Theme): void {
   const { areaMm } = layout;
   const cx = areaMm.x + areaMm.w - 14;
   const cy = areaMm.y + 16;
-  const ink = theme === "print" ? "#0f172a" : "#cbd5e1";
-  return `<g transform="translate(${n(cx)},${n(cy)})" data-north="1">
-    <circle r="6" fill="none" stroke="${ink}" stroke-width="0.25"/>
-    <polygon points="0,-5.2 1.6,2.2 0,1.1 -1.6,2.2" fill="${ink}"/>
-    <text direction="rtl" y="-7" font-size="2.6" text-anchor="middle" fill="${ink}" font-family="Vazirmatn, Tahoma, sans-serif">شمال</text>
-  </g>`;
+  const ink = INK[theme];
+  const data = 'data-north="1"';
+  scene.circle(cx, cy, 6, { color: ink, width: 0.25, data });
+  scene.poly(
+    [
+      [cx, cy - 5.2],
+      [cx + 1.6, cy + 2.2],
+      [cx, cy + 1.1],
+      [cx - 1.6, cy + 2.2],
+    ],
+    { fillColor: ink, color: ink, width: 0.05, data },
+  );
+  scene.text(cx, cy - 7, "شمال", 2.6, { anchor: "middle", color: ink, data });
 }
 
-function scaleBarSvg(layout: SheetLayout, theme: Theme): string {
+function scaleBarToScene(scene: Scene, layout: SheetLayout, theme: Theme): void {
   const { areaMm } = layout;
   const x0 = areaMm.x + 4;
   const y0 = areaMm.y + areaMm.h - 8;
   const totalM = 5;
   const segM = 1;
-  const ink = theme === "print" ? "#0f172a" : "#cbd5e1";
-  const segs: string[] = [];
+  const ink = INK[theme];
+  const data = 'data-scale-bar="1"';
   for (let i = 0; i < totalM / segM; i += 1) {
     const x = x0 + i * segM * layout.mmPerMetre;
     const w = segM * layout.mmPerMetre;
-    segs.push(
-      `<rect x="${n(x)}" y="${n(y0)}" width="${n(w)}" height="2" fill="${i % 2 === 0 ? ink : "none"}" stroke="${ink}" stroke-width="0.2"/>`,
-      `<text direction="rtl" x="${n(x)}" y="${n(y0 + 5.4)}" font-size="2.2" text-anchor="middle" fill="${ink}" font-family="Vazirmatn, Tahoma, sans-serif">${i}</text>`,
-    );
+    scene.rect(x, y0, w, 2, i % 2 === 0 ? { fillColor: ink, color: ink, width: 0.2, data } : { color: ink, width: 0.2, data });
+    scene.text(x, y0 + 5.4, String(i), 2.2, { anchor: "middle", color: ink, data });
   }
-  segs.push(
-    `<text direction="rtl" x="${n(x0 + totalM * layout.mmPerMetre + 3)}" y="${n(y0 + 5.4)}" font-size="2.2" fill="${ink}" font-family="Vazirmatn, Tahoma, sans-serif">متر</text>`,
-    `<text direction="rtl" x="${n(x0)}" y="${n(y0 - 2)}" font-size="2.4" fill="${ink}" font-family="Vazirmatn, Tahoma, sans-serif">مقیاس ${n(1000 / layout.mmPerMetre) === "0" ? "—" : `1:${Math.round(1000 / layout.mmPerMetre)}`}</text>`,
-  );
-  return `<g data-scale-bar="1">${segs.join("")}</g>`;
+  scene.text(x0 + totalM * layout.mmPerMetre + 3, y0 + 5.4, "متر", 2.2, { color: ink, data });
+  scene.text(x0, y0 - 2, `مقیاس 1:${Math.round(1000 / layout.mmPerMetre)}`, 2.4, { color: ink, data });
 }
 
-function legendSvg(doc: StudioDocument, layout: SheetLayout, theme: Theme, options: RenderOptions): string {
-  const ink = theme === "print" ? "#0f172a" : "#cbd5e1";
+function legendToScene(
+  scene: Scene,
+  doc: StudioDocument,
+  layout: SheetLayout,
+  theme: Theme,
+  options: RenderOptions,
+): void {
+  const ink = INK[theme];
   const used = new Set<string>();
   for (const item of renderableItems(doc)) {
     const definition = CATALOG_BY_ID[item.catalogId];
@@ -439,66 +639,68 @@ function legendSvg(doc: StudioDocument, layout: SheetLayout, theme: Theme, optio
     }
   }
   const layers = STUDIO_LAYERS.filter((layer) => used.has(layer.id));
-  if (layers.length === 0) return "";
+  if (layers.length === 0) return;
   const x = layout.areaMm.x + 4;
   const y = layout.areaMm.y + 8;
   const rows = layers.slice(0, 12);
-  const parts = `<text direction="rtl" x="${n(x)}" y="${n(y - 3)}" font-size="2.4" fill="${ink}" font-family="Vazirmatn, Tahoma, sans-serif">لایه‌ها</text>` +
-    rows
-      .map((layer, index) => {
-        const rowY = y + index * 4.2;
-        return `<line x1="${n(x)}" y1="${n(rowY)}" x2="${n(x + 6)}" y2="${n(rowY)}" stroke="${layer.color}" stroke-width="${n(Math.max(0.25, layer.weight))}"/>
-          <text direction="rtl" x="${n(x + 8)}" y="${n(rowY + 1)}" font-size="2.2" fill="${ink}" font-family="Vazirmatn, Tahoma, sans-serif">${esc(layer.label)}</text>`;
-      })
-      .join("");
-  return `<g data-legend="1">${parts}</g>`;
+  const data = 'data-legend="1"';
+  scene.text(x, y - 3, "لایه‌ها", 2.4, { color: ink, data });
+  rows.forEach((layer, index) => {
+    const rowY = y + index * 4.2;
+    scene.line(x, rowY, x + 6, rowY, { color: layer.color, width: Math.max(0.25, layer.weight), data });
+    scene.text(x + 8, rowY + 1, layer.label, 2.2, { color: ink, data });
+  });
 }
 
-function scheduleSvg(doc: StudioDocument, layout: SheetLayout, theme: Theme, level: number | null): string {
+function scheduleToScene(scene: Scene, doc: StudioDocument, layout: SheetLayout, theme: Theme, level: number | null): void {
   const all = schedule(doc, { visibleOnly: true, level });
   const rows = all.slice(0, 8);
-  if (rows.length === 0) return "";
-  const total = all.reduce((sum, row) => sum + row.count, 0);
-  const ink = theme === "print" ? "#0f172a" : "#cbd5e1";
+  if (rows.length === 0) return;
+  const ink = INK[theme];
   const { areaMm } = layout;
   const w = 62;
   const x = areaMm.x + areaMm.w - w - 3;
   const y = areaMm.y + areaMm.h - 8 - rows.length * 4.4 - 6;
-  const lines: string[] = [
-    `<rect x="${n(x)}" y="${n(y)}" width="${n(w)}" height="${n(rows.length * 4.4 + 6)}" fill="none" stroke="${ink}" stroke-width="0.2"/>`,
-    `<text direction="rtl" x="${n(x + w - 2)}" y="${n(y + 4)}" font-size="2.3" text-anchor="end" fill="${ink}" font-family="Vazirmatn, Tahoma, sans-serif">جدول اشیا</text>`,
-  ];
+  const data = 'data-schedule="1"';
+  scene.rect(x, y, w, rows.length * 4.4 + 6, { color: ink, width: 0.2, data });
+  scene.text(x + w - 2, y + 4, "جدول اشیا", 2.3, { anchor: "end", color: ink, data });
   rows.forEach((row, index) => {
     const rowY = y + 8 + index * 4.4;
-    lines.push(
-      `<text direction="rtl" x="${n(x + w - 2)}" y="${n(rowY)}" font-size="2.1" text-anchor="end" fill="${ink}" font-family="Vazirmatn, Tahoma, sans-serif">${esc(row.nameFa)}</text>`,
-      `<text direction="rtl" x="${n(x + 2)}" y="${n(rowY)}" font-size="2.1" fill="${ink}" font-family="Vazirmatn, Tahoma, sans-serif">${row.count} ×</text>`,
-    );
+    scene.text(x + w - 2, rowY, row.nameFa, 2.1, { anchor: "end", color: ink, data });
+    scene.text(x + 2, rowY, `${row.count} ×`, 2.1, { color: ink, data });
   });
-  return `<g data-schedule="1">${lines.join("")}</g>`;
 }
 
-export function renderStudioSvg(doc: StudioDocument, options: RenderOptions = {}): string {
+/** برگهٔ کامل پلان به‌صورت صحنه: کادر، محور، اشیا، برچسب‌ها، راهنما، مقیاس، جدول و کتیبه. */
+export function planScene(
+  doc: StudioDocument,
+  options: RenderOptions = {},
+): { scene: Scene; layout: SheetLayout; view: StudioDocument } {
+  doc = withAxisLabels(doc);
   const theme = options.theme ?? "print";
   // فیلتر رشته در سطح «نمای سند» اعمال می‌شود تا اشیا، جدول، راهنما و عنوان
   // همه با یکدیگر هم‌خوان باشند (نه اینکه فقط هندسه حذف شود).
   const view: StudioDocument = options.classification ? { ...doc, classification: options.classification } : doc;
   const layout = sheetLayout(view, options);
   const levelFilter = options.onlyLevel === undefined ? view.currentLevel : options.onlyLevel;
-  const items = renderableItems(view).filter((item) => options.allLevels === true || levelFilter == null || item.level === levelFilter);
-  const body: string[] = [];
-  if (theme === "print") {
-    body.push(`<rect x="0" y="0" width="${n(layout.widthMm)}" height="${n(layout.heightMm)}" fill="${PAPER}"/>`);
-  }
-  body.push(
-    `<rect x="${n(layout.areaMm.x)}" y="${n(layout.areaMm.y)}" width="${n(layout.areaMm.w)}" height="${n(layout.areaMm.h)}" fill="none" stroke="${theme === "print" ? "#94a3b8" : "rgba(148,163,184,0.35)"}" stroke-width="0.3"/>`,
+  const items = renderableItems(view).filter(
+    (item) => options.allLevels === true || levelFilter == null || item.level === levelFilter,
   );
-  if (options.showGrid ?? doc.gridVisible) body.push(gridSvg(layout, doc.grid, theme));
+  const scene = new Scene();
+  if (theme === "print") scene.rect(0, 0, layout.widthMm, layout.heightMm, { fillColor: PAPER, color: PAPER, width: 0.01 });
+  // کادر، سرصفحه و کتیبه پیش از محتوا رسم می‌شوند تا زیر نقشه بمانند.
+  drawSheetChrome(scene, doc, layout, options, theme);
+  scene.rect(layout.areaMm.x, layout.areaMm.y, layout.areaMm.w, layout.areaMm.h, {
+    color: "#94a3b8",
+    opacity: theme === "print" ? 1 : 0.35,
+    width: 0.3,
+    data: 'data-area="1"',
+  });
+  if (options.showGrid ?? doc.gridVisible) gridToScene(scene, layout, doc.grid, theme);
 
   // زیرلایهٔ مرجع: رشته‌های دیگر به‌صورت محو نمایش داده می‌شوند تا نقشه خوانا و
   // در عین حال قابل انطباق با معماری/سازه باشد (روش رایج دفاتر ایرانی).
   if (options.showContext !== false && view.classification !== "all") {
-    const ghost: string[] = [];
     for (const item of doc.items) {
       const definition = CATALOG_BY_ID[item.catalogId];
       if (!definition) continue;
@@ -506,21 +708,77 @@ export function renderStudioSvg(doc: StudioDocument, options: RenderOptions = {}
       if (definition.discipline === view.classification) continue;
       if (SHARED_LAYERS.has(definition.layer)) continue;
       if (options.onlyLevel != null && item.level !== options.onlyLevel) continue;
-      const shape = definition.parts
-        .map((part) => partToSvg(part, item, layout, theme, definition.layer, { stroke: GHOST_COLOR[theme], weight: 0.13, forceDash: true }))
-        .join("");
-      ghost.push(`<g data-ghost="${esc(item.id)}" opacity="0.5">${shape}</g>`);
+      for (const part of definition.parts) {
+        partToScene(scene, part, item, layout, theme, definition.layer, {
+          color: GHOST_COLOR[theme],
+          weight: 0.13,
+          forceDash: true,
+          opacity: 0.5,
+          data: `data-ghost="${item.id}"`,
+        });
+      }
     }
-    if (ghost.length > 0) body.push(`<g data-context="1">${ghost.join("")}</g>`);
   }
 
-  const labels: string[] = [];
+  const labelScene = new Scene();
   const placed: { x: number; y: number; w: number; h: number }[] = [];
-  const collides = (box: { x: number; y: number; w: number; h: number }) =>
-    placed.some(
+  const overlaps = (
+    box: { x: number; y: number; w: number; h: number },
+    others: { x: number; y: number; w: number; h: number }[],
+  ) =>
+    others.some(
       (other) =>
         Math.abs(other.x - box.x) * 2 < other.w + box.w && Math.abs(other.y - box.y) * 2 < other.h + box.h,
     );
+  const collides = (box: { x: number; y: number; w: number; h: number }) => overlaps(box, placed);
+
+  /** کادر اشغال‌شدهٔ هر شیء روی برگه (میلی‌متر) — مانع جای‌گذاری برچسب فضا. */
+  const obstacles = items
+    .filter((item) => !item.catalogId.startsWith("space-"))
+    .map((item) => {
+      const rad = (item.rotationDeg * Math.PI) / 180;
+      const cos = Math.abs(Math.cos(rad));
+      const sin = Math.abs(Math.sin(rad));
+      const hw = (item.w * cos + item.d * sin) * 0.5 * layout.mmPerMetre;
+      const hh = (item.w * sin + item.d * cos) * 0.5 * layout.mmPerMetre;
+      const center = spaceCenter(item, layout);
+      return { x: center.x, y: center.y, w: hw * 2, h: hh * 2 };
+    });
+
+  /**
+   * جای برچسب فضا: وسط فضا، سپس چند جای‌گزین بالا/چپ/راست/پایین.
+   *
+   * چرا: وسط خیلی از فضاها تخت یا میز است و برچسب دقیقاً روی مبلمان می‌افتد
+   * (در نقشهٔ نمونه، «اتاق خواب» روی تخت). اولین گزینه‌ای انتخاب می‌شود که هم
+   * داخل خود فضا بماند و هم با مبلمان/دیگر برچسب‌ها تلاقی نکند.
+   */
+  const spaceLabelOffset = (item: StudioItem, labelWidth: number): { dx: number; dy: number } => {
+    const center = spaceCenter(item, layout);
+    const halfW = (item.w * layout.mmPerMetre) / 2;
+    const halfH = (item.d * layout.mmPerMetre) / 2;
+    const candidates: { dx: number; dy: number }[] = [
+      { dx: 0, dy: 0 },
+      { dx: 0, dy: -halfH * 0.45 },
+      { dx: 0, dy: halfH * 0.45 },
+      { dx: -halfW * 0.35, dy: 0 },
+      { dx: halfW * 0.35, dy: 0 },
+      { dx: -halfW * 0.35, dy: -halfH * 0.45 },
+      { dx: halfW * 0.35, dy: -halfH * 0.45 },
+    ];
+    const fits = (candidate: { dx: number; dy: number }) => {
+      const box = { x: center.x + candidate.dx, y: center.y + candidate.dy, w: labelWidth, h: 6 };
+      const inside =
+        box.x - box.w / 2 >= center.x - halfW + 1 &&
+        box.x + box.w / 2 <= center.x + halfW - 1 &&
+        box.y - 2 >= center.y - halfH + 1 &&
+        box.y + 3 <= center.y + halfH - 1;
+      return inside && !overlaps(box, obstacles) && !collides(box);
+    };
+    for (const candidate of candidates) {
+      if (fits(candidate)) return candidate;
+    }
+    return { dx: 0, dy: 0 };
+  };
   // ترتیب رسم: ابتدا فضاها (زمینه)، سپس تجهیزات/سازه، و در پایان برچسب‌ها —
   // تا نوشته‌ها هرگز زیر مبلمان پنهان نشوند.
   const ordered = [...items].sort((a, b) => {
@@ -531,37 +789,48 @@ export function renderStudioSvg(doc: StudioDocument, options: RenderOptions = {}
   for (const item of ordered) {
     const definition = CATALOG_BY_ID[item.catalogId];
     if (!definition) continue;
-    const shape = definition.parts.map((part) => partToSvg(part, item, layout, theme, definition.layer)).join("");
-    body.push(`<g data-item="${esc(item.id)}" data-catalog="${esc(item.catalogId)}" data-level="${item.level}">${shape}</g>`);
-    const label = itemLabelSvg(item, definition, layout, theme);
-    if (label) {
-      // جابه‌جایی عمودی برچسب تا روی برچسب دیگری نیفتد (حداکثر ۴ گام ۲ میلی‌متری)
-      const nameLength = (item.label ?? definition.nameFa).length;
-      const box = { x: labels.length >= 0 ? spaceCenter(item, layout).x : 0, y: spaceCenter(item, layout).y, w: nameLength * 1.35 + 2, h: 6 };
-      let shift = 0;
+    const data = `data-item="${item.id}" data-catalog="${item.catalogId}" data-level="${item.level}"`;
+    for (const part of definition.parts) {
+      partToScene(scene, part, item, layout, theme, definition.layer, { data });
+    }
+    const nameLength = (item.label ?? definition.nameFa).length;
+    const labelWidth = nameLength * 1.35 + 2;
+    const isSpace = item.catalogId.startsWith("space-");
+    let offset = { dx: 0, dy: 0 };
+    if (isSpace) {
+      offset = spaceLabelOffset(item, labelWidth);
+    } else {
+      // جابه‌جایی عمودی گام‌به‌گام تا برچسب روی برچسب دیگری نیفتد
+      const center = spaceCenter(item, layout);
       for (let step = 0; step < 5; step += 1) {
-        if (!collides({ ...box, y: box.y + shift })) break;
-        shift += 2.2;
+        const box = { x: center.x, y: center.y + offset.dy, w: labelWidth, h: 6 };
+        if (!collides(box)) break;
+        offset = { dx: 0, dy: offset.dy + 2.2 };
       }
-      placed.push({ ...box, y: box.y + shift });
-      labels.push(shift === 0 ? label : `<g transform="translate(0 ${n(shift)})">${label}</g>`);
+    }
+    const center = spaceCenter(item, layout);
+    if (itemLabelToScene(labelScene, item, definition, layout, theme, offset)) {
+      placed.push({ x: center.x + offset.dx, y: center.y + offset.dy, w: labelWidth, h: 6 });
     }
   }
-  body.push(`<g data-labels="1">${labels.join("")}</g>`);
+  scene.prims.push(...labelScene.prims);
 
-  body.push(northArrowSvg(layout, theme));
-  body.push(scaleBarSvg(layout, theme));
+  northArrowToScene(scene, layout, theme);
+  scaleBarToScene(scene, layout, theme);
   if (options.showSchedule !== false) {
-    body.push(scheduleSvg(view, layout, theme, options.onlyLevel == null ? view.currentLevel : options.onlyLevel));
+    scheduleToScene(scene, view, layout, theme, options.onlyLevel == null ? view.currentLevel : options.onlyLevel);
   }
-  body.push(legendSvg(view, layout, theme, options));
-  body.push(titleBlockSvg(doc, layout, options, theme));
+  legendToScene(scene, view, layout, theme, options);
+  return { scene, layout, view };
+}
 
+export function renderStudioSvg(doc: StudioDocument, options: RenderOptions = {}): string {
+  const { scene, layout } = planScene(doc, options);
   return `<?xml version="1.0" encoding="UTF-8"?>
 <svg xmlns="http://www.w3.org/2000/svg" width="${n(layout.widthMm)}mm" height="${n(layout.heightMm)}mm" viewBox="0 0 ${n(layout.widthMm)} ${n(layout.heightMm)}" role="img" aria-label="${esc(classificationLabel(doc, options))} — ${esc(doc.project.name)}">
   <title>${esc(`${doc.project.name} — ${classificationLabel(doc, options)}`)}</title>
   <desc>${esc(`مقیاس 1:${Math.round(1000 / layout.mmPerMetre)} · ${ENGINE_LABEL} · ${documentFingerprint(doc)}`)}</desc>
-  ${body.join("\n  ")}
+  ${sceneSvg(scene)}
 </svg>`;
 }
 
@@ -603,6 +872,7 @@ function dxfLabelFor(item: StudioItem, definition: (typeof CATALOG_BY_ID)[string
 }
 
 export function renderStudioDxf(doc: StudioDocument, options: RenderOptions = {}): string {
+  doc = withAxisLabels(doc);
   const out: string[] = [];
   const push = (...values: (string | number)[]) => out.push(...values.map(String));
   const view: StudioDocument = options.classification ? { ...doc, classification: options.classification } : doc;
@@ -774,215 +1044,23 @@ function buildPdfPage(
   doc: StudioDocument,
   options: RenderOptions,
   spec: PdfPageSpec,
-  textLayer: PdfText,
+  text: PdfText,
 ): { ops: string[]; layout: SheetLayout } {
-  const view: StudioDocument = { ...doc, classification: spec.classification, currentLevel: spec.level ?? doc.currentLevel };
-  const layout = sheetLayout(view, options);
-  const pageH = layout.heightMm * MM_TO_PT;
-  const ops: string[] = [];
-  const toPt = (x: number, y: number) => ({ x: x * MM_TO_PT, y: pageH - y * MM_TO_PT });
-  const line = (a: { x: number; y: number }, b: { x: number; y: number }, widthMm: number, gray = 0.1) => {
-    const pa = toPt(a.x, a.y);
-    const pb = toPt(b.x, b.y);
-    ops.push(`${gray} ${gray} ${gray} RG ${(widthMm * MM_TO_PT).toFixed(2)} w ${pa.x.toFixed(2)} ${pa.y.toFixed(2)} m ${pb.x.toFixed(2)} ${pb.y.toFixed(2)} l S`);
+  // صفحهٔ PDF همان صحنهٔ برگهٔ SVG است (کادر، محور، راهنما، جدول، کتیبه) که به
+  // عملگرهای برداری تبدیل می‌شود؛ تفاوت تنها در خاکستری‌شدن رنگ‌ها و جاسازی
+  // فونت فارسی است.
+  const pageOptions: RenderOptions = {
+    ...options,
+    theme: "print",
+    classification: spec.classification,
+    onlyLevel: spec.level,
   };
-  const poly = (points: { x: number; y: number }[], widthMm: number, fillGray: number | null, gray = 0.1) => {
-    if (points.length < 2) return;
-    const first = toPt(points[0].x, points[0].y);
-    if (fillGray != null) ops.push(`${fillGray} ${fillGray} ${fillGray} rg`);
-    ops.push(`${gray} ${gray} ${gray} RG ${(widthMm * MM_TO_PT).toFixed(2)} w ${first.x.toFixed(2)} ${first.y.toFixed(2)} m`);
-    for (const point of points.slice(1)) {
-      const pt = toPt(point.x, point.y);
-      ops.push(`${pt.x.toFixed(2)} ${pt.y.toFixed(2)} l`);
-    }
-    ops.push(fillGray != null ? "b" : "S");
-  };
-  const circle = (center: { x: number; y: number }, radiusMm: number, widthMm: number, fillGray: number | null) => {
-    const c = toPt(center.x, center.y);
-    const r = radiusMm * MM_TO_PT;
-    const k = 0.5523 * r;
-    if (fillGray != null) ops.push(`${fillGray} ${fillGray} ${fillGray} rg`);
-    ops.push(`0.1 0.1 0.1 RG ${(widthMm * MM_TO_PT).toFixed(2)} w ${c.x.toFixed(2)} ${c.y.toFixed(2)} m`);
-    ops.push(
-      `${(c.x + r).toFixed(2)} ${c.y.toFixed(2)} ${(c.x + r).toFixed(2)} ${(c.y + k).toFixed(2)} ${(c.x + k).toFixed(2)} ${(c.y + r).toFixed(2)} ${c.x.toFixed(2)} ${(c.y + r).toFixed(2)} c`,
-      `${(c.x - k).toFixed(2)} ${(c.y + r).toFixed(2)} ${(c.x - r).toFixed(2)} ${(c.y + k).toFixed(2)} ${(c.x - r).toFixed(2)} ${c.y.toFixed(2)} c`,
-      `${(c.x - r).toFixed(2)} ${(c.y - k).toFixed(2)} ${(c.x - k).toFixed(2)} ${(c.y - r).toFixed(2)} ${c.x.toFixed(2)} ${(c.y - r).toFixed(2)} c`,
-      `${(c.x + k).toFixed(2)} ${(c.y - r).toFixed(2)} ${(c.x + r).toFixed(2)} ${(c.y - k).toFixed(2)} ${(c.x + r).toFixed(2)} ${c.y.toFixed(2)} c`,
-      fillGray != null ? "b" : "S",
-    );
-  };
-  /** نوشتن متن با فونت جاسازی‌شده؛ اندازه به میلی‌متر داده می‌شود. */
-  const text = (
-    at: { x: number; y: number },
-    sizeMm: number,
-    value: string,
-    gray = 0.1,
-    anchor: TextAnchor = "start",
-    bold = false,
-    direction: "rtl" | "ltr" = "rtl",
-  ) => {
-    const pt = toPt(at.x, at.y);
-    textLayer.draw(ops, pt, value, { sizePt: sizeMm * MM_TO_PT, gray, anchor, bold, direction });
-  };
-
-  /** متن را در عرض مشخص جا می‌دهد: اول کوچک‌تر می‌کند، بعد کوتاه می‌کند. */
-  const fit = (value: string, maxMm: number, sizeMm: number, bold = false): { value: string; sizeMm: number } => {
-    let size = sizeMm;
-    const fits = (candidate: string, candidateSize: number) =>
-      textLayer.width(candidate, { sizePt: candidateSize * MM_TO_PT, bold }) <= maxMm * MM_TO_PT;
-    if (fits(value, size)) return { value, sizeMm: size };
-    while (size > 2.1 && !fits(value, size)) size -= 0.2;
-    if (fits(value, size)) return { value, sizeMm: size };
-    let trimmed = value;
-    while (trimmed.length > 3 && !fits(`${trimmed}…`, size)) trimmed = trimmed.slice(0, -1);
-    return { value: `${trimmed}…`, sizeMm: size };
-  };
-
-  const area = layout.areaMm;
-  text({ x: area.x + 2, y: area.y + 5 }, 2.6, `${ENGINE_LABEL} · ${documentFingerprint(doc)}`, 0.55, "start", false, "ltr");
-  // کادر نقشه
-  line({ x: area.x, y: area.y + 8 }, { x: area.x + area.w, y: area.y + 8 }, 0.4, 0.85);
-
-  const items = renderableItems(view).filter((item) => spec.level == null || item.level === spec.level);
-  for (const item of items) {
-    const definition = CATALOG_BY_ID[item.catalogId];
-    if (!definition) continue;
-    const transform = itemTransform(item, layout);
-    for (const part of definition.parts) {
-      const fillGray = part.fill === "dark" ? 0.72 : part.fill === "medium" ? 0.86 : part.fill === "soft" ? 0.95 : part.fill === "accent" ? 0.88 : null;
-      const width = (LAYER_BY_ID[definition.layer]?.weight ?? 0.2) * (part.thick ? 1.8 : 1);
-      if (part.kind === "rect") {
-        const x0 = (part.x - 0.5) * item.w;
-        const y0 = (part.y - 0.5) * item.d;
-        const x1 = x0 + part.w * item.w;
-        const y1 = y0 + part.h * item.d;
-        poly([transform.map(x0, y0), transform.map(x1, y0), transform.map(x1, y1), transform.map(x0, y1)], width, fillGray);
-      } else if (part.kind === "circle") {
-        const center = transform.map((part.cx - 0.5) * item.w, (part.cy - 0.5) * item.d);
-        circle(center, part.r * Math.min(item.w, item.d) * 0.5 * layout.mmPerMetre, width, fillGray);
-      } else if (part.kind === "mline") {
-        line(transform.map(part.x1, part.y1), transform.map(part.x2, part.y2), width);
-      } else if (part.kind === "marc") {
-        const steps = 16;
-        const points: { x: number; y: number }[] = [];
-        for (let i = 0; i <= steps; i += 1) {
-          const angle = ((part.from + ((part.to - part.from) * i) / steps) * Math.PI) / 180;
-          points.push(transform.map(part.cx + part.r * Math.cos(angle), part.cy + part.r * Math.sin(angle)));
-        }
-        for (let i = 0; i < points.length - 1; i += 1) line(points[i], points[i + 1], width);
-      } else if (part.kind === "poly") {
-        const points = part.points.map(([u, v]) => transform.map((u - 0.5) * item.w, (v - 0.5) * item.d));
-        if (part.closed === false) {
-          for (let i = 0; i < points.length - 1; i += 1) line(points[i], points[i + 1], width);
-        } else {
-          poly(points, width, fillGray);
-        }
-      } else {
-        line(
-          transform.map((part.x1 - 0.5) * item.w, (part.y1 - 0.5) * item.d),
-          transform.map((part.x2 - 0.5) * item.w, (part.y2 - 0.5) * item.d),
-          width,
-        );
-      }
-    }
-    // برچسب‌ها: فضا با مساحت، اندازه‌گذاری با مقدار، بقیه با نام
-    const center = transform.origin;
-    const label = pdfLabelFor(item, definition);
-    if (label) {
-      const size = SPACE_IDS.has(item.catalogId) ? 2.4 : 1.8;
-      text({ x: center.x, y: center.y + (SPACE_IDS.has(item.catalogId) ? 2.2 : 0.9) }, size, label, 0.3, "middle");
-    }
-  }
-
-  // عنوان و کادر اطلاعات
-  const scaleText = `1:${Math.round(1000 / layout.mmPerMetre)}${layout.fitted ? " (AUTO)" : ""}`;
-  const heading = fit(`${doc.project.code} · ${doc.project.name}`, area.w - 8, 4.2, true);
-  text({ x: area.x + 3, y: area.y + area.h - 6 }, heading.sizeMm, heading.value, 0.1, "start", true);
-  const subheading = fit(spec.caption, area.w - 8, 3, false);
-  text({ x: area.x + 3, y: area.y + area.h - 11 }, subheading.sizeMm, subheading.value, 0.35);
-  text(
-    { x: area.x + 3, y: area.y + area.h - 15 },
-    2.4,
-    `${doc.sheet.format} · ${doc.sheet.orientation === "landscape" ? "افقی" : "عمودی"} · مقیاس ${scaleText} · ویرایش ${doc.revision}`,
-    0.45,
-  );
-
-  const block = layout.titleBlock;
-  poly(
-    [
-      { x: block.x, y: block.y },
-      { x: block.x + block.w, y: block.y },
-      { x: block.x + block.w, y: block.y + block.h },
-      { x: block.x, y: block.y + block.h },
-    ],
-    0.45,
-    null,
-  );
-  const cols = [
-    { title: "پروژه", value: doc.project.name, sub: `${doc.project.code} · کارفرما: ${doc.project.client || "—"}` },
-    { title: "نقشه", value: spec.caption, sub: `طبقه ${(spec.level ?? doc.currentLevel) + 1} از ${doc.levels} · ویرایش ${doc.revision}` },
-    { title: "مقیاس و برگه", value: `${scaleText}`, sub: `${doc.sheet.format} · ${doc.sheet.orientation === "landscape" ? "افقی" : "عمودی"}` },
-    { title: "کنترل", value: doc.project.designer || "—", sub: `${doc.project.date} · ${documentFingerprint(doc)}` },
-  ];
-  const colWidth = block.w / cols.length;
-  let cursor = block.x;
-  for (let index = 0; index < cols.length; index += 1) {
-    const col = cols[index];
-    if (index > 0) line({ x: cursor, y: block.y }, { x: cursor, y: block.y + block.h }, 0.25, 0.4);
-    text({ x: cursor + formulaPadding(colWidth), y: block.y + 5 }, 2.2, col.title, 0.45, "end");
-    const value = fit(col.value, colWidth - 5, 3.6, true);
-    text({ x: cursor + colWidth - 2.5, y: block.y + 12 }, value.sizeMm, value.value, 0.1, "end", true);
-    const sub = fit(col.sub, colWidth - 5, 2.2);
-    text({ x: cursor + colWidth - 2.5, y: block.y + 17 }, sub.sizeMm, sub.value, 0.4, "end");
-    cursor += colWidth;
-  }
-  text({ x: block.x + block.w - 2.5, y: block.y + 22 }, 2, "ترسیم آزاد — کنترل نهایی با مهندس دارای صلاحیت", 0.55, "end");
-
-  // خط‌کش مقیاس
-  const barX = area.x + 3;
-  const barY = area.y + 12;
-  for (let i = 0; i < 5; i += 1) {
-    const x = barX + i * layout.mmPerMetre;
-    poly(
-      [
-        { x, y: barY },
-        { x: x + layout.mmPerMetre, y: barY },
-        { x: x + layout.mmPerMetre, y: barY + 2 },
-        { x, y: barY + 2 },
-      ],
-      0.2,
-      i % 2 === 0 ? 0.1 : null,
-    );
-    text({ x, y: barY + 6 }, 2.2, String(i), 0.4, "start", false, "ltr");
-  }
-  text({ x: barX + 5 * layout.mmPerMetre + 3, y: barY + 6 }, 2.2, "متر", 0.4);
-
-  return { ops, layout };
-}
-
-/** فاصلهٔ کوچک برای چسبیدن عنوان ستون به لبهٔ داخلی کادر. */
-function formulaPadding(_width: number): number {
-  return -2.5;
-}
-
-/** برچسب قابل نوشتن برای یک شیء در PDF (هم‌خوان با منطق SVG). */
-function pdfLabelFor(
-  item: StudioItem,
-  definition: (typeof CATALOG_BY_ID)[string],
-): string | null {
-  if (SPACE_IDS.has(item.catalogId)) {
-    const area = (item.w * item.d).toFixed(1);
-    const name = item.label?.trim() || (item.catalogId === "space-terrace" ? "تراس" : item.catalogId === "space-shaft" ? "شفت" : "فضا");
-    return `${name} (${area} m²)`;
-  }
-  if (item.catalogId === "dim-linear") return `${item.w.toFixed(2)} m`;
-  if (UNLABELLED_IDS.has(item.catalogId)) return null;
-  if (!LABELLED_CATEGORIES.has(definition.category) && !item.label) return null;
-  if (!item.label && (Math.min(item.w, item.d) < 0.75 || item.w * item.d < 0.4)) return null;
-  return item.label ?? definition.nameFa;
+  const { scene, layout } = planScene(doc, pageOptions);
+  return { ops: scenePdfOps(scene, layout.heightMm, text), layout };
 }
 
 export function renderStudioPdf(doc: StudioDocument, options: RenderOptions = {}): Uint8Array {
+  doc = withAxisLabels(doc);
   const text = new PdfText(loadTypeface("regular"), loadTypeface("bold"));
   const classification = options.classification ?? doc.classification;
   const caption = `${classificationLabel(doc, { classification })}`;
@@ -1006,6 +1084,7 @@ export interface PdfBundleOptions {
  * این همان «رندر هماهنگ طبق طبقه‌بندی» است که برای ارائه و کنترل استفاده می‌شود.
  */
 export function renderStudioPdfBundle(doc: StudioDocument, options: PdfBundleOptions = {}): { pdf: Uint8Array; pages: number } {
+  doc = withAxisLabels(doc);
   const text = new PdfText(loadTypeface("regular"), loadTypeface("bold"));
   const levels = options.allLevels === false ? [doc.currentLevel] : Array.from({ length: doc.levels }, (_, index) => index);
   const classifications: StudioDocument["classification"][] =

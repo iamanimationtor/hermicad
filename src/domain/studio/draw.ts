@@ -21,15 +21,25 @@ export type Anchor = "start" | "middle" | "end";
 interface Base {
   /** خاکستری ۰ (سیاه) تا ۱ (سفید) */
   gray?: number;
+  /**
+   * رنگ خط برای خروجی SVG (مثل `#0ea5e9`). PDF سیاه‌وسفید چاپ می‌شود، پس رنگ
+   * با روشنایی به خاکستری هم‌ارز تبدیل می‌شود؛ بنابراین یک صحنه هم رنگ صفحه را
+   * می‌دهد و هم برگهٔ چاپی معتبر.
+   */
+  color?: string;
   width?: number;
   dash?: [number, number];
+  /** شفافیت ۰..۱ (در PDF با روشن‌کردن خاکستری شبیه‌سازی می‌شود) */
+  opacity?: number;
+  /** صفت‌های data-* برای قلاب آزمون/انتخاب در SVG */
+  data?: string;
 }
 
 export type Prim =
   | ({ kind: "line"; x1: number; y1: number; x2: number; y2: number } & Base)
-  | ({ kind: "rect"; x: number; y: number; w: number; h: number; fill?: number | null } & Base)
-  | ({ kind: "poly"; points: [number, number][]; fill?: number | null; closed?: boolean } & Base)
-  | ({ kind: "circle"; cx: number; cy: number; r: number; fill?: number | null } & Base)
+  | ({ kind: "rect"; x: number; y: number; w: number; h: number; fill?: number | null; fillColor?: string } & Base)
+  | ({ kind: "poly"; points: [number, number][]; fill?: number | null; fillColor?: string; closed?: boolean } & Base)
+  | ({ kind: "circle"; cx: number; cy: number; r: number; fill?: number | null; fillColor?: string } & Base)
   | ({
       kind: "text";
       x: number;
@@ -47,10 +57,22 @@ export class Scene {
   readonly prims: Prim[] = [];
 
   line(x1: number, y1: number, x2: number, y2: number, options: Base = {}): void {
-    this.prims.push({ kind: "line", x1, y1, x2, y2, gray: options.gray ?? 0.1, width: options.width ?? 0.25, dash: options.dash });
+    this.prims.push({
+      kind: "line",
+      x1,
+      y1,
+      x2,
+      y2,
+      gray: options.gray ?? 0.1,
+      color: options.color,
+      width: options.width ?? 0.25,
+      dash: options.dash,
+      opacity: options.opacity,
+      data: options.data,
+    });
   }
 
-  rect(x: number, y: number, w: number, h: number, options: Base & { fill?: number | null } = {}): void {
+  rect(x: number, y: number, w: number, h: number, options: Base & { fill?: number | null; fillColor?: string } = {}): void {
     this.prims.push({
       kind: "rect",
       x,
@@ -58,27 +80,50 @@ export class Scene {
       w,
       h,
       fill: options.fill ?? null,
+      fillColor: options.fillColor,
       gray: options.gray ?? 0.1,
+      color: options.color,
       width: options.width ?? 0.25,
       dash: options.dash,
+      opacity: options.opacity,
+      data: options.data,
     });
   }
 
-  poly(points: [number, number][], options: Base & { fill?: number | null; closed?: boolean } = {}): void {
+  poly(
+    points: [number, number][],
+    options: Base & { fill?: number | null; fillColor?: string; closed?: boolean } = {},
+  ): void {
     if (points.length < 2) return;
     this.prims.push({
       kind: "poly",
       points,
       fill: options.fill ?? null,
+      fillColor: options.fillColor,
       closed: options.closed ?? true,
       gray: options.gray ?? 0.1,
+      color: options.color,
       width: options.width ?? 0.25,
       dash: options.dash,
+      opacity: options.opacity,
+      data: options.data,
     });
   }
 
-  circle(cx: number, cy: number, r: number, options: Base & { fill?: number | null } = {}): void {
-    this.prims.push({ kind: "circle", cx, cy, r, fill: options.fill ?? null, gray: options.gray ?? 0.1, width: options.width ?? 0.25 });
+  circle(cx: number, cy: number, r: number, options: Base & { fill?: number | null; fillColor?: string } = {}): void {
+    this.prims.push({
+      kind: "circle",
+      cx,
+      cy,
+      r,
+      fill: options.fill ?? null,
+      fillColor: options.fillColor,
+      gray: options.gray ?? 0.1,
+      color: options.color,
+      width: options.width ?? 0.25,
+      opacity: options.opacity,
+      data: options.data,
+    });
   }
 
   text(
@@ -100,6 +145,9 @@ export class Scene {
       direction: options.direction ?? "rtl",
       rotate: options.rotate,
       gray: options.gray ?? 0.1,
+      color: options.color,
+      opacity: options.opacity,
+      data: options.data,
     });
   }
 
@@ -133,32 +181,39 @@ const grayColor = (gray: number): string => {
 export function sceneSvg(scene: Scene): string {
   return scene.prims
     .map((prim) => {
-      const stroke = grayColor(prim.gray ?? 0.1);
+      const stroke = prim.color ?? grayColor(prim.gray ?? 0.1);
       const dash = prim.dash ? ` stroke-dasharray="${num(prim.dash[0])} ${num(prim.dash[1])}"` : "";
       const width = ` stroke-width="${num(prim.width ?? 0.25)}"`;
+      const opacity = prim.opacity != null && prim.opacity < 1 ? ` opacity="${num(prim.opacity)}"` : "";
+      const data = prim.data ? ` ${prim.data}` : "";
+      const fillOf = (fill?: number | null, fillColor?: string) =>
+        fillColor ?? (fill != null ? grayColor(fill) : "none");
       switch (prim.kind) {
         case "line":
-          return `<line x1="${num(prim.x1)}" y1="${num(prim.y1)}" x2="${num(prim.x2)}" y2="${num(prim.y2)}" stroke="${stroke}"${width}${dash}/>`;
+          return `<line x1="${num(prim.x1)}" y1="${num(prim.y1)}" x2="${num(prim.x2)}" y2="${num(prim.y2)}" stroke="${stroke}"${width}${dash}${opacity}${data}/>`;
         case "rect": {
-          const fill = prim.fill != null ? grayColor(prim.fill) : "none";
-          return `<rect x="${num(prim.x)}" y="${num(prim.y)}" width="${num(prim.w)}" height="${num(prim.h)}" fill="${fill}" stroke="${stroke}"${width}${dash}/>`;
+          const fill = fillOf(prim.fill, prim.fillColor);
+          return `<rect x="${num(prim.x)}" y="${num(prim.y)}" width="${num(prim.w)}" height="${num(prim.h)}" fill="${fill}" stroke="${stroke}"${width}${dash}${opacity}${data}/>`;
         }
         case "poly": {
-          const fill = prim.fill != null ? grayColor(prim.fill) : "none";
+          const fill = fillOf(prim.fill, prim.fillColor);
           const points = prim.points.map(([x, y]) => `${num(x)},${num(y)}`).join(" ");
-          return `<polygon points="${points}" fill="${fill}" stroke="${stroke}"${width}${dash}/>`;
+          if (prim.closed === false) {
+            return `<polyline points="${points}" fill="${fill}" stroke="${stroke}"${width}${dash}${opacity}${data}/>`;
+          }
+          return `<polygon points="${points}" fill="${fill}" stroke="${stroke}"${width}${dash}${opacity}${data}/>`;
         }
         case "circle": {
-          const fill = prim.fill != null ? grayColor(prim.fill) : "none";
-          return `<circle cx="${num(prim.cx)}" cy="${num(prim.cy)}" r="${num(prim.r)}" fill="${fill}" stroke="${stroke}"${width}/>`;
+          const fill = fillOf(prim.fill, prim.fillColor);
+          return `<circle cx="${num(prim.cx)}" cy="${num(prim.cy)}" r="${num(prim.r)}" fill="${fill}" stroke="${stroke}"${width}${opacity}${data}/>`;
         }
         case "text": {
-          const anchor = prim.anchor ? ` text-anchor="${prim.anchor}"` : "";
+          const anchor = prim.anchor && prim.anchor !== "start" ? ` text-anchor="${prim.anchor}"` : "";
           const weight = prim.bold ? ' font-weight="700"' : "";
           const direction = ` direction="${prim.direction ?? "rtl"}"`;
           const rotate = prim.rotate ? ` transform="rotate(${num(prim.rotate)} ${num(prim.x)} ${num(prim.y)})"` : "";
           const escaped = prim.value.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
-          return `<text x="${num(prim.x)}" y="${num(prim.y)}" font-size="${num(prim.size)}" fill="${stroke}" font-family="Vazirmatn, Tahoma, sans-serif"${anchor}${weight}${direction}${rotate}>${escaped}</text>`;
+          return `<text x="${num(prim.x)}" y="${num(prim.y)}" font-size="${num(prim.size)}" fill="${stroke}" font-family="Vazirmatn, Tahoma, sans-serif"${anchor}${weight}${direction}${rotate}${opacity}${data}>${escaped}</text>`;
         }
       }
     })
@@ -168,6 +223,34 @@ export function sceneSvg(scene: Scene): string {
 /* ───────────────────────────── PDF ───────────────────────────── */
 
 /** تبدیل صحنه به عملگرهای PDF (مختصات میلی‌متر، صفحه با ارتفاع داده‌شده). */
+/**
+ * رنگ صفحه (hex یا rgba) به خاکستری چاپی.
+ *
+ * چرا: برگهٔ PDF برای چاپ تک‌رنگ ساخته می‌شود؛ اگر رنگ‌های صفحه بی‌تبدیل به PDF
+ * بروند، دستگاه چاپ آن‌ها را به سیاه یکدست تبدیل می‌کند و تفکیک لایه‌ها از بین
+ * می‌رود. با روشنایی (luma) همان سلسله‌مراتبی که روی صفحه دیده می‌شود حفظ می‌شود.
+ */
+export function colorToGray(color: string): number | null {
+  const hex = /^#([0-9a-f]{6})$/i.exec(color.trim());
+  if (hex) {
+    const value = parseInt(hex[1], 16);
+    const r = (value >> 16) & 255;
+    const g = (value >> 8) & 255;
+    const b = value & 255;
+    return Math.round(((0.2126 * r + 0.7152 * g + 0.0722 * b) / 255) * 100) / 100;
+  }
+  const rgba = /rgba?\(\s*([\d.]+)\s*,\s*([\d.]+)\s*,\s*([\d.]+)/i.exec(color.trim());
+  if (rgba) {
+    const [r, g, b] = [Number(rgba[1]), Number(rgba[2]), Number(rgba[3])];
+    return Math.round(((0.2126 * r + 0.7152 * g + 0.0722 * b) / 255) * 100) / 100;
+  }
+  return null;
+}
+
+/** روشن‌کردن خاکستری برای شبیه‌سازی شفافیت روی کاغذ سفید. */
+const applyOpacity = (gray: number, opacity?: number): number =>
+  opacity == null || opacity >= 1 ? gray : Math.round((1 - (1 - gray) * opacity) * 100) / 100;
+
 export function scenePdfOps(scene: Scene, heightMm: number, text: PdfText): string[] {
   const ops: string[] = [];
   const toPt = (x: number, y: number) => ({ x: x * MM_TO_PT, y: heightMm * MM_TO_PT - y * MM_TO_PT });
@@ -175,7 +258,7 @@ export function scenePdfOps(scene: Scene, heightMm: number, text: PdfText): stri
     value ? `[${value.map((part) => (part * MM_TO_PT).toFixed(2)).join(" ")}] 0 d` : "[] 0 d";
 
   for (const prim of scene.prims) {
-    const gray = prim.gray ?? 0.1;
+    const gray = applyOpacity(prim.color ? (colorToGray(prim.color) ?? (prim.gray ?? 0.1)) : (prim.gray ?? 0.1), prim.opacity);
     const widthPt = ((prim.width ?? 0.25) * MM_TO_PT).toFixed(2);
     if (prim.kind === "text") {
       const at = toPt(prim.x, prim.y);
@@ -197,39 +280,44 @@ export function scenePdfOps(scene: Scene, heightMm: number, text: PdfText): stri
       );
       continue;
     }
+    // خاکستری پرشدگی: یا رنگ پرشدگی (تبدیل‌شده) یا خاکستری صریح
+    const fillGray =
+      "fillColor" in prim && prim.fillColor
+        ? colorToGray(prim.fillColor)
+        : (prim as { fill?: number | null }).fill ?? null;
     if (prim.kind === "rect") {
       if (prim.w <= 0 || prim.h <= 0) continue;
       const corner = toPt(prim.x, prim.y);
-      if (prim.fill != null) ops.push(`${prim.fill} ${prim.fill} ${prim.fill} rg`);
+      if (fillGray != null) ops.push(`${fillGray} ${fillGray} ${fillGray} rg`);
       ops.push(
         `${dash(prim.dash)} ${gray} ${gray} ${gray} RG ${widthPt} w ` +
           `${corner.x.toFixed(2)} ${(corner.y - prim.h * MM_TO_PT).toFixed(2)} ${(prim.w * MM_TO_PT).toFixed(2)} ${(prim.h * MM_TO_PT).toFixed(2)} re ` +
-          (prim.fill != null ? "B" : "S"),
+          (fillGray != null ? "B" : "S"),
       );
       continue;
     }
     if (prim.kind === "poly") {
       const points = prim.points.map(([x, y]) => toPt(x, y));
       if (points.length < 2) continue;
-      if (prim.fill != null) ops.push(`${prim.fill} ${prim.fill} ${prim.fill} rg`);
+      if (fillGray != null) ops.push(`${fillGray} ${fillGray} ${fillGray} rg`);
       ops.push(`${dash(prim.dash)} ${gray} ${gray} ${gray} RG ${widthPt} w ${points[0].x.toFixed(2)} ${points[0].y.toFixed(2)} m`);
       for (const point of points.slice(1)) ops.push(`${point.x.toFixed(2)} ${point.y.toFixed(2)} l`);
       if (prim.closed !== false) ops.push("h");
-      ops.push(prim.fill != null ? "b" : "S");
+      ops.push(fillGray != null ? "b" : "S");
       continue;
     }
     // دایره با چهار منحنی بزیه
     const c = toPt(prim.cx, prim.cy);
     const r = prim.r * MM_TO_PT;
     const k = 0.5523 * r;
-    if (prim.fill != null) ops.push(`${prim.fill} ${prim.fill} ${prim.fill} rg`);
+    if (fillGray != null) ops.push(`${fillGray} ${fillGray} ${fillGray} rg`);
     ops.push(
       `${gray} ${gray} ${gray} RG ${widthPt} w ${(c.x + r).toFixed(2)} ${c.y.toFixed(2)} m`,
       `${(c.x + r).toFixed(2)} ${(c.y + k).toFixed(2)} ${(c.x + k).toFixed(2)} ${(c.y + r).toFixed(2)} ${c.x.toFixed(2)} ${(c.y + r).toFixed(2)} c`,
       `${(c.x - k).toFixed(2)} ${(c.y + r).toFixed(2)} ${(c.x - r).toFixed(2)} ${(c.y + k).toFixed(2)} ${(c.x - r).toFixed(2)} ${c.y.toFixed(2)} c`,
       `${(c.x - r).toFixed(2)} ${(c.y - k).toFixed(2)} ${(c.x - k).toFixed(2)} ${(c.y - r).toFixed(2)} ${c.x.toFixed(2)} ${(c.y - r).toFixed(2)} c`,
-      `${(c.x + k).toFixed(2)} ${(c.y - r).toFixed(2)} ${(c.x + r).toFixed(2)} ${(c.y - k).toFixed(2)} ${(c.x + r).toFixed(2)} ${c.y.toFixed(2)} c`,
-      prim.fill != null ? "b" : "S",
+      `${(c.x + k).toFixed(2)} ${(c.y - r).toFixed(2)} ${(c.x + r).toFixed(2)} ${(c.y - k).toFixed(2)} ${(c.x + r).toFixed(2)} ${c.y.toFixed(2)} c h`,
+      fillGray != null ? "b" : "S",
     );
   }
   return ops;

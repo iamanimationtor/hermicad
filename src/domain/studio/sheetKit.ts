@@ -96,8 +96,22 @@ export interface ChromeOptions {
  */
 export function drawChrome(scene: Scene, doc: StudioDocument, options: ChromeOptions): void {
   const { sheet, titleBlock } = sheetFrame(doc);
-  scene.rect(MARGIN, MARGIN, sheet.w - MARGIN * 2, sheet.h - MARGIN * 2, { width: 0.45, gray: 0.45 });
-  scene.rect(MARGIN + 3, MARGIN + 3, sheet.w - (MARGIN + 3) * 2, sheet.h - (MARGIN + 3) * 2, { width: 0.2, gray: 0.7 });
+  scene.rect(MARGIN, MARGIN, sheet.w - MARGIN * 2, sheet.h - MARGIN * 2, {
+    width: 0.45,
+    gray: 0.45,
+    data: 'data-frame="1"',
+  });
+  scene.rect(MARGIN + 3, MARGIN + 3, sheet.w - (MARGIN + 3) * 2, sheet.h - (MARGIN + 3) * 2, {
+    width: 0.2,
+    gray: 0.7,
+    data: 'data-frame-inner="1"',
+  });
+  // خط جداکنندهٔ کتیبه (مرز بالای کادر اطلاعات)
+  scene.line(titleBlock.x, titleBlock.y, titleBlock.x + titleBlock.w, titleBlock.y, {
+    width: 0.35,
+    gray: 0.45,
+    data: 'data-title-block="1"',
+  });
 
   scene.text(sheet.w - MARGIN - 4, MARGIN + 9, `${doc.project.code} · ${doc.project.name}`, 5.2, { anchor: "end", bold: true });
   scene.text(sheet.w - MARGIN - 4, MARGIN + 14, options.subtitle, 2.8, { anchor: "end", gray: 0.4 });

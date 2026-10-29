@@ -30,6 +30,8 @@ import {
   renderStudioSvg,
   sheetLayout,
   studioScheduleCsv,
+  planScene,
+  withAxisLabels,
 } from "@/domain/studio/render";
 import { sampleDesign, sampleDesignItems } from "@/server/designs";
 import { studioIfc, studioXlsx, toPersianWords } from "@/domain/studio/exporters";
@@ -728,4 +730,48 @@ test("studio/schedules", "اعداد فارسی: جداکنندهٔ اعشار �
   assert(faMeter(12) === "۱۲٫۰۰ متر", `متر: ${faMeter(12)}`);
   assert(faPercent(0.185) === "۱۸٫۵٪", `درصد: ${faPercent(0.185)}`);
   return "اعداد";
+});
+
+test("studio/render", "صحنهٔ برگهٔ پلان از یک منبع ساخته می‌شود: کادر، کتیبه، راهنما، جدول", () => {
+  const doc = sampleDesign();
+  const { scene, layout } = planScene(doc);
+  const texts = scene.prims.filter((prim) => prim.kind === "text").map((prim) => (prim as { value: string }).value);
+  assert(texts.some((value) => value.includes("لایه‌ها")), "راهنمای لایه‌ها روی صحنه نیست");
+  assert(texts.some((value) => value.includes("جدول اشیا")), "جدول اشیا روی صحنه نیست");
+  assert(texts.some((value) => value.includes("شمال")), "نماد شمال روی صحنه نیست");
+  assert(texts.some((value) => value.includes("مقیاس")), "مقیاس روی صحنه نیست");
+  assert(texts.some((value) => value.includes(doc.project.name)), "نام پروژه در کتیبه نیست");
+  assert(layout.areaMm.w > 300 && layout.areaMm.h > 200, "ناحیهٔ نقشه با کادر مشترک هم‌خوان نیست");
+  // همان صحنه به هر دو خروجی می‌رود: SVG و PDF نباید از هم جدا شوند.
+  const svg = renderStudioSvg(doc);
+  const framePad = scene.prims.filter((prim) => prim.data?.includes("data-frame")).length;
+  assert(framePad >= 2, "کادر دوگانه روی صحنه رسم نشده");
+  assert(svg.includes('data-frame="1"'), "کادر برگه در SVG نیست");
+  return `${scene.prims.length} جزء صحنه`;
+});
+
+test("studio/render", "محورهای نقشه خودکار نام‌گذاری می‌شوند (عدد راست‌به‌چپ، حرف بالا‌به‌پایین)", () => {
+  const doc = sampleDesign();
+  const labeled = withAxisLabels(doc).items.filter((item) => item.catalogId === "grid-bubble");
+  const vertical = labeled.filter((item) => item.label && /[۰-۹]/.test(item.label)).sort((a, b) => b.x - a.x);
+  const horizontal = labeled.filter((item) => item.label && /[A-Z]/.test(item.label)).sort((a, b) => b.y - a.y);
+  assert(vertical.length === 3, `تعداد محور عمودی: ${vertical.length}`);
+  assert(vertical.map((item) => item.label).join("") === "۱۲۳", `شمارهٔ محورها: ${vertical.map((i) => i.label).join("")}`);
+  assert(horizontal.length === 3, `تعداد محور افقی: ${horizontal.length}`);
+  assert(horizontal.map((item) => item.label).join("") === "ABC", `حروف محورها: ${horizontal.map((i) => i.label).join("")}`);
+  // برچسب دستی کاربر هرگز بازنویسی نمی‌شود
+  const manual = { ...doc, items: doc.items.map((item) => (item.id === "an-gx0" ? { ...item, label: "M" } : item)) };
+  const kept = withAxisLabels(manual).items.find((item) => item.id === "an-gx0");
+  assert(kept?.label === "M", "برچسب دستی محور بازنویسی شد");
+  return `${vertical.length} عددی + ${horizontal.length} حرفی`;
+});
+
+test("studio/render", "برچسب فضا با ارقام فارسی و بدون تداخل با مبلمان جاگذاری می‌شود", () => {
+  const doc = sampleDesign();
+  const svg = renderStudioSvg(doc);
+  const spaceLabels = [...svg.matchAll(/data-space="([^"]+)"[^>]*>([^<]+)</g)].map((match) => match[2]);
+  assert(spaceLabels.length >= 5, `تعداد برچسب فضا: ${spaceLabels.length}`);
+  assert(!svg.includes("m\u00b2>") && !/\d+\.\d m²/.test(svg), "مساحت فضا با ارقام لاتین نوشته شده");
+  assert(/[۰-۹]+٫[۰-۹] م²/.test(svg), "مساحت فضا با ارقام فارسی و واحد م² نیست");
+  return `${spaceLabels.length} فضا`;
 });
