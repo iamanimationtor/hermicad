@@ -1,3 +1,4 @@
+import { floorHeight } from "./parameters";
 /**
  * HERMICAD Studio — برگه‌های PDF نما و برش
  *
@@ -12,7 +13,7 @@
  */
 
 import { documentFingerprint, sheetSizeMm, todayJalali, type StudioDocument } from "./document";
-import { ELEVATION_LABELS, DEFAULT_FLOOR_HEIGHT, viewGeometry, type ElevationDirection, type ViewGeometry, type VerticalViewOptions } from "./vertical";
+import { ELEVATION_LABELS, viewGeometry, type ElevationDirection, type ViewGeometry, type VerticalViewOptions } from "./vertical";
 import { faNumber } from "./sheetKit";
 import { assemblePdf } from "./pdf/sheetPdf";
 import { PdfText } from "./pdf/text";
@@ -155,7 +156,7 @@ function drawViewOnCanvas(canvas: PdfCanvas, doc: StudioDocument, view: ViewGeom
 
   // کف طبقات و بام
   for (let level = 0; level <= doc.levels; level += 1) {
-    const y = level * DEFAULT_FLOOR_HEIGHT;
+    const y = level * floorHeight(doc);
     const a = map(minX - 0.3, y - 0.2);
     const b = map(maxX + 0.3, y + 0.02);
     canvas.rect(Math.min(a.x, b.x), Math.min(a.y, b.y), Math.abs(a.x - b.x), Math.abs(a.y - b.y), {
@@ -166,8 +167,8 @@ function drawViewOnCanvas(canvas: PdfCanvas, doc: StudioDocument, view: ViewGeom
   }
 
   // جان‌پناه بام: حجم توپر + کفسنگی (همان زبان برگهٔ SVG)
-  const parapetA = map(minX - 0.3, doc.levels * DEFAULT_FLOOR_HEIGHT);
-  const parapetB = map(maxX + 0.3, doc.levels * DEFAULT_FLOOR_HEIGHT + 0.9);
+  const parapetA = map(minX - 0.3, doc.levels * floorHeight(doc));
+  const parapetB = map(maxX + 0.3, doc.levels * floorHeight(doc) + 0.9);
   const pxp = Math.min(parapetA.x, parapetB.x);
   const pyp = Math.min(parapetA.y, parapetB.y);
   const pwp = Math.abs(parapetA.x - parapetB.x);
@@ -250,7 +251,7 @@ function drawViewOnCanvas(canvas: PdfCanvas, doc: StudioDocument, view: ViewGeom
   // تراز طبقات
   const frameX = view.frame.x;
   for (let level = 0; level <= doc.levels; level += 1) {
-    const y = level * DEFAULT_FLOOR_HEIGHT;
+    const y = level * floorHeight(doc);
     const point = map(minX, y);
     const leftEdge = map(maxX, y);
     const label = level === 0 ? "±0.00" : `+${y.toFixed(2)}`;
@@ -260,14 +261,14 @@ function drawViewOnCanvas(canvas: PdfCanvas, doc: StudioDocument, view: ViewGeom
 
   // ارتفاع‌گذاری کل
   const dimA = map(minX - 0.55, 0);
-  const dimB = map(minX - 0.55, doc.levels * DEFAULT_FLOOR_HEIGHT);
+  const dimB = map(minX - 0.55, doc.levels * floorHeight(doc));
   canvas.line({ x: dimA.x, y: dimA.y }, { x: dimB.x, y: dimB.y }, 0.2, 0.25);
   canvas.line({ x: dimA.x - 1, y: dimA.y }, { x: dimA.x + 1, y: dimA.y }, 0.2, 0.25);
   canvas.line({ x: dimB.x - 1, y: dimB.y }, { x: dimB.x + 1, y: dimB.y }, 0.2, 0.25);
   canvas.text(
     { x: dimA.x + 1.6, y: (dimA.y + dimB.y) / 2 + 0.8 },
     2,
-    `${(doc.levels * DEFAULT_FLOOR_HEIGHT).toFixed(2)} m`,
+    `${(doc.levels * floorHeight(doc)).toFixed(2)} m`,
     0.1,
     "start",
     false,

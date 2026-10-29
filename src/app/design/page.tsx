@@ -1,3 +1,4 @@
+import { WorkspaceAccess } from "@/components/design/WorkspaceAccess";
 import Link from "next/link";
 import { ensureSampleDesign, listDesigns } from "@/server/designs";
 import { CATALOG_STATS, CATEGORIES } from "@/domain/studio/catalog";
@@ -82,6 +83,7 @@ export default async function DesignIndexPage() {
         </div>
 
         <div className="space-y-4">
+          <WorkspaceAccess />
           <NewDesignPanel />
           <Panel title="دسته‌بندی کتابخانه" subtitle="همهٔ اشیا با ابعاد پیش‌فرض واقعی و کلاس IFC">
             <div className="flex flex-wrap gap-1">

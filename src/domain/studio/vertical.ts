@@ -11,7 +11,7 @@
  *  - برگهٔ نماها: چهار نما در یک برگه، با کادر و عنوان مستقل هر نما.
  *
  * ارتفاع هر جزء از متادیتای کتابخانه (defaultSize.h) می‌آید و ارتفاع طبقه از
- * DEFAULT_FLOOR_HEIGHT؛ بنابراین یک منبع حقیقت واحد برای هر دو خروجی.
+ * floorHeight(doc)؛ بنابراین یک منبع حقیقت واحد برای هر دو خروجی.
  */
 
 import { CATALOG_BY_ID, type StudioLayerId } from "./catalog";
@@ -28,19 +28,8 @@ export const ELEVATION_LABELS: Record<ElevationDirection, string> = {
   west: "نمای غربی",
 };
 
-/** ارتفاع کف تا کف هر طبقه (متر). */
-export const DEFAULT_FLOOR_HEIGHT = 3.2;
-
-/**
- * ارتفاع کف‌نشیمن و ارتفاع خود بازشو — تنها منبع حقیقت برای نما، جدول درها و
- * پنجره‌ها و جزئیات. تغییر این اعداد همهٔ خروجی‌ها را هم‌زمان درست می‌کند.
- */
-export const OPENING_HEIGHTS: Record<string, { sill: number; height: number }> = {
-  "door-single": { sill: 0, height: 2.1 },
-  "door-double": { sill: 0, height: 2.1 },
-  "door-garage": { sill: 0, height: 2.4 },
-  window: { sill: 0.9, height: 1.3 },
-};
+import { floorHeight, itemVertical, isOpening } from "./parameters";
+export { DEFAULT_FLOOR_HEIGHT, OPENING_HEIGHTS } from "./parameters";
 
 interface ElevationBlock {
   x0: number;
@@ -85,7 +74,10 @@ function inSection(item: StudioItem, direction: ElevationDirection, at: number, 
 function collectBlocks(doc: StudioDocument, direction: ElevationDirection, section?: { at: number; width: number }): ElevationBlock[] {
   const blocks: ElevationBlock[] = [];
   const wantLayers = new Set<string>(["walls", "structure", "foundation"]);
-  for (const item of renderableItems({ ...doc, classification: "all" })) {
+  const items = renderableItems({ ...doc, classification: "all" });
+  // پی در پلان ترکیبی پنهان است، اما در برش باید از مدل اصلی خوانده شود.
+  if (section && doc.layers.foundation) items.push(...doc.items.filter((item) => CATALOG_BY_ID[item.catalogId]?.layer === "foundation"));
+  for (const item of items) {
     const definition = CATALOG_BY_ID[item.catalogId];
     if (!definition) continue;
     if (!wantLayers.has(definition.layer)) continue;
@@ -93,8 +85,8 @@ function collectBlocks(doc: StudioDocument, direction: ElevationDirection, secti
     // در برش فقط اجزایی که با نوار برش تقاطع دارند باقی می‌مانند.
     if (section && !inSection(item, direction, section.at, section.width)) continue;
     const span = project(item, direction);
-    const base = item.level * DEFAULT_FLOOR_HEIGHT;
-    const opening = OPENING_HEIGHTS[item.catalogId];
+    const base = item.level * floorHeight(doc);
+    const opening = isOpening(item) ? itemVertical(item, doc) : null;
     if (opening) {
       blocks.push({
         x0: span.x0,
@@ -111,7 +103,15 @@ function collectBlocks(doc: StudioDocument, direction: ElevationDirection, secti
     if (definition.category === "foundation") {
       // در نما، پی زیر خاک است و دیده نمی‌شود؛ فقط در برش (که بریده می‌شود) می‌آید.
       if (!section) continue;
-      blocks.push({ x0: span.x0, x1: span.x1, y0: -Math.max(0.6, definition.defaultSize.h * 2), y1: 0, layer: definition.layer, kind: "solid", depth: span.depth });
+      blocks.push({
+        x0: span.x0,
+        x1: span.x1,
+        y0: base - itemVertical(item, doc).height,
+        y1: base,
+        layer: definition.layer,
+        kind: "solid",
+        depth: span.depth,
+      });
       continue;
     }
     if (definition.id.startsWith("beam-")) continue; // در ضخامت کف پنهان است
@@ -119,7 +119,7 @@ function collectBlocks(doc: StudioDocument, direction: ElevationDirection, secti
       x0: span.x0,
       x1: span.x1,
       y0: base,
-      y1: base + (definition.defaultSize.h || DEFAULT_FLOOR_HEIGHT),
+      y1: base + itemVertical(item, doc).height,
       layer: definition.layer,
       kind: definition.id.startsWith("column") ? "column" : "solid",
       depth: span.depth,
@@ -195,7 +195,7 @@ export function viewGeometry(doc: StudioDocument, options: VerticalViewOptions, 
   const minX = blocks.length ? Math.min(...blocks.map((block) => block.x0)) : 0;
   const maxX = blocks.length ? Math.max(...blocks.map((block) => block.x1)) : 12;
   const minY = blocks.length ? Math.min(0, ...blocks.map((block) => block.y0)) : 0;
-  const maxY = Math.max(doc.levels * DEFAULT_FLOOR_HEIGHT + 0.9, ...blocks.map((block) => block.y1));
+  const maxY = Math.max(doc.levels * floorHeight(doc) + 0.9, ...blocks.map((block) => block.y1));
   const spanX = Math.max(maxX - minX, 1);
   const spanY = Math.max(maxY - minY, 2);
 
@@ -220,11 +220,15 @@ export function viewGeometry(doc: StudioDocument, options: VerticalViewOptions, 
   const map = (x: number, y: number) => ({ x: originX - (x - minX) * mmPerMetre, y: originY - (y - minY) * mmPerMetre });
 
   const near = direction === "south" || direction === "west";
-  const walls = blocks.filter((block) => block.layer === "walls" && block.kind === "solid").sort((a, b) => (near ? b.depth - a.depth : a.depth - b.depth));
+  const walls = blocks
+    .filter((block) => block.layer === "walls" && block.kind === "solid")
+    .sort((a, b) => (near ? b.depth - a.depth : a.depth - b.depth));
   const openings = blocks.filter((block) => block.kind === "opening");
   const columns = blocks.filter((block) => block.kind === "column");
   const footing = blocks.filter((block) => block.layer === "foundation");
-  const rest = blocks.filter((block) => !walls.includes(block) && !openings.includes(block) && !columns.includes(block) && !footing.includes(block));
+  const rest = blocks.filter(
+    (block) => !walls.includes(block) && !openings.includes(block) && !columns.includes(block) && !footing.includes(block),
+  );
   const ordered = [...footing, ...walls, ...rest, ...openings, ...columns];
 
   return {
@@ -251,7 +255,7 @@ function drawView(doc: StudioDocument, options: VerticalViewOptions, frame: Fram
 
   // کف طبقات و بام
   for (let level = 0; level <= doc.levels; level += 1) {
-    const y = level * DEFAULT_FLOOR_HEIGHT;
+    const y = level * floorHeight(doc);
     const a = map(minX - 0.3, y - 0.2);
     const b = map(maxX + 0.3, y + 0.02);
     pieces.push(
@@ -260,8 +264,8 @@ function drawView(doc: StudioDocument, options: VerticalViewOptions, frame: Fram
   }
   // جان‌پناه بام
   // جان‌پناه بام: در نما «حجم» است، نه خط پنهان؛ با کف‌سازی و کفسنگی بالای آن
-  const parapetA = map(minX - 0.3, doc.levels * DEFAULT_FLOOR_HEIGHT);
-  const parapetB = map(maxX + 0.3, doc.levels * DEFAULT_FLOOR_HEIGHT + 0.9);
+  const parapetA = map(minX - 0.3, doc.levels * floorHeight(doc));
+  const parapetB = map(maxX + 0.3, doc.levels * floorHeight(doc) + 0.9);
   const px = Math.min(parapetA.x, parapetB.x);
   const py = Math.min(parapetA.y, parapetB.y);
   const pw = Math.abs(parapetA.x - parapetB.x);
@@ -326,7 +330,9 @@ function drawView(doc: StudioDocument, options: VerticalViewOptions, frame: Fram
   const soilHeight = Math.max(lower.y - groundA.y, 0);
   const hatch: string[] = [];
   for (let x = groundA.x; x < groundB.x + soilHeight; x += 2.4) {
-    hatch.push(`<line x1="${n(x)}" y1="${n(groundA.y + soilHeight)}" x2="${n(x + soilHeight)}" y2="${n(groundA.y)}" stroke="#94a3b8" stroke-width="0.18"/>`);
+    hatch.push(
+      `<line x1="${n(x)}" y1="${n(groundA.y + soilHeight)}" x2="${n(x + soilHeight)}" y2="${n(groundA.y)}" stroke="#94a3b8" stroke-width="0.18"/>`,
+    );
   }
   pieces.push(
     `<g clip-path="url(#soilClip)" data-soil="1">${hatch.join("")}</g>`,
@@ -336,7 +342,7 @@ function drawView(doc: StudioDocument, options: VerticalViewOptions, frame: Fram
 
   // تراز طبقات + ارتفاع‌گذاری کل
   for (let level = 0; level <= doc.levels; level += 1) {
-    const y = level * DEFAULT_FLOOR_HEIGHT;
+    const y = level * floorHeight(doc);
     const point = map(minX, y);
     const leftEdge = map(maxX, y);
     const label = level === 0 ? "±0.00" : `+${y.toFixed(2)}`;
@@ -349,12 +355,12 @@ function drawView(doc: StudioDocument, options: VerticalViewOptions, frame: Fram
   }
   // ارتفاع‌گذاری کل در سمت راست نقشه (بیرون از خط دیوار)
   const dimA = map(minX - 0.55, 0);
-  const dimB = map(minX - 0.55, doc.levels * DEFAULT_FLOOR_HEIGHT);
+  const dimB = map(minX - 0.55, doc.levels * floorHeight(doc));
   pieces.push(
     `<line x1="${n(dimA.x)}" y1="${n(dimA.y)}" x2="${n(dimB.x)}" y2="${n(dimB.y)}" stroke="#334155" stroke-width="0.2"/>`,
     `<line x1="${n(dimA.x - 1)}" y1="${n(dimA.y)}" x2="${n(dimA.x + 1)}" y2="${n(dimA.y)}" stroke="#334155" stroke-width="0.2"/>`,
     `<line x1="${n(dimB.x - 1)}" y1="${n(dimB.y)}" x2="${n(dimB.x + 1)}" y2="${n(dimB.y)}" stroke="#334155" stroke-width="0.2"/>`,
-    `<text direction="ltr" x="${n(dimA.x + 1.4)}" y="${n((dimA.y + dimB.y) / 2)}" font-size="2" fill="#0f172a" font-family="Vazirmatn, Tahoma, sans-serif" transform="rotate(-90 ${n(dimA.x + 1.4)} ${n((dimA.y + dimB.y) / 2)})">${(doc.levels * DEFAULT_FLOOR_HEIGHT).toFixed(2)}</text>`,
+    `<text direction="ltr" x="${n(dimA.x + 1.4)}" y="${n((dimA.y + dimB.y) / 2)}" font-size="2" fill="#0f172a" font-family="Vazirmatn, Tahoma, sans-serif" transform="rotate(-90 ${n(dimA.x + 1.4)} ${n((dimA.y + dimB.y) / 2)})">${(doc.levels * floorHeight(doc)).toFixed(2)}</text>`,
   );
 
   // مقیاس
@@ -407,7 +413,13 @@ export function renderStudioVertical(doc: StudioDocument, options: VerticalViewO
   const frame: Frame = { x: 16, y: 34, w: size.w - 32, h: size.h - 34 - 40 };
   const view = drawView(doc, options, frame);
   const subtitle = `${doc.project.code} · مقیاس 1:${view.scale} · ${doc.sheet.format}`;
-  return sheetBase(doc, options.title ?? (options.sectionAt != null ? "برش" : ELEVATION_LABELS[options.direction ?? "south"]), subtitle, view.svg, "نما از مدل پلان ساخته می‌شود؛ کنترل نهایی با مهندس دارای صلاحیت است.");
+  return sheetBase(
+    doc,
+    options.title ?? (options.sectionAt != null ? "برش" : ELEVATION_LABELS[options.direction ?? "south"]),
+    subtitle,
+    view.svg,
+    "نما از مدل پلان ساخته می‌شود؛ کنترل نهایی با مهندس دارای صلاحیت است.",
+  );
 }
 
 /**
@@ -437,7 +449,13 @@ export function renderStudioElevationSheet(doc: StudioDocument): string {
     .map((view) => `۱:${faNumber(view.scale, 0)}`)
     .filter((value, index, all) => all.indexOf(value) === index)
     .join(" / ");
-  return sheetBase(doc, "برگهٔ نماها و برش", `${doc.project.code} · مقیاس ${scaleText} · ${doc.sheet.format}`, body, "نماها از مدل پلان ساخته می‌شوند؛ کنترل نهایی با مهندس دارای صلاحیت است.");
+  return sheetBase(
+    doc,
+    "برگهٔ نماها و برش",
+    `${doc.project.code} · مقیاس ${scaleText} · ${doc.sheet.format}`,
+    body,
+    "نماها از مدل پلان ساخته می‌شوند؛ کنترل نهایی با مهندس دارای صلاحیت است.",
+  );
 }
 
 /* ───────────────────────────── DXF نما و برش ───────────────────────────── */
@@ -488,11 +506,7 @@ export function studioVerticalDxf(
   for (const spec of views) {
     const isSection = spec.sectionAt != null;
     const direction = spec.direction ?? "south";
-    const blocks = collectBlocks(
-      doc,
-      direction,
-      isSection ? { at: spec.sectionAt!, width: spec.sectionWidth ?? 1.2 } : undefined,
-    );
+    const blocks = collectBlocks(doc, direction, isSection ? { at: spec.sectionAt!, width: spec.sectionWidth ?? 1.2 } : undefined);
     const minX = blocks.length ? Math.min(...blocks.map((block) => block.x0)) : 0;
     const maxX = blocks.length ? Math.max(...blocks.map((block) => block.x1)) : 12;
     const spanX = Math.max(maxX - minX, 1);
@@ -500,7 +514,7 @@ export function studioVerticalDxf(
     const mapX = (value: number) => offsetX + (maxX - value);
 
     for (const block of blocks) {
-      const layer = block.kind === "opening" ? "OPENINGS" : LAYER_TO_DXF[block.layer] ?? "WALLS";
+      const layer = block.kind === "opening" ? "OPENINGS" : (LAYER_TO_DXF[block.layer] ?? "WALLS");
       const points: [number, number][] = [
         [mapX(block.x1), block.y0],
         [mapX(block.x0), block.y0],
@@ -513,17 +527,11 @@ export function studioVerticalDxf(
 
     // خطوط تراز: کف هر طبقه، بام و جان‌پناه
     for (let level = 0; level <= doc.levels; level += 1) {
-      const y = level * DEFAULT_FLOOR_HEIGHT;
+      const y = level * floorHeight(doc);
       writer.line(mapX(maxX + 0.3), y, mapX(minX - 0.3), y, "LEVELS");
-      writer.text(
-        mapX(minX - 0.35),
-        y + 0.06,
-        0.22,
-        dxfText(`تراز ${level === 0 ? "±۰٫۰۰" : `+${faFixed(y)}`}`),
-        "LABELS",
-      );
+      writer.text(mapX(minX - 0.35), y + 0.06, 0.22, dxfText(`تراز ${level === 0 ? "±۰٫۰۰" : `+${faFixed(y)}`}`), "LABELS");
     }
-    const roofLevel = doc.levels * DEFAULT_FLOOR_HEIGHT;
+    const roofLevel = doc.levels * floorHeight(doc);
     writer.line(mapX(maxX + 0.3), roofLevel + 0.9, mapX(minX - 0.3), roofLevel + 0.9, "LEVELS");
 
     const title = spec.title ?? (isSection ? "برش" : ELEVATION_LABELS[direction]);

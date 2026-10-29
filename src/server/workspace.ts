@@ -33,24 +33,26 @@ export function isValidWorkspace(value: string | undefined | null): value is str
  * فضای عمومی. هیچ‌گاه خطا نمی‌دهد تا خروجی‌های عمومی (مثل برگهٔ نمونه) هم
  * بدون کوکی کار کنند.
  */
-export async function currentWorkspace(): Promise<string> {
+export async function workspaceCredential(): Promise<string | undefined> {
   try {
     const header = (await headers()).get(WORKSPACE_HEADER);
     if (isValidWorkspace(header)) return header;
-  } catch {
-    // خارج از چرخهٔ درخواست (آزمون/اسکریپت) — ادامه با کوکی
-  }
-  try {
     const value = (await cookies()).get(WORKSPACE_COOKIE)?.value;
     if (isValidWorkspace(value)) return value;
   } catch {
-    // بی‌کوکی
+    /* اسکریپت خارج از درخواست */
   }
-  return PUBLIC_WORKSPACE;
+  return undefined;
+}
+export async function currentWorkspace(): Promise<string> {
+  const credential = await workspaceCredential();
+  if (!credential) return PUBLIC_WORKSPACE;
+  const { resolveCredential } = await import("./identity");
+  return resolveCredential(credential);
 }
 
 /** ساخت شناسهٔ تازه برای بازدیدکنندهٔ جدید. */
 export function newWorkspaceId(): string {
-  const random = globalThis.crypto?.randomUUID?.() ?? `${Date.now()}-${Math.random()}`;
+  const random = globalThis.crypto.randomUUID();
   return `ws_${random.replace(/[^a-zA-Z0-9]/g, "").slice(0, 32)}`;
 }

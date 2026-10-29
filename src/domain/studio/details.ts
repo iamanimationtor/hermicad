@@ -1,3 +1,4 @@
+import { itemVertical } from "./parameters";
 /**
  * HERMICAD Studio — جزئیات اجرایی سازه و جدول میلگرد
  *
@@ -387,34 +388,34 @@ export function rebarSchedule(doc: StudioDocument): RebarSchedule {
     let length: number;
     switch (kind) {
       case "column":
-        length = definition.defaultSize.h || DEFAULT_FLOOR_HEIGHT;
+        length = itemVertical(item,doc).height || DEFAULT_FLOOR_HEIGHT;
         bars = columnBars(b, depth, length);
         break;
       case "beam":
         b = Math.min(item.w, item.d);
-        depth = definition.defaultSize.h || 0.5;
+        depth = itemVertical(item,doc).height || 0.5;
         length = Math.max(item.w, item.d);
         bars = beamBars(b, depth, length);
         break;
       case "column-l":
       case "column-t":
-        length = definition.defaultSize.h || DEFAULT_FLOOR_HEIGHT;
+        length = itemVertical(item,doc).height || DEFAULT_FLOOR_HEIGHT;
         bars = shapedColumnBars(kind, b, depth, length);
         break;
       case "column-round":
         // مقطع دایره‌ای: قطر همان w (و d) است
         b = Math.min(item.w, item.d);
         depth = b;
-        length = definition.defaultSize.h || DEFAULT_FLOOR_HEIGHT;
+        length = itemVertical(item,doc).height || DEFAULT_FLOOR_HEIGHT;
         bars = circularColumnBars(b, length);
         break;
       case "shear-wall":
       case "retaining-wall":
-        length = definition.defaultSize.h || DEFAULT_FLOOR_HEIGHT;
+        length = itemVertical(item,doc).height || DEFAULT_FLOOR_HEIGHT;
         bars = shearWallBars(depth, b, length);
         break;
       case "pile":
-        length = definition.defaultSize.h || 12;
+        length = itemVertical(item,doc).height || 12;
         bars = pileBars(b, length);
         break;
       case "raft":
@@ -422,7 +423,7 @@ export function rebarSchedule(doc: StudioDocument): RebarSchedule {
         // پی: ابعاد پلان همان w و d است و ضخامت از کتابخانه
         b = Math.min(item.w, item.d);
         depth = Math.max(item.w, item.d);
-        length = definition.defaultSize.h || 0.5;
+        length = itemVertical(item,doc).height || 0.5;
         bars = footingBars(kind, item.w, item.d, length);
         break;
     }

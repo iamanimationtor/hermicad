@@ -1,3 +1,5 @@
+import { ifcGuid, stepText } from "./step";
+export { ifcGuid } from "./step";
 import { bbox } from "../geometry";
 import { DISCLAIMER } from "../constants";
 import { FORMULAS, EXTERNAL_SPEC_REFERENCES, type FormulaRecord } from "../engineering/registry";
@@ -688,39 +690,12 @@ export function schemeXlsx(scheme: CanonicalScheme, report: ValidationReport): B
 
 /* ------------------------------------------------------------------ IFC ---- */
 
-const IFC_CHARS = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz_$";
-
-/** شناسهٔ IfcGloballyUniqueId پایدار و قطعی بر اساس یک رشتهٔ معنی‌دار. */
-export function ifcGuid(seed: string): string {
-  let h1 = 2166136261;
-  let h2 = 2246822519;
-  let h3 = 3266489917;
-  let h4 = 668265263;
-  for (let i = 0; i < seed.length; i++) {
-    const c = seed.charCodeAt(i);
-    h1 = Math.imul(h1 ^ c, 16777619) >>> 0;
-    h2 = Math.imul(h2 ^ (c + 7), 2246822519) >>> 0;
-    h3 = Math.imul(h3 ^ (c + 13), 3266489917) >>> 0;
-    h4 = Math.imul(h4 ^ (c + 23), 668265263) >>> 0;
-  }
-  const words = [h1, h2, h3, h4];
-  const bits: number[] = [];
-  for (const w of words) for (let b = 31; b >= 0; b--) bits.push((w >>> b) & 1);
-  bits.push(0, 0, 0, 0);
-  let out = "";
-  for (let i = 0; i < 22; i++) {
-    let value = 0;
-    for (let b = 0; b < 6; b++) value = (value << 1) | (bits[i * 6 + b] ?? 0);
-    out += IFC_CHARS[value % 64];
-  }
-  return out;
-}
-
 function ifcText(value: string): string {
-  return ascii(value).replace(/'/g, "");
+  return stepText(value).slice(1,-1);
 }
 
 export function schemeIfc(scheme: CanonicalScheme): string {
+  const code=ifcText(scheme.code);
   const lines: string[] = [];
   let id = 1;
   const next = () => id++;
@@ -740,39 +715,44 @@ export function schemeIfc(scheme: CanonicalScheme): string {
   const buildingPlacement = next();
   lines.push("ISO-10303-21;");
   lines.push("HEADER;");
-  lines.push(`FILE_DESCRIPTION(('ViewDefinition [CoordinationView]','HERMICAD IFC4 spatial subset: spaces only, no walls/MEP'),'2;1');`);
-  lines.push(`FILE_NAME('${scheme.code}.ifc','${new Date(scheme.generatedAt).toISOString()}',('HERMICAD'),('HERMICAD'),'HERMICAD ${scheme.engineVersion}','HERMICAD','');`);
+  lines.push(`FILE_DESCRIPTION(('HERMICAD IFC4 spatial subset: spaces only, no walls/MEP'),'2;1');`);
+  lines.push(`FILE_NAME('${code}.ifc','${new Date(scheme.generatedAt).toISOString()}',('HERMICAD'),('HERMICAD'),'HERMICAD ${scheme.engineVersion}','HERMICAD','');`);
   lines.push("FILE_SCHEMA(('IFC4'));");
   lines.push("ENDSEC;");
   lines.push("DATA;");
   const person = next();
   const organization = next();
   const personOrg = next();
+  const app = next();
   lines.push(`#${person}=IFCPERSON($,$,'HERMICAD',$,$,$,$,$);`);
   lines.push(`#${organization}=IFCORGANIZATION($,'HERMICAD',$,$,$);`);
   lines.push(`#${personOrg}=IFCPERSONANDORGANIZATION(#${person},#${organization},$);`);
-  lines.push(`#${owner}=IFCOWNERHISTORY(#${personOrg},$,$,.ADDED.,$,$,$,0);`);
+  lines.push(`#${app}=IFCAPPLICATION(#${organization},'1.0','HERMICAD','HERMICAD');`);
+  lines.push(`#${owner}=IFCOWNERHISTORY(#${personOrg},#${app},$,.ADDED.,0,$,$,0);`);
   lines.push(`#${origin}=IFCCARTESIANPOINT((0.,0.,0.));`);
   lines.push(`#${dir}=IFCDIRECTION((0.,0.,1.));`);
-  lines.push(`#${axis}=IFCAXIS2PLACEMENT3D(#${origin},#${dir},$);`);
+  lines.push(`#${axis}=IFCAXIS2PLACEMENT3D(#${origin},$,$);`);
   lines.push(`#${context}=IFCGEOMETRICREPRESENTATIONCONTEXT($,'Model',3,1.E-05,#${axis},$);`);
   lines.push(`#${siLength}=IFCSIUNIT(*,.LENGTHUNIT.,$,.METRE.);`);
   lines.push(`#${siArea}=IFCSIUNIT(*,.AREAUNIT.,$,.SQUARE_METRE.);`);
   lines.push(`#${units}=IFCUNITASSIGNMENT((#${siLength},#${siArea}));`);
-  lines.push(`#${projectPlacement}=IFCAXIS2PLACEMENT3D(#${origin},#${dir},$);`);
-  lines.push(`#${project}=IFCPROJECT(${ifcGuid("project" + scheme.code)},$, '${scheme.code}','HERMICAD scheme','IFC4 subset',#${projectPlacement},(#${context}),#${units});`);
+  lines.push(`#${projectPlacement}=IFCAXIS2PLACEMENT3D(#${origin},$,$);`);
+  lines.push(`#${project}=IFCPROJECT('${ifcGuid("project" + scheme.id)}',$, '${code}','HERMICAD scheme','IFC4 subset',$,$,(#${context}),#${units});`);
   lines.push(`#${sitePlacement}=IFCLOCALPLACEMENT($,#${axis});`);
-  lines.push(`#${site}=IFCSITE(${ifcGuid("site" + scheme.id)},$, 'Site','Parcel',$,#${sitePlacement},$,$,.ELEMENT.,$,$,$,$,$);`);
+  lines.push(`#${site}=IFCSITE('${ifcGuid("site" + scheme.id)}',$, 'Site','Parcel',$,#${sitePlacement},$,$,.ELEMENT.,$,$,$,$,$);`);
   lines.push(`#${buildingPlacement}=IFCLOCALPLACEMENT(#${sitePlacement},#${axis});`);
-  lines.push(`#${building}=IFCBUILDING(${ifcGuid("building" + scheme.id)},$, '${scheme.code}','Residential',$,#${buildingPlacement},$,$,.ELEMENT.,$,$,$);`);
+  lines.push(`#${building}=IFCBUILDING('${ifcGuid("building" + scheme.id)}',$, '${code}','Residential',$,#${buildingPlacement},$,$,.ELEMENT.,$,$,$);`);
 
   const storeys: number[] = [];
   scheme.levels.forEach((level, levelIndex) => {
     const placement = next();
     const elevation = levelIndex * scheme.floorHeightM;
     const storey = next();
-    lines.push(`#${placement}=IFCLOCALPLACEMENT(#${buildingPlacement},#${axis});`);
-    lines.push(`#${storey}=IFCBUILDINGSTOREY(${ifcGuid(`storey-${levelIndex}`)},$, '${level.name.replace(/[^\x20-\x7E]/g, "") || `L${levelIndex + 1}`}','Level ${levelIndex + 1}',$,#${placement},$,$,.ELEMENT.,${elevation.toFixed(3)});`);
+    const levelPoint=next(),levelAxis=next();
+    lines.push(`#${levelPoint}=IFCCARTESIANPOINT((0.,0.,${elevation.toFixed(3)}));`);
+    lines.push(`#${levelAxis}=IFCAXIS2PLACEMENT3D(#${levelPoint},$,$);`);
+    lines.push(`#${placement}=IFCLOCALPLACEMENT(#${buildingPlacement},#${levelAxis});`);
+    lines.push(`#${storey}=IFCBUILDINGSTOREY('${ifcGuid(`storey-${scheme.id}-${levelIndex}`)}',$, '${level.name.replace(/[^\x20-\x7E]/g, "") || `L${levelIndex + 1}`}','Level ${levelIndex + 1}',$,#${placement},$,$,.ELEMENT.,${elevation.toFixed(3)});`);
     storeys.push(storey);
     const spaces: number[] = [];
     level.rooms.forEach((room, roomIndex) => {
@@ -785,14 +765,12 @@ export function schemeIfc(scheme: CanonicalScheme): string {
         lines.push(`#${pid}=IFCCARTESIANPOINT((${(pt.x - ox).toFixed(3)},${(pt.y - oy).toFixed(3)}));`);
         return pid;
       });
-      const listId = next();
-      lines.push(`#${listId}=IFCCARTESIANPOINTLIST2D((${pointIds.map((pid) => `#${pid}`).join(",")}),$);`);
       const curveId = next();
-      lines.push(`#${curveId}=IFCINDEXEDPOLYCURVE(#${listId},$,$);`);
+      lines.push(`#${curveId}=IFCPOLYLINE((${[...pointIds,pointIds[0]].map(pid=>`#${pid}`).join(",")}));`);
       const profileId = next();
       lines.push(`#${profileId}=IFCARBITRARYCLOSEDPROFILEDEF(.AREA.,'SPACE-${roomIndex}',#${curveId});`);
       const solidAxis = next();
-      lines.push(`#${solidAxis}=IFCAXIS2PLACEMENT3D(#${origin},#${dir},$);`);
+      lines.push(`#${solidAxis}=IFCAXIS2PLACEMENT3D(#${origin},$,$);`);
       const solid = next();
       lines.push(`#${solid}=IFCEXTRUDEDAREASOLID(#${profileId},#${solidAxis},#${dir},${scheme.floorHeightM.toFixed(3)});`);
       const shape = next();
@@ -805,22 +783,22 @@ export function schemeIfc(scheme: CanonicalScheme): string {
       const localPoint = next();
       lines.push(`#${localPoint}=IFCCARTESIANPOINT((${ox.toFixed(3)},${oy.toFixed(3)},0.));`);
       const localAxis = next();
-      lines.push(`#${localAxis}=IFCAXIS2PLACEMENT3D(#${localPoint},#${dir},$);`);
+      lines.push(`#${localAxis}=IFCAXIS2PLACEMENT3D(#${localPoint},$,$);`);
       lines.push(`#${roomPlacement}=IFCLOCALPLACEMENT(#${placement},#${localAxis});`);
       const space = next();
-      const predefined = room.habitable ? "INTERNAL" : "INTERNAL";
+      const predefined = "NOTDEFINED";
       lines.push(
-        `#${space}=IFCSPACE(${ifcGuid(`space-${scheme.id}-${levelIndex}-${roomIndex}`)},$, '${roomCode(room)}-${levelIndex + 1}-${roomIndex + 1}','${ifcText(room.label)}',$,#${roomPlacement},#${productShape},'${ifcText(room.label)}',.ELEMENT.,.${predefined}.,$);`,
+        `#${space}=IFCSPACE('${ifcGuid(`space-${scheme.id}-${levelIndex}-${roomIndex}`)}',$, '${roomCode(room)}-${levelIndex + 1}-${roomIndex + 1}','${ifcText(room.label)}',$,#${roomPlacement},#${productShape},'${ifcText(room.label)}',.ELEMENT.,.${predefined}.,$);`,
       );
       spaces.push(space);
     });
     if (spaces.length) {
-      lines.push(`#${next()}=IFCRELCONTAINEDINSPATIALSTRUCTURE(${ifcGuid(`rel-${levelIndex}`)},$, 'Spaces',$,(${spaces.map((s) => `#${s}`).join(",")}),#${storey});`);
+      lines.push(`#${next()}=IFCRELAGGREGATES('${ifcGuid(`rel-${scheme.id}-${levelIndex}`)}',$, 'Spaces',$,#${storey},(${spaces.map((s) => `#${s}`).join(",")}));`);
     }
   });
-  lines.push(`#${next()}=IFCRELAGGREGATES(${ifcGuid("agg-building")},$,$,$,#${building},(#${storeys.map((s) => `#${s}`).join(",")}));`);
-  lines.push(`#${next()}=IFCRELAGGREGATES(${ifcGuid("agg-site")},$,$,$,#${site},(#${building}));`);
-  lines.push(`#${next()}=IFCRELAGGREGATES(${ifcGuid("agg-project")},$,$,$,#${project},(#${site}));`);
+  lines.push(`#${next()}=IFCRELAGGREGATES('${ifcGuid("agg-building"+scheme.id)}',$,$,$,#${building},(${storeys.map((s) => `#${s}`).join(",")}));`);
+  lines.push(`#${next()}=IFCRELAGGREGATES('${ifcGuid("agg-site"+scheme.id)}',$,$,$,#${site},(#${building}));`);
+  lines.push(`#${next()}=IFCRELAGGREGATES('${ifcGuid("agg-project"+scheme.id)}',$,$,$,#${project},(#${site}));`);
   lines.push("ENDSEC;");
   lines.push("END-ISO-10303-21;");
   return lines.join("\n");

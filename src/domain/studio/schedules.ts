@@ -31,7 +31,7 @@ import {
   sheetSvg,
   sheetsPdf,
 } from "./sheetKit";
-import { OPENING_HEIGHTS } from "./vertical";
+import { itemVertical, isOpening } from "./parameters";
 
 const round = (value: number, digits = 2): number => Number(value.toFixed(digits));
 
@@ -90,7 +90,6 @@ export interface StudioSchedules {
 }
 
 const WALL_IDS = new Set(["wall-exterior", "wall-partition", "wall-party", "wall-curtain"]);
-const OPENING_IDS = new Set(["door-single", "door-double", "door-garage", "window", "window-fixed", "sliding-door"]);
 
 /** طول و ضخامت یک دیوار از هندسهٔ شیء (دیوارها از «نقطه تا نقطه» ساخته می‌شوند). */
 function wallGeometry(item: StudioItem): { length: number; thickness: number } {
@@ -107,21 +106,13 @@ function distanceToWall(opening: StudioItem, wall: StudioItem): number {
   const dy = opening.y - wall.y;
   const cos = Math.cos(radians);
   const sin = Math.sin(radians);
-  // بردار در دستگاه محلی دیوار (محور x در راستای طول دیوار)
-  const localX = dx * cos + dy * sin;
-  const localY = -dx * sin + dy * cos;
-  const halfLength = Math.max(wall.w, wall.d) / 2;
-  const along = Math.abs(localX) <= halfLength ? 0 : Math.abs(localX) - halfLength;
-  return Math.hypot(along, localY);
+  const localX = dx*cos-dy*sin, localY=dx*sin+dy*cos;
+  return Math.hypot(Math.max(0,Math.abs(localX)-wall.w/2),Math.max(0,Math.abs(localY)-wall.d/2));
 }
 
 /** سطح یک بازشو از مدل. */
 function openingGeometry(item: StudioItem): { width: number; height: number; sill: number } {
-  const spec = OPENING_HEIGHTS[item.catalogId];
-  const width = Math.max(item.w, item.d);
-  const height = spec?.height ?? CATALOG_BY_ID[item.catalogId]?.defaultSize.h ?? 2.1;
-  const sill = spec?.sill ?? 0;
-  return { width, height, sill };
+  return { width: Math.max(item.w,item.d), ...itemVertical(item) };
 }
 
 /**
@@ -131,7 +122,7 @@ function openingGeometry(item: StudioItem): { width: number; height: number; sil
 export function studioSchedules(doc: StudioDocument): StudioSchedules {
   const items = renderableItems({ ...doc, classification: "all" });
   const walls = items.filter((item) => WALL_IDS.has(item.catalogId));
-  const openings = items.filter((item) => OPENING_IDS.has(item.catalogId));
+  const openings = items.filter(isOpening);
 
   // تجمیع دیوارها بر پایهٔ (نوع، ضخامت) — همان شکلی که در جدول دیوارها می‌آید
   const wallGroups = new Map<string, WallRow>();
@@ -139,8 +130,8 @@ export function studioSchedules(doc: StudioDocument): StudioSchedules {
     const definition = CATALOG_BY_ID[wall.catalogId];
     if (!definition) continue;
     const { length, thickness } = wallGeometry(wall);
-    const height = definition.defaultSize.h || 3;
-    const key = `${wall.catalogId}|${thickness.toFixed(3)}`;
+    const height = itemVertical(wall,doc).height;
+    const key = `${wall.catalogId}|${thickness.toFixed(3)}|${height.toFixed(3)}`;
     const row = wallGroups.get(key) ?? {
       catalogId: wall.catalogId,
       name: definition.nameFa,
@@ -159,16 +150,12 @@ export function studioSchedules(doc: StudioDocument): StudioSchedules {
     wallGroups.set(key, row);
   }
 
-  // هر بازشو به «نزدیک‌ترین دیوار» نسبت داده می‌شود (نه به سهم نسبی). دلیل:
-  // در نقشه، بازشو روی خط همان دیوار قرار می‌گیرد؛ با فاصلهٔ نقطه تا پاره‌خط
-  // می‌توان دیوار میزبان را قطعی تشخیص داد و «سطح خالص» هر نوع دیوار را دقیق
-  // گزارش کرد. اگر بازشویی از هیچ دیواری نزدیک نباشد (کاربر آزاد گذاشته)، به
-  // نزدیک‌ترین دیوار همان طبقه و در نهایت به سهم نسبی برمی‌گردد.
-  const wallItems = walls.map((wall) => ({ item: wall, key: `${wall.catalogId}|${Math.min(wall.w, wall.d).toFixed(3)}` }));
+  // تنها بازشوی واقعاً هم‌پوشان از دیوار کسر می‌شود؛ در قطعات جداشدهٔ کنار
+  // در/پنجره، کسر مجدد مساحت اشتباه است. بازشوی بدون میزبان پخش فرضی نمی‌شود.
+  const wallItems = walls.map((wall) => ({ item: wall, key: `${wall.catalogId}|${Math.min(wall.w, wall.d).toFixed(3)}|${itemVertical(wall,doc).height.toFixed(3)}` }));
   let openingAreaTotal = 0;
   const openingAreaPerGroup = new Map<string, number>();
   const openingCountPerGroup = new Map<string, number>();
-  const unassigned: { area: number; level: number }[] = [];
   for (const opening of openings) {
     const { width, height } = openingGeometry(opening);
     const area = width * height;
@@ -177,28 +164,15 @@ export function studioSchedules(doc: StudioDocument): StudioSchedules {
     for (const candidate of wallItems) {
       if (candidate.item.level !== opening.level) continue;
       const distance = distanceToWall(opening, candidate.item);
-      if (!best || distance < best.distance) best = { key: candidate.key, distance };
+      if (distance<=0.05 && (!best || distance < best.distance)) best = { key: candidate.key, distance };
     }
     if (best) {
       openingAreaPerGroup.set(best.key, (openingAreaPerGroup.get(best.key) ?? 0) + area);
       openingCountPerGroup.set(best.key, (openingCountPerGroup.get(best.key) ?? 0) + 1);
-    } else {
-      unassigned.push({ area, level: opening.level });
-    }
-  }
-  // بازشوهای بی‌دیوار میان دیوارهای همان طبقه به نسبت سطح پخش می‌شوند
-  for (const item of unassigned) {
-    const sameLevel = [...wallGroups.values()].filter((row) => row.levels.includes(item.level));
-    const total = sameLevel.reduce((sum, row) => sum + row.grossArea, 0);
-    for (const row of sameLevel) {
-      const key = `${row.catalogId}|${row.thickness.toFixed(3)}`;
-      const share = total > 0 ? (row.grossArea / total) * item.area : 0;
-      openingAreaPerGroup.set(key, (openingAreaPerGroup.get(key) ?? 0) + share);
-      openingCountPerGroup.set(key, (openingCountPerGroup.get(key) ?? 0) + (total > 0 ? item.area / total : 0));
     }
   }
   for (const row of wallGroups.values()) {
-    const key = `${row.catalogId}|${row.thickness.toFixed(3)}`;
+    const key = `${row.catalogId}|${row.thickness.toFixed(3)}|${row.height.toFixed(3)}`;
     row.openingArea = round(openingAreaPerGroup.get(key) ?? 0, 3);
     row.openings = Math.round(openingCountPerGroup.get(key) ?? 0);
     row.netArea = Math.max(0, row.grossArea - row.openingArea);
@@ -215,7 +189,7 @@ export function studioSchedules(doc: StudioDocument): StudioSchedules {
     const definition = CATALOG_BY_ID[opening.catalogId];
     if (!definition) continue;
     const { width, height, sill } = openingGeometry(opening);
-    const key = `${opening.catalogId}|${width.toFixed(2)}|${height.toFixed(2)}`;
+    const key = `${opening.catalogId}|${width.toFixed(2)}|${height.toFixed(2)}|${sill.toFixed(2)}`;
     const existing = openingGroups.get(key);
     if (existing) {
       existing.count += 1;

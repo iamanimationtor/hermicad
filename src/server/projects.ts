@@ -1,3 +1,5 @@
+import { currentWorkspace } from "./workspace";
+import { AccessError } from "./accessError";
 import { and, desc, eq, not } from "drizzle-orm";
 import { getDb } from "@/db";
 import {
@@ -30,14 +32,7 @@ import { CODE_SET, ENGINE_VERSION } from "@/domain/constants";
 import { exportScheme } from "@/domain/exporters/reports";
 import { floorPlanSvg } from "@/domain/exporters/vector";
 import type { ArtifactInfo, GenerationRunInfo, ProjectBundle, RepairSummary, StoredScheme } from "@/domain/bundle";
-import type {
-  CanonicalScheme,
-  ExportFormat,
-  ProjectDocument,
-  Requirements,
-  SiteModel,
-  ValidationReport,
-} from "@/domain/types";
+import type { CanonicalScheme, ExportFormat, ProjectDocument, Requirements, SiteModel, ValidationReport } from "@/domain/types";
 
 const DEFAULT_SEED = 20260101;
 const DEFAULT_VARIANTS = 5;
@@ -60,7 +55,9 @@ export async function ensureCodeSet(): Promise<void> {
     await (await getDb()).insert(codeSets).values({ code: CODE_SET.code, ...values });
   }
   // Historical rows are kept for audit but explicitly marked as superseded.
-  await (await getDb())
+  await (
+    await getDb()
+  )
     .update(codeSets)
     .set({ status: "superseded-unverified", title: "مجموعه ضوابط قدیمی — جایگزین شده و تأییدنشده" })
     .where(and(eq(codeSets.jurisdiction, CODE_SET.jurisdiction), sqlNotCode(CODE_SET.code)));
@@ -88,11 +85,17 @@ export async function listProjects() {
       createdAt: projects.createdAt,
     })
     .from(projects)
+    .where(eq(projects.workspace, await currentWorkspace()))
     .orderBy(desc(projects.updatedAt));
 }
 
 async function nextProjectCode(): Promise<string> {
-  const rows = await (await getDb()).select({ id: projects.id }).from(projects);
+  const rows = await (
+    await getDb()
+  )
+    .select({ id: projects.id })
+    .from(projects)
+    .where(eq(projects.workspace, await currentWorkspace()));
   return `HMC-P-${String(rows.length + 1).padStart(3, "0")}`;
 }
 
@@ -107,11 +110,14 @@ export async function createProject(input: {
   const code = await nextProjectCode();
   const site = input.site ?? DEFAULT_SITE;
   const requirements = input.requirements ?? normaliseRequirements(DEFAULT_REQUIREMENTS);
-  const inserted = await (await getDb())
+  const inserted = await (
+    await getDb()
+  )
     .insert(projects)
     .values({
       code,
       name: input.name,
+      workspace: await currentWorkspace(),
       client: input.client ?? null,
       description: input.description ?? null,
       status: "draft",
@@ -142,16 +148,26 @@ export function normaliseRequirements(requirements: Requirements): Requirements 
 }
 
 export async function getProject(projectId: string): Promise<ProjectDocument | null> {
-  const rows = await (await getDb()).select().from(projects).where(eq(projects.id, projectId)).limit(1);
+  const rows = await (
+    await getDb()
+  )
+    .select()
+    .from(projects)
+    .where(and(eq(projects.id, projectId), eq(projects.workspace, await currentWorkspace())))
+    .limit(1);
   const project = rows[0];
   if (!project) return null;
-  const siteRows = await (await getDb())
+  const siteRows = await (
+    await getDb()
+  )
     .select()
     .from(siteRevisions)
     .where(eq(siteRevisions.projectId, projectId))
     .orderBy(desc(siteRevisions.revision))
     .limit(1);
-  const reqRows = await (await getDb())
+  const reqRows = await (
+    await getDb()
+  )
     .select()
     .from(requirementRevisions)
     .where(eq(requirementRevisions.projectId, projectId))
@@ -174,7 +190,7 @@ export async function getProject(projectId: string): Promise<ProjectDocument | n
 
 export async function saveSite(projectId: string, site: SiteModel): Promise<ProjectDocument> {
   const current = await getProject(projectId);
-  if (!current) throw new Error("پروژه یافت نشد.");
+  if (!current) throw new AccessError(404, "پروژه یافت نشد.");
   await (await getDb()).insert(siteRevisions).values({ projectId, revision: current.siteRevision + 1, data: site });
   await (await getDb()).update(projects).set({ updatedAt: new Date() }).where(eq(projects.id, projectId));
   await logEvent(projectId, "site.updated", { revision: current.siteRevision + 1, vertices: site.boundary.length });
@@ -183,12 +199,10 @@ export async function saveSite(projectId: string, site: SiteModel): Promise<Proj
 
 export async function saveRequirements(projectId: string, requirements: Requirements): Promise<ProjectDocument> {
   const current = await getProject(projectId);
-  if (!current) throw new Error("پروژه یافت نشد.");
+  if (!current) throw new AccessError(404, "پروژه یافت نشد.");
   // The client explicitly runs the deterministic parser and sends the resulting
   // draft. Re-parsing here would silently override manual engineering edits.
-  await (await getDb())
-    .insert(requirementRevisions)
-    .values({ projectId, revision: current.requirementRevision + 1, data: requirements });
+  await (await getDb()).insert(requirementRevisions).values({ projectId, revision: current.requirementRevision + 1, data: requirements });
   await (await getDb()).update(projects).set({ updatedAt: new Date() }).where(eq(projects.id, projectId));
   await logEvent(projectId, "requirements.updated", {
     revision: current.requirementRevision + 1,
@@ -199,12 +213,31 @@ export async function saveRequirements(projectId: string, requirements: Requirem
   return (await getProject(projectId)) as ProjectDocument;
 }
 
-export async function updateProjectMeta(projectId: string, patch: { name?: string; client?: string | null; status?: string; description?: string | null }) {
-  await (await getDb()).update(projects).set({ ...patch, updatedAt: new Date() }).where(eq(projects.id, projectId));
-  await logEvent(projectId, "project.updated", patch);
+export async function updateProjectMeta(
+  projectId: string,
+  patch: { name?: string; client?: string | null; status?: string; description?: string | null },
+) {
+  if (!(await getProject(projectId))) throw new AccessError(404, "پروژه یافت نشد.");
+  const allowed: typeof patch = {};
+  for (const key of ["name", "client", "status", "description"] as const) {
+    const value = patch[key];
+    if (value !== undefined) {
+      if (value !== null && typeof value !== "string") throw new AccessError(422, "مشخصات پروژه معتبر نیست.");
+      if ((key === "name" || key === "status") && !value?.trim()) throw new AccessError(422, "نام و وضعیت پروژه نباید خالی باشد.");
+      (allowed as Record<string, unknown>)[key] = value;
+    }
+  }
+  await (
+    await getDb()
+  )
+    .update(projects)
+    .set({ ...allowed, updatedAt: new Date() })
+    .where(and(eq(projects.id, projectId), eq(projects.workspace, await currentWorkspace())));
+  await logEvent(projectId, "project.updated", allowed);
 }
 
 export async function deleteProject(projectId: string): Promise<void> {
+  if (!(await getProject(projectId))) throw new AccessError(404, "پروژه یافت نشد.");
   await (await getDb()).delete(projects).where(eq(projects.id, projectId));
 }
 
@@ -216,13 +249,15 @@ export interface GenerateOptions {
 
 export async function generateForProject(projectId: string, options: GenerateOptions): Promise<ProjectBundle> {
   const project = await getProject(projectId);
-  if (!project) throw new Error("پروژه یافت نشد.");
+  if (!project) throw new AccessError(404, "پروژه یافت نشد.");
   const seed = Number.isFinite(options.seed) ? Number(options.seed) : DEFAULT_SEED;
   const variants = Math.min(5, Math.max(1, Number(options.variants ?? DEFAULT_VARIANTS)));
   const weights = normalizeWeights(options.weights ?? DEFAULT_WEIGHTS);
   const pipeline = runPipeline(project.site, project.requirements, { seed, variants }, weights);
   const run = (
-    await (await getDb())
+    await (
+      await getDb()
+    )
       .insert(generationRuns)
       .values({
         projectId,
@@ -243,7 +278,9 @@ export async function generateForProject(projectId: string, options: GenerateOpt
     const metrics: Record<string, number> = {};
     for (const metric of scheme.metrics) metrics[metric.id] = metric.value;
     const inserted = (
-      await (await getDb())
+      await (
+        await getDb()
+      )
         .insert(schemes)
         .values({
           projectId,
@@ -280,9 +317,11 @@ export async function generateForProject(projectId: string, options: GenerateOpt
 
 export async function getBundle(projectId: string): Promise<ProjectBundle> {
   const project = await getProject(projectId);
-  if (!project) throw new Error("پروژه یافت نشد.");
+  if (!project) throw new AccessError(404, "پروژه یافت نشد.");
   const schemeRows = await (await getDb()).select().from(schemes).where(eq(schemes.projectId, projectId));
-  const validations = await (await getDb())
+  const validations = await (
+    await getDb()
+  )
     .select()
     .from(validationRuns)
     .where(eq(validationRuns.projectId, projectId))
@@ -295,7 +334,9 @@ export async function getBundle(projectId: string): Promise<ProjectBundle> {
     const normalized = normalizeStoredReport(row.report);
     if (normalized) latestByScheme.set(row.schemeId, normalized);
   }
-  const runRows = await (await getDb())
+  const runRows = await (
+    await getDb()
+  )
     .select()
     .from(generationRuns)
     .where(eq(generationRuns.projectId, projectId))
@@ -304,9 +345,7 @@ export async function getBundle(projectId: string): Promise<ProjectBundle> {
   const weights = runRows[0]?.weights ?? DEFAULT_WEIGHTS;
   const stored: StoredScheme[] = schemeRows.map((row) => {
     const model = row.model;
-    const report =
-      latestByScheme.get(row.id) ??
-      validateScheme(model);
+    const report = latestByScheme.get(row.id) ?? validateScheme(model);
     return {
       rowId: row.id,
       model,
@@ -325,7 +364,9 @@ export async function getBundle(projectId: string): Promise<ProjectBundle> {
         weights,
       )
     : [];
-  const artifactsRows = await (await getDb())
+  const artifactsRows = await (
+    await getDb()
+  )
     .select()
     .from(exportArtifacts)
     .where(eq(exportArtifacts.projectId, projectId))
@@ -362,7 +403,10 @@ export async function getBundle(projectId: string): Promise<ProjectBundle> {
 }
 
 async function findScheme(projectId: string, modelId: string) {
-  const rows = await (await getDb())
+  if (!(await getProject(projectId))) throw new AccessError(404, "پروژه یافت نشد.");
+  const rows = await (
+    await getDb()
+  )
     .select()
     .from(schemes)
     .where(and(eq(schemes.projectId, projectId), eq(schemes.code, modelId)))
@@ -372,14 +416,13 @@ async function findScheme(projectId: string, modelId: string) {
   return all.find((row) => row.model.id === modelId || row.id === modelId) ?? null;
 }
 
-export async function repairSchemeById(
-  projectId: string,
-  modelId: string,
-): Promise<{ bundle: ProjectBundle; repair: RepairSummary }> {
+export async function repairSchemeById(projectId: string, modelId: string): Promise<{ bundle: ProjectBundle; repair: RepairSummary }> {
   const schemeRow = await findScheme(projectId, modelId);
   if (!schemeRow) throw new Error("طرح یافت نشد.");
   const result = repairAndValidate(schemeRow.model);
-  await (await getDb())
+  await (
+    await getDb()
+  )
     .update(schemes)
     .set({
       model: result.scheme,
@@ -416,7 +459,10 @@ export async function repairSchemeById(
 }
 
 export async function saveWeights(projectId: string, weights: Record<string, number>): Promise<ProjectBundle> {
-  const runRows = await (await getDb())
+  if (!(await getProject(projectId))) throw new AccessError(404, "پروژه یافت نشد.");
+  const runRows = await (
+    await getDb()
+  )
     .select()
     .from(generationRuns)
     .where(eq(generationRuns.projectId, projectId))
@@ -437,7 +483,9 @@ export async function exportSchemeById(
 ): Promise<{ filename: string; mime: string; data: Buffer }> {
   const schemeRow = await findScheme(projectId, modelId);
   if (!schemeRow) throw new Error("طرح یافت نشد.");
-  const validation = await (await getDb())
+  const validation = await (
+    await getDb()
+  )
     .select()
     .from(validationRuns)
     .where(eq(validationRuns.schemeId, schemeRow.id))

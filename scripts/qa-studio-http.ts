@@ -9,7 +9,7 @@ async function main() {
   assert.equal(first.status, 200);
   const cookie = first.headers.get("set-cookie")?.split(";")[0];
   assert.ok(cookie, "کوکی فضای کار دریافت نشد");
-  const headers = { "content-type": "application/json", cookie };
+  const headers = { "content-type": "application/json", cookie, origin:base };
   const document = sampleDesign();
   for (const format of STUDIO_FORMATS) {
     const response = await fetch(`${base}/api/designs/export`, {
@@ -42,7 +42,7 @@ async function main() {
   assert.equal(create.status, 201);
   const { design } = await create.json();
   try {
-    const saved = { ...document, id: design.id, slabRebar: { diameterMm: 16, spacingM: 0.15 } };
+    const saved = { ...document, id: design.id, revision:design.revision, slabRebar: { diameterMm: 16, spacingM: 0.15 } };
     const put = await fetch(`${base}/api/designs/${design.id}`, {
       method: "PUT",
       headers,

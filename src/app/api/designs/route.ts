@@ -1,3 +1,5 @@
+import { createDesignTemplate, isDesignTemplate } from "@/domain/studio/templates";
+import { AccessError } from "@/server/accessError";
 import { createDesign, ensureSampleDesign, listDesigns, sampleDesign } from "@/server/designs";
 import { createStudioDocument } from "@/domain/studio/document";
 import { errorResponse, ok, readJson } from "@/server/http";
@@ -9,7 +11,7 @@ export async function GET() {
   try {
     const workspace = await currentWorkspace();
     await ensureSampleDesign(workspace);
-    return ok({ designs: await listDesigns(workspace), workspace });
+    return ok({ designs: await listDesigns(workspace) });
   } catch (error) {
     return errorResponse(error);
   }
@@ -20,12 +22,26 @@ interface CreateBody {
   kind?: "architecture" | "structure" | "mep" | "site";
   sheet?: { format?: "A4" | "A3" | "A2" | "A1" | "A0"; orientation?: "landscape" | "portrait"; scale?: number };
   levels?: number;
-  template?: "empty" | "sample";
+  template?: string;
 }
 
 export async function POST(request: Request) {
   try {
-    const body = await readJson<CreateBody>(request).catch(() => ({}) as CreateBody);
+    const body = await readJson<CreateBody>(request);
+    if (body.template !== undefined && !["empty", "sample"].includes(body.template) && !isDesignTemplate(body.template))
+      throw new AccessError(422, "الگوی درخواستی شناخته‌شده نیست.");
+    if (body.levels !== undefined && (!Number.isInteger(body.levels) || body.levels < 1 || body.levels > 60))
+      throw new AccessError(422, "تعداد طبقات باید بین ۱ و ۶۰ باشد.");
+    if (body.name !== undefined && (typeof body.name !== "string" || body.name.length > 150))
+      throw new AccessError(422, "نام سند باید متن کوتاه باشد.");
+    if (body.kind !== undefined && !["architecture", "structure", "mep", "site"].includes(body.kind))
+      throw new AccessError(422, "نوع سند معتبر نیست.");
+    if (body.sheet?.format !== undefined && !["A4", "A3", "A2", "A1", "A0"].includes(body.sheet.format))
+      throw new AccessError(422, "قالب برگه معتبر نیست.");
+    if (body.sheet?.orientation !== undefined && !["landscape", "portrait"].includes(body.sheet.orientation))
+      throw new AccessError(422, "جهت برگه معتبر نیست.");
+    if (body.sheet?.scale !== undefined && (!Number.isFinite(body.sheet.scale) || body.sheet.scale < 10 || body.sheet.scale > 1000))
+      throw new AccessError(422, "مقیاس باید بین ۱۰ و ۱۰۰۰ باشد.");
     const base = createStudioDocument({
       name: body.name?.trim() || "سند طراحی جدید",
       kind: body.kind ?? "architecture",
@@ -39,12 +55,14 @@ export async function POST(request: Request) {
     // «الگوی نمونه» واقعاً باید اشیا داشته باشد؛ پیش‌تر فقط نام سند را عوض می‌کرد و
     // سند خالی تحویل می‌داد (خروجی ۰ شیء). اکنون همان سند نمونهٔ کامل با نام و
     // برگهٔ انتخابی کاربر ساخته می‌شود.
-    const sample = sampleDesign();
+    const sample = isDesignTemplate(body.template) ? createDesignTemplate(body.template) : sampleDesign();
     const doc =
-      body.template === "sample"
+      body.template === "sample" || isDesignTemplate(body.template)
         ? {
             ...sample,
             id: base.id,
+            kind: base.kind,
+            classification: base.kind === "structure" ? "structure" : sample.classification,
             name: body.name?.trim() || sample.name,
             sheet: {
               ...sample.sheet,

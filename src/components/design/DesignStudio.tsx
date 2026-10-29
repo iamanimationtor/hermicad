@@ -1,4 +1,5 @@
 "use client";
+import { floorHeight, itemVertical, isOpening } from "@/domain/studio/parameters";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
@@ -20,6 +21,7 @@ import {
   type StudioItem,
 } from "@/domain/studio/document";
 import { SLAB_REBAR_DEFAULTS, SLAB_PARAM_RANGES } from "@/domain/studio/slabConfig";
+import { SharePanel } from "./SharePanel";
 import { ItemChip, ItemPreview } from "./ItemPreview";
 
 type Mode = "select" | "pan" | "place";
@@ -90,6 +92,8 @@ export function DesignStudio({ initialDesign }: { initialDesign: StudioDocument 
     return { x: bounds.x - padX, y: bounds.y - padY, w: bounds.w + padX * 2, h: bounds.h + padY * 2 };
   });
   const [size, setSize] = useState({ w: 900, h: 620 });
+  const savedRevision = useRef(initialDesign.revision);
+  const saving = useRef(false);
   const past = useRef<StudioDocument[]>([]);
   const future = useRef<StudioDocument[]>([]);
   const drag = useRef<DragState | null>(null);
@@ -168,21 +172,18 @@ export function DesignStudio({ initialDesign }: { initialDesign: StudioDocument 
     return () => observer.disconnect();
   }, []);
 
-  const zoomBy = useCallback(
-    (factor: number, anchor?: { x: number; y: number }) => {
-      setView((current) => {
-        const nextW = Math.min(400, Math.max(1.5, current.w * factor));
-        const nextH = Math.min(400, Math.max(1, current.h * factor));
-        if (!anchor) {
-          return { x: current.x + (current.w - nextW) / 2, y: current.y + (current.h - nextH) / 2, w: nextW, h: nextH };
-        }
-        const ratioX = (anchor.x - current.x) / current.w;
-        const ratioY = (anchor.y - current.y) / current.h;
-        return { x: anchor.x - nextW * ratioX, y: anchor.y - nextH * ratioY, w: nextW, h: nextH };
-      });
-    },
-    [],
-  );
+  const zoomBy = useCallback((factor: number, anchor?: { x: number; y: number }) => {
+    setView((current) => {
+      const nextW = Math.min(400, Math.max(1.5, current.w * factor));
+      const nextH = Math.min(400, Math.max(1, current.h * factor));
+      if (!anchor) {
+        return { x: current.x + (current.w - nextW) / 2, y: current.y + (current.h - nextH) / 2, w: nextW, h: nextH };
+      }
+      const ratioX = (anchor.x - current.x) / current.w;
+      const ratioY = (anchor.y - current.y) / current.h;
+      return { x: anchor.x - nextW * ratioX, y: anchor.y - nextH * ratioY, w: nextW, h: nextH };
+    });
+  }, []);
 
   useEffect(() => {
     const element = canvasRef.current;
@@ -422,20 +423,26 @@ export function DesignStudio({ initialDesign }: { initialDesign: StudioDocument 
   const filtered = useMemo(() => searchCatalog(query, category === "all" ? undefined : category), [query, category]);
 
   const save = useCallback(async () => {
+    if (saving.current) return;
+    saving.current = true;
     setBusy("save");
     try {
       const response = await fetch(`/api/designs/${doc.id}`, {
         method: "PUT",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ document: doc }),
+        body: JSON.stringify({ document: { ...doc, revision: savedRevision.current } }),
       });
       const payload = await response.json();
       if (!response.ok) throw new Error(payload.error ?? "ذخیره ناموفق بود");
-      setDoc(payload.design as StudioDocument);
+      const stored = payload.design as StudioDocument;
+      savedRevision.current = stored.revision;
+      // تغییرات حین انتظار پاسخ نباید با نسخهٔ ارسالی پاک شوند.
+      setDoc((current) => (current === doc ? stored : { ...current, revision: stored.revision }));
       setStatus(`ذخیره شد · تجدیدنظر ${(payload.design as StudioDocument).revision}`);
     } catch (error) {
       setStatus(error instanceof Error ? error.message : "خطای ذخیره");
     } finally {
+      saving.current = false;
       setBusy(null);
     }
   }, [doc]);
@@ -553,9 +560,7 @@ export function DesignStudio({ initialDesign }: { initialDesign: StudioDocument 
             </button>
           ))}
         </div>
-        <p className="mt-2 text-[10px] leading-5 text-slate-500">
-          روی شیء کلیک کنید، سپس روی بوم بگذارید. {filtered.length} نتیجه.
-        </p>
+        <p className="mt-2 text-[10px] leading-5 text-slate-500">روی شیء کلیک کنید، سپس روی بوم بگذارید. {filtered.length} نتیجه.</p>
         <div className="mt-2 flex-1 space-y-1 overflow-y-auto pl-1">
           {filtered.map((item) => (
             <ItemChip
@@ -574,19 +579,37 @@ export function DesignStudio({ initialDesign }: { initialDesign: StudioDocument 
       {/* ─────────── بوم ─────────── */}
       <section className="panel flex min-h-[70vh] flex-col overflow-hidden">
         <div className="flex flex-wrap items-center gap-1.5 border-b border-white/10 px-2 py-2 text-[11px]">
-          <button type="button" onClick={() => { setMode("select"); setPendingCatalog(null); }} className={`btn px-2 py-1 ${mode === "select" ? "btn-primary" : ""}`}>
+          <button
+            type="button"
+            onClick={() => {
+              setMode("select");
+              setPendingCatalog(null);
+            }}
+            className={`btn px-2 py-1 ${mode === "select" ? "btn-primary" : ""}`}
+          >
             انتخاب
           </button>
           <button type="button" onClick={() => setMode("pan")} className={`btn px-2 py-1 ${mode === "pan" ? "btn-primary" : ""}`}>
             جابه‌جایی بوم
           </button>
           <span className="mx-1 h-5 w-px bg-white/10" />
-          <button type="button" onClick={() => zoomBy(1.25)} className="btn px-2 py-1" title="بزرگ‌نمایی">＋</button>
-          <button type="button" onClick={() => zoomBy(1 / 1.25)} className="btn px-2 py-1" title="کوچک‌نمایی">－</button>
-          <button type="button" onClick={fit} className="btn px-2 py-1">اندازهٔ صفحه</button>
+          <button type="button" onClick={() => zoomBy(1.25)} className="btn px-2 py-1" title="بزرگ‌نمایی">
+            ＋
+          </button>
+          <button type="button" onClick={() => zoomBy(1 / 1.25)} className="btn px-2 py-1" title="کوچک‌نمایی">
+            －
+          </button>
+          <button type="button" onClick={fit} className="btn px-2 py-1">
+            اندازهٔ صفحه
+          </button>
           <span className="chip mono">{`${Math.round((size.w / (view.w * scalePx)) * 100)}%`}</span>
           <span className="mx-1 h-5 w-px bg-white/10" />
-          <button type="button" onClick={() => setSnapOn((value) => !value)} className={`btn px-2 py-1 ${snapOn ? "btn-primary" : ""}`} title="جذب به شبکه">
+          <button
+            type="button"
+            onClick={() => setSnapOn((value) => !value)}
+            className={`btn px-2 py-1 ${snapOn ? "btn-primary" : ""}`}
+            title="جذب به شبکه"
+          >
             جذب {snapOn ? "روشن" : "خاموش"}
           </button>
           <select
@@ -598,8 +621,12 @@ export function DesignStudio({ initialDesign }: { initialDesign: StudioDocument 
               <option key={value} value={value}>{`شبکه ${value} m`}</option>
             ))}
           </select>
-          <button type="button" onClick={undo} className="btn px-2 py-1" title="واگرد (Ctrl+Z)">↶</button>
-          <button type="button" onClick={redo} className="btn px-2 py-1" title="ازنو (Ctrl+Shift+Z)">↷</button>
+          <button type="button" onClick={undo} className="btn px-2 py-1" title="واگرد (Ctrl+Z)">
+            ↶
+          </button>
+          <button type="button" onClick={redo} className="btn px-2 py-1" title="ازنو (Ctrl+Shift+Z)">
+            ↷
+          </button>
           <span className="flex-1" />
           <button type="button" onClick={save} disabled={busy === "save"} className="btn px-3 py-1">
             {busy === "save" ? "در حال ذخیره…" : "ذخیره"}
@@ -632,9 +659,7 @@ export function DesignStudio({ initialDesign }: { initialDesign: StudioDocument 
             </defs>
             <g transform={`translate(${offsetX},${offsetY}) scale(${scalePx},${-scalePx}) translate(${-view.x},${-(view.y + view.h)})`}>
               {/* شبکه */}
-              {doc.gridVisible && doc.grid > 0 && scalePx * doc.grid > 4 && (
-                <GridLines view={view} grid={doc.grid} />
-              )}
+              {doc.gridVisible && doc.grid > 0 && scalePx * doc.grid > 4 && <GridLines view={view} grid={doc.grid} />}
               {/* اشیا */}
               {itemGroups.map((item) => {
                 const def = CATALOG_BY_ID[item.catalogId];
@@ -651,7 +676,12 @@ export function DesignStudio({ initialDesign }: { initialDesign: StudioDocument 
                 const dim = item.level !== doc.currentLevel || Boolean(otherDiscipline);
                 const isSelected = item.id === selectedId;
                 return (
-                  <g key={item.id} opacity={dim ? (item.level !== doc.currentLevel ? 0.3 : 0.5) : 1} onPointerDown={(event) => startItemDrag(event, item)} style={{ cursor: "move" }}>
+                  <g
+                    key={item.id}
+                    opacity={dim ? (item.level !== doc.currentLevel ? 0.3 : 0.5) : 1}
+                    onPointerDown={(event) => startItemDrag(event, item)}
+                    style={{ cursor: "move" }}
+                  >
                     <polygon
                       points={[
                         map(-item.w / 2, -item.d / 2),
@@ -694,7 +724,14 @@ export function DesignStudio({ initialDesign }: { initialDesign: StudioDocument 
                           .map((point) => `${point.x},${point.y}`)
                           .join(" ");
                         return part.closed === false ? (
-                          <polyline key={index} points={pts} fill="none" stroke={common.stroke} strokeWidth={common.strokeWidth} strokeDasharray={common.strokeDasharray} />
+                          <polyline
+                            key={index}
+                            points={pts}
+                            fill="none"
+                            stroke={common.stroke}
+                            strokeWidth={common.strokeWidth}
+                            strokeDasharray={common.strokeDasharray}
+                          />
                         ) : (
                           <polygon key={index} points={pts} {...common} />
                         );
@@ -702,7 +739,19 @@ export function DesignStudio({ initialDesign }: { initialDesign: StudioDocument 
                       if (part.kind === "mline") {
                         const a = map(part.x1, part.y1);
                         const b = map(part.x2, part.y2);
-                        return <line key={index} x1={a.x} y1={a.y} x2={b.x} y2={b.y} fill="none" stroke={common.stroke} strokeWidth={common.strokeWidth} strokeDasharray={common.strokeDasharray} />;
+                        return (
+                          <line
+                            key={index}
+                            x1={a.x}
+                            y1={a.y}
+                            x2={b.x}
+                            y2={b.y}
+                            fill="none"
+                            stroke={common.stroke}
+                            strokeWidth={common.strokeWidth}
+                            strokeDasharray={common.strokeDasharray}
+                          />
+                        );
                       }
                       if (part.kind === "marc") {
                         const steps = 16;
@@ -712,7 +761,16 @@ export function DesignStudio({ initialDesign }: { initialDesign: StudioDocument 
                           const point = map(part.cx + part.r * Math.cos(angle), part.cy + part.r * Math.sin(angle));
                           pts.push(`${point.x},${point.y}`);
                         }
-                        return <polyline key={index} points={pts.join(" ")} fill="none" stroke={common.stroke} strokeWidth={common.strokeWidth} strokeDasharray={common.strokeDasharray} />;
+                        return (
+                          <polyline
+                            key={index}
+                            points={pts.join(" ")}
+                            fill="none"
+                            stroke={common.stroke}
+                            strokeWidth={common.strokeWidth}
+                            strokeDasharray={common.strokeDasharray}
+                          />
+                        );
                       }
                       const a = map((part.x1 - 0.5) * item.w, (part.y1 - 0.5) * item.d);
                       const b = map((part.x2 - 0.5) * item.w, (part.y2 - 0.5) * item.d);
@@ -753,7 +811,9 @@ export function DesignStudio({ initialDesign }: { initialDesign: StudioDocument 
           </svg>
 
           <div className="pointer-events-none absolute bottom-2 left-2 rounded-lg border border-white/10 bg-black/60 px-2 py-1 text-[10px] text-slate-400">
-            {selectedDef ? `${selectedDef.nameFa} · ${selected!.w.toFixed(2)}×${selected!.d.toFixed(2)} m · ${selected!.rotationDeg}°` : "برای انتخاب، روی شیء کلیک کنید"}
+            {selectedDef
+              ? `${selectedDef.nameFa} · ${selected!.w.toFixed(2)}×${selected!.d.toFixed(2)} m · ${selected!.rotationDeg}°`
+              : "برای انتخاب، روی شیء کلیک کنید"}
           </div>
           {pendingCatalog && (
             <div className="pointer-events-none absolute inset-x-0 top-2 mx-auto w-max rounded-lg border border-teal-300/40 bg-teal-400/10 px-3 py-1 text-[11px] text-teal-100">
@@ -815,6 +875,44 @@ export function DesignStudio({ initialDesign }: { initialDesign: StudioDocument 
                   />
                 </label>
                 <label className="block">
+                  <span className="label">ارتفاع شیء (متر)</span>
+                  <input
+                    className="field field-mono"
+                    type="number"
+                    min={0.05}
+                    max={30}
+                    step={0.05}
+                    value={selected.heightM ?? ""}
+                    placeholder={String(itemVertical(selected, doc).height)}
+                    onChange={(event) =>
+                      commit(
+                        updateItem(doc, selected.id, { heightM: event.target.value === "" ? undefined : Number(event.target.value) }),
+                        "ارتفاع شیء تغییر کرد",
+                      )
+                    }
+                  />
+                </label>
+                {isOpening(selected) && (
+                  <label className="block">
+                    <span className="label">کف‌نشیمن بازشو (متر)</span>
+                    <input
+                      className="field field-mono"
+                      type="number"
+                      min={0}
+                      max={12}
+                      step={0.05}
+                      value={selected.sillM ?? ""}
+                      placeholder={String(itemVertical(selected, doc).sill)}
+                      onChange={(event) =>
+                        commit(
+                          updateItem(doc, selected.id, { sillM: event.target.value === "" ? undefined : Number(event.target.value) }),
+                          "کف‌نشیمن تغییر کرد",
+                        )
+                      }
+                    />
+                  </label>
+                )}
+                <label className="block">
                   <span className="label">چرخش (°)</span>
                   <input
                     type="number"
@@ -850,6 +948,8 @@ export function DesignStudio({ initialDesign }: { initialDesign: StudioDocument 
                     commit(
                       updateItem(doc, selected.id, {
                         catalogId: next.id,
+                        heightM: undefined,
+                        sillM: undefined,
                         w: next.defaultSize.w,
                         d: next.defaultSize.d,
                       }),
@@ -859,20 +959,25 @@ export function DesignStudio({ initialDesign }: { initialDesign: StudioDocument 
                 >
                   {CATEGORIES.map((category) => (
                     <optgroup key={category.id} label={category.label}>
-                      {CATALOG.filter((entry) => entry.category === category.id)
-                        .map((entry) => (
-                          <option key={entry.id} value={entry.id}>
-                            {entry.nameFa}
-                          </option>
-                        ))}
+                      {CATALOG.filter((entry) => entry.category === category.id).map((entry) => (
+                        <option key={entry.id} value={entry.id}>
+                          {entry.nameFa}
+                        </option>
+                      ))}
                     </optgroup>
                   ))}
                 </select>
               </label>
               <div className="flex flex-wrap gap-1">
-                <button type="button" className="btn px-2 py-1" onClick={() => commit(rotateItem(doc, selected.id, 90), "چرخش ۹۰°")}>۹۰°</button>
-                <button type="button" className="btn px-2 py-1" onClick={() => commit(rotateItem(doc, selected.id, -90), "چرخش ۹۰°")}>‑۹۰°</button>
-                <button type="button" className="btn px-2 py-1" onClick={() => commit(duplicateItem(doc, selected.id), "تکثیر")}>تکثیر</button>
+                <button type="button" className="btn px-2 py-1" onClick={() => commit(rotateItem(doc, selected.id, 90), "چرخش ۹۰°")}>
+                  ۹۰°
+                </button>
+                <button type="button" className="btn px-2 py-1" onClick={() => commit(rotateItem(doc, selected.id, -90), "چرخش ۹۰°")}>
+                  ‑۹۰°
+                </button>
+                <button type="button" className="btn px-2 py-1" onClick={() => commit(duplicateItem(doc, selected.id), "تکثیر")}>
+                  تکثیر
+                </button>
                 <button
                   type="button"
                   className="btn px-2 py-1 text-rose-200"
@@ -892,6 +997,8 @@ export function DesignStudio({ initialDesign }: { initialDesign: StudioDocument 
           )}
         </section>
 
+        <SharePanel designId={doc.id} />
+
         <section>
           <h3 className="text-[11px] font-bold text-teal-200">خروجی بر اساس رشته</h3>
           <select
@@ -900,31 +1007,57 @@ export function DesignStudio({ initialDesign }: { initialDesign: StudioDocument 
             onChange={(event) => commit({ ...doc, classification: event.target.value as StudioDocument["classification"] }, "فیلتر رشته")}
           >
             {CLASSIFICATION_LABELS.map((entry) => (
-              <option key={entry.id} value={entry.id}>{entry.label}</option>
+              <option key={entry.id} value={entry.id}>
+                {entry.label}
+              </option>
             ))}
           </select>
           <details className="mt-2 text-[11px]">
             <summary className="cursor-pointer text-teal-200">فرض‌های برآورد آرماتور سقف</summary>
-            <p className="my-2 text-amber-200">ویژهٔ دال توپر مستطیلی؛ این تنظیمات طراحی یا تأیید آیین‌نامه‌ای نیستند. با سند ذخیره می‌شوند.</p>
+            <p className="my-2 text-amber-200">
+              ویژهٔ دال توپر مستطیلی؛ این تنظیمات طراحی یا تأیید آیین‌نامه‌ای نیستند. با سند ذخیره می‌شوند.
+            </p>
             {Object.entries(SLAB_PARAM_RANGES).map(([key, [min, max, label]]) => {
               const name = key as keyof typeof SLAB_PARAM_RANGES;
-              return <label key={key} className="mb-2 block">{label}
-                <input aria-label={label} type="number" min={min} max={max} step={name.includes("Diameter") || name === "diameterMm" || name === "anchorageFactor" ? 1 : 0.01}
-                  className="field mt-1" value={doc.slabRebar?.[name] ?? SLAB_REBAR_DEFAULTS[name]}
-                  onChange={event => {
-                    const value = event.target.valueAsNumber;
-                    if (Number.isFinite(value)) commit({ ...doc, slabRebar: { ...doc.slabRebar, [name]: value } }, "فرض‌های مترهٔ سقف");
-                  }} />
-              </label>;
+              return (
+                <label key={key} className="mb-2 block">
+                  {label}
+                  <input
+                    aria-label={label}
+                    type="number"
+                    min={min}
+                    max={max}
+                    step={name.includes("Diameter") || name === "diameterMm" || name === "anchorageFactor" ? 1 : 0.01}
+                    className="field mt-1"
+                    value={doc.slabRebar?.[name] ?? SLAB_REBAR_DEFAULTS[name]}
+                    onChange={(event) => {
+                      const value = event.target.valueAsNumber;
+                      if (Number.isFinite(value)) commit({ ...doc, slabRebar: { ...doc.slabRebar, [name]: value } }, "فرض‌های مترهٔ سقف");
+                    }}
+                  />
+                </label>
+              );
             })}
-            <label className="block">نوار بالا
-              <select className="field mt-1" value={doc.slabRebar?.topMode ?? "all"}
-                onChange={event => commit({ ...doc, slabRebar: { ...doc.slabRebar, topMode: event.target.value as "all" | "perimeter" } }, "نوار بالای سقف")}>
+            <label className="block">
+              نوار بالا
+              <select
+                className="field mt-1"
+                value={doc.slabRebar?.topMode ?? "all"}
+                onChange={(event) =>
+                  commit({ ...doc, slabRebar: { ...doc.slabRebar, topMode: event.target.value as "all" | "perimeter" } }, "نوار بالای سقف")
+                }
+              >
                 <option value="all">همهٔ لبه‌های دهانه‌ها (فرضی)</option>
                 <option value="perimeter">پیرامونی؛ بدون لبه‌های مشترک</option>
               </select>
             </label>
-            <button type="button" className="btn mt-2" onClick={() => commit({ ...doc, slabRebar: { ...SLAB_REBAR_DEFAULTS } }, "بازنشانی فرض‌های سقف")}>بازنشانی فرض‌ها</button>
+            <button
+              type="button"
+              className="btn mt-2"
+              onClick={() => commit({ ...doc, slabRebar: { ...SLAB_REBAR_DEFAULTS } }, "بازنشانی فرض‌های سقف")}
+            >
+              بازنشانی فرض‌ها
+            </button>
           </details>
           <div className="mt-2 grid grid-cols-2 gap-1">
             {[
@@ -997,15 +1130,27 @@ export function DesignStudio({ initialDesign }: { initialDesign: StudioDocument 
           <div className="mt-1 grid grid-cols-2 gap-2">
             <label className="block">
               <span className="label">اندازهٔ برگه</span>
-              <select className="field" value={doc.sheet.format} onChange={(event) => commit({ ...doc, sheet: { ...doc.sheet, format: event.target.value as StudioDocument["sheet"]["format"] } })}>
+              <select
+                className="field"
+                value={doc.sheet.format}
+                onChange={(event) =>
+                  commit({ ...doc, sheet: { ...doc.sheet, format: event.target.value as StudioDocument["sheet"]["format"] } })
+                }
+              >
                 {["A4", "A3", "A2", "A1", "A0"].map((value) => (
-                  <option key={value} value={value}>{value}</option>
+                  <option key={value} value={value}>
+                    {value}
+                  </option>
                 ))}
               </select>
             </label>
             <label className="block">
               <span className="label">مقیاس</span>
-              <select className="field" value={doc.sheet.scale} onChange={(event) => commit({ ...doc, sheet: { ...doc.sheet, scale: Number(event.target.value) } })}>
+              <select
+                className="field"
+                value={doc.sheet.scale}
+                onChange={(event) => commit({ ...doc, sheet: { ...doc.sheet, scale: Number(event.target.value) } })}
+              >
                 {[20, 25, 50, 75, 100, 200].map((value) => (
                   <option key={value} value={value}>{`1:${value}`}</option>
                 ))}
@@ -1013,10 +1158,34 @@ export function DesignStudio({ initialDesign }: { initialDesign: StudioDocument 
             </label>
             <label className="block">
               <span className="label">جهت</span>
-              <select className="field" value={doc.sheet.orientation} onChange={(event) => commit({ ...doc, sheet: { ...doc.sheet, orientation: event.target.value as "landscape" | "portrait" } })}>
+              <select
+                className="field"
+                value={doc.sheet.orientation}
+                onChange={(event) =>
+                  commit({ ...doc, sheet: { ...doc.sheet, orientation: event.target.value as "landscape" | "portrait" } })
+                }
+              >
                 <option value="landscape">افقی</option>
                 <option value="portrait">عمودی</option>
               </select>
+            </label>
+            <label className="block">
+              <span className="label">ارتفاع کف تا کف (متر)</span>
+              <input
+                type="number"
+                className="field field-mono"
+                min={2}
+                max={12}
+                step={0.1}
+                value={doc.floorHeightM ?? ""}
+                placeholder={String(floorHeight(doc))}
+                onChange={(event) =>
+                  commit(
+                    { ...doc, floorHeightM: event.target.value === "" ? undefined : Number(event.target.value) },
+                    "ارتفاع طبقات تغییر کرد",
+                  )
+                }
+              />
             </label>
             <label className="block">
               <span className="label">تعداد طبقات</span>
@@ -1026,7 +1195,14 @@ export function DesignStudio({ initialDesign }: { initialDesign: StudioDocument 
                 max={60}
                 className="field field-mono"
                 value={doc.levels}
-                onChange={(event) => commit({ ...doc, levels: Math.max(1, Math.min(60, Number(event.target.value))) })}
+                onChange={(event) => {
+                  const levels = Math.max(1, Math.min(60, Math.trunc(Number(event.target.value))));
+                  if (doc.items.some((item) => item.level >= levels)) {
+                    setStatus("ابتدا اشیای طبقات حذف‌شونده را جابه‌جا یا حذف کنید.");
+                    return;
+                  }
+                  commit({ ...doc, levels, currentLevel: Math.min(doc.currentLevel, levels - 1) });
+                }}
               />
             </label>
           </div>
@@ -1072,12 +1248,16 @@ export function DesignStudio({ initialDesign }: { initialDesign: StudioDocument 
           <p>
             {doc.project.name} · {doc.project.code}
           </p>
-          <p>تجدیدنظر {doc.revision} · {doc.project.date}</p>
+          <p>
+            تجدیدنظر {doc.revision} · {doc.project.date}
+          </p>
           <p className="mt-1">خروجی برای کنترل مهندس دارای صلاحیت است، نه تأییدیهٔ انطباق.</p>
           <Link href={`/design/${doc.id}/gallery`} className="btn btn-primary mt-2 w-full justify-center px-2 py-1">
             گالری رندرهای طبقه‌بندی‌شده
           </Link>
-          <Link href="/design" className="btn mt-2 w-full justify-center px-2 py-1">همهٔ اسناد طراحی</Link>
+          <Link href="/design" className="btn mt-2 w-full justify-center px-2 py-1">
+            همهٔ اسناد طراحی
+          </Link>
         </section>
       </aside>
     </div>
@@ -1091,10 +1271,14 @@ function GridLines({ view, grid }: { view: { x: number; y: number; w: number; h:
   const count = Math.ceil((view.w + view.h) / grid);
   if (count > 1200) return null;
   for (let x = startX; x <= view.x + view.w; x += grid) {
-    lines.push(<line key={`x${x.toFixed(3)}`} x1={x} y1={view.y} x2={x} y2={view.y + view.h} stroke="rgba(148,163,184,0.12)" strokeWidth={0.5} />);
+    lines.push(
+      <line key={`x${x.toFixed(3)}`} x1={x} y1={view.y} x2={x} y2={view.y + view.h} stroke="rgba(148,163,184,0.12)" strokeWidth={0.5} />,
+    );
   }
   for (let y = startY; y <= view.y + view.h; y += grid) {
-    lines.push(<line key={`y${y.toFixed(3)}`} x1={view.x} y1={y} x2={view.x + view.w} y2={y} stroke="rgba(148,163,184,0.12)" strokeWidth={0.5} />);
+    lines.push(
+      <line key={`y${y.toFixed(3)}`} x1={view.x} y1={y} x2={view.x + view.w} y2={y} stroke="rgba(148,163,184,0.12)" strokeWidth={0.5} />,
+    );
   }
   return <g>{lines}</g>;
 }

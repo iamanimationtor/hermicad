@@ -25,6 +25,7 @@ import type { StudioDocument } from "@/domain/studio/document";
  */
 
 export const projects = pgTable("projects", {
+  workspace: text("workspace").notNull().default("public"),
   id: uuid("id").primaryKey().defaultRandom(),
   code: text("code").notNull(),
   name: text("name").notNull(),
@@ -155,4 +156,32 @@ export const designDocuments = pgTable("design_documents", {
   data: jsonb("data").$type<StudioDocument>().notNull(),
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+});
+
+/** حساب اختیاری؛ مهمان همچنان بدون ثبت‌نام کار می‌کند. فقط چکیدهٔ رمز/کلید ذخیره می‌شود. */
+export const workspaceAccess = pgTable("workspace_access", {
+  workspace: text("workspace").primaryKey(),
+  username: text("username").unique(),
+  passwordHash: text("password_hash"),
+  recoveryHash: text("recovery_hash").unique(),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+});
+export const workspaceSessions = pgTable("workspace_sessions", {
+  tokenHash: text("token_hash").primaryKey(),
+  workspace: text("workspace").notNull().references(() => workspaceAccess.workspace, { onDelete: "cascade" }),
+  expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+});
+export const authAttempts = pgTable("auth_attempts", {
+  key: text("key").primaryKey(),
+  count: integer("count").notNull(),
+  startedAt: timestamp("started_at", { withTimezone: true }).notNull(),
+});
+export const designShares = pgTable("design_shares", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  designId: uuid("design_id").notNull().references(() => designDocuments.id, { onDelete: "cascade" }),
+  workspace: text("workspace").notNull(),
+  tokenHash: text("token_hash").notNull().unique(),
+  snapshot: jsonb("snapshot").$type<StudioDocument>().notNull(),
+  expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
 });

@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { DESIGN_TEMPLATES, type DesignTemplateId } from "@/domain/studio/templates";
 import { useRouter } from "next/navigation";
 
 const KINDS = [
@@ -16,10 +17,11 @@ export function NewDesignPanel() {
   const [kind, setKind] = useState<(typeof KINDS)[number]["id"]>("architecture");
   const [format, setFormat] = useState("A3");
   const [scale, setScale] = useState(100);
+  const [templateId, setTemplateId] = useState<DesignTemplateId>("office");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const create = async (template: "empty" | "sample") => {
+  const create = async (template: "empty" | "sample" | DesignTemplateId) => {
     setBusy(true);
     setError(null);
     try {
@@ -27,7 +29,7 @@ export function NewDesignPanel() {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({
-          name: template === "sample" ? "نمونهٔ آپارتمان سه‌خوابه" : name,
+          name: template === "sample" ? "نمونهٔ آپارتمان سه‌خوابه" : template === "empty" ? name : undefined,
           kind,
           template,
           sheet: { format, orientation: "landscape", scale },
@@ -46,7 +48,9 @@ export function NewDesignPanel() {
   return (
     <section className="panel p-4">
       <h2 className="text-sm font-bold text-slate-100">سند طراحی جدید</h2>
-      <p className="mt-1 text-[11px] leading-5 text-slate-400">بدون ثبت‌نام. سند روی سرور ذخیره می‌شود و لینک آن قابل اشتراک است.</p>
+      <p className="mt-1 text-[11px] leading-5 text-slate-400">
+        کار مهمان رایگان است. سند خصوصی ذخیره می‌شود؛ برای اشتراک، لینک فقط‌خواندنی بسازید.
+      </p>
       <label className="mt-3 block">
         <span className="label">نام سند</span>
         <input className="field" value={name} onChange={(event) => setName(event.target.value)} />
@@ -56,7 +60,9 @@ export function NewDesignPanel() {
           <span className="label">نوع</span>
           <select className="field" value={kind} onChange={(event) => setKind(event.target.value as typeof kind)}>
             {KINDS.map((entry) => (
-              <option key={entry.id} value={entry.id}>{entry.label}</option>
+              <option key={entry.id} value={entry.id}>
+                {entry.label}
+              </option>
             ))}
           </select>
         </label>
@@ -64,7 +70,9 @@ export function NewDesignPanel() {
           <span className="label">برگه</span>
           <select className="field" value={format} onChange={(event) => setFormat(event.target.value)}>
             {["A4", "A3", "A2", "A1", "A0"].map((value) => (
-              <option key={value} value={value}>{value}</option>
+              <option key={value} value={value}>
+                {value}
+              </option>
             ))}
           </select>
         </label>
@@ -82,8 +90,34 @@ export function NewDesignPanel() {
           </button>
         </div>
       </div>
-      <button type="button" disabled={busy} onClick={() => create("sample")} className="btn btn-primary mt-2 w-full justify-center px-2 py-2">
+      <button
+        type="button"
+        disabled={busy}
+        onClick={() => create("sample")}
+        className="btn btn-primary mt-2 w-full justify-center px-2 py-2"
+      >
         نمونهٔ آماده (آپارتمان ۱۲×۱۰ با مبلمان کامل)
+      </button>
+      <label className="mt-3 block text-xs">
+        الگوی کاربری
+        <select
+          aria-label="الگوی کاربری"
+          className="field"
+          value={templateId}
+          onChange={(e) => setTemplateId(e.target.value as DesignTemplateId)}
+        >
+          {DESIGN_TEMPLATES.map((t) => (
+            <option key={t.id} value={t.id}>
+              {t.label}
+            </option>
+          ))}
+        </select>
+      </label>
+      <p className="mt-2 text-[11px] leading-5 text-slate-400">
+        {DESIGN_TEMPLATES.find((t) => t.id === templateId)?.description}؛ الگوی شروع، نیازمند طراحی و کنترل ضوابط.
+      </p>
+      <button type="button" className="btn mt-2 w-full justify-center" disabled={busy} onClick={() => create(templateId)}>
+        ایجاد الگوی کاربری
       </button>
       {error && <p className="mt-2 text-[11px] text-rose-300">{error}</p>}
     </section>

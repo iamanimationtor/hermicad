@@ -1,3 +1,5 @@
+import { stepText } from "@/domain/exporters/step";
+import { itemVertical, isOpening, floorHeight } from "./parameters";
 /**
  * HERMICAD Studio — خروجی‌های صنعتی (XLSX و IFC4)
  *
@@ -43,10 +45,37 @@ interface StudioWorkbookOptions {
 }
 
 const HEADERS = {
-  schedule: ["ردیف", "کد کتابخانه", "شرح", "دسته", "رشته", "IFC", "تعداد", "مساحت واحد (م²)", "مساحت کل (م²)", "محیط (م)", "حجم تقریبی (م³)"],
-  opening: ["ردیف", "شناسه", "نوع", "عرض (م)", "ارتفاع (م)", "طبقه", "چرخش (°)"],
+  schedule: [
+    "ردیف",
+    "کد کتابخانه",
+    "شرح",
+    "دسته",
+    "رشته",
+    "IFC",
+    "تعداد",
+    "مساحت واحد (م²)",
+    "مساحت کل (م²)",
+    "محیط (م)",
+    "حجم تقریبی (م³)",
+  ],
+  opening: ["ردیف", "شناسه", "نوع", "عرض (م)", "ارتفاع (م)", "طبقه", "چرخش (°)", "ارتفاع کف‌نشیمن (م)"],
   space: ["شناسه", "نام فضا", "مساحت (م²)", "طبقه", "مختصات مرکز"],
-  items: ["شناسه", "کد کتابخانه", "نام", "دسته", "رشته", "لایه", "طبقه", "x (م)", "y (م)", "عرض (م)", "عمق (م)", "چرخش (°)"],
+  items: [
+    "شناسه",
+    "کد کتابخانه",
+    "نام",
+    "دسته",
+    "رشته",
+    "لایه",
+    "طبقه",
+    "x (م)",
+    "y (م)",
+    "عرض (م)",
+    "عمق (م)",
+    "چرخش (°)",
+    "ارتفاع (م)",
+    "کف‌نشیمن (م)",
+  ],
   issues: ["کد", "شدت", "پیام", "شناسهٔ شیء"],
   rebar: ["ردیف", "عضو", "قطر (mm)", "تعداد", "طول هر شاخه (m)", "طول کل (m)", "وزن (kg)", "شرح"],
 };
@@ -95,7 +124,7 @@ export function studioXlsx(doc: StudioDocument, options: StudioWorkbookOptions =
   const visible = renderableItems(doc);
   const issues = validateDocument(doc);
   const spaces = doc.items.filter((item) => item.catalogId.startsWith("space-"));
-  const openings = doc.items.filter((item) => ["door-single", "door-double", "window", "door-garage"].includes(item.catalogId));
+  const openings = doc.items.filter(isOpening);
 
   const scheduleRows: (string | number)[][] = [
     ["HERMICAD Studio — متره و برآورد", doc.name],
@@ -106,11 +135,11 @@ export function studioXlsx(doc: StudioDocument, options: StudioWorkbookOptions =
     HEADERS.schedule,
   ];
   rows.forEach((row, index) => {
-    const definition = CATALOG_BY_ID[row.catalogId];
     // محیط تقریبی از نمونهٔ اول همان کالا در سند (برای مترهٔ دیوار و کف‌سازی)
     const sample = doc.items.find((item) => item.catalogId === row.catalogId);
     const perimeter = sample ? 2 * (sample.w + sample.d) : 0;
-    const height = definition?.defaultSize.h ?? 0;
+    const group = doc.items.filter((item) => item.catalogId === row.catalogId);
+    const volume = group.reduce((sum, item) => sum + item.w * item.d * itemVertical(item, doc).height, 0);
     scheduleRows.push([
       index + 1,
       row.catalogId,
@@ -122,12 +151,24 @@ export function studioXlsx(doc: StudioDocument, options: StudioWorkbookOptions =
       round(row.areaM2, 3),
       round(row.totalAreaM2 * (1 + waste), 3),
       round(perimeter * row.count, 2),
-      round(row.totalAreaM2 * height, 3),
+      round(volume, 3),
     ]);
   });
   const totalArea = rows.reduce((sum, row) => sum + row.totalAreaM2, 0);
   scheduleRows.push([]);
-  scheduleRows.push(["جمع", "", "", "", "", "", rows.reduce((sum, row) => sum + row.count, 0), "", round(totalArea * (1 + waste), 3), "", ""]);
+  scheduleRows.push([
+    "جمع",
+    "",
+    "",
+    "",
+    "",
+    "",
+    rows.reduce((sum, row) => sum + row.count, 0),
+    "",
+    round(totalArea * (1 + waste), 3),
+    "",
+    "",
+  ]);
   scheduleRows.push(["جمع به حروف (متر مربع)", toPersianWords(round(totalArea * (1 + waste), 2))]);
   scheduleRows.push(["ضریب پرت اعمال‌شده", waste]);
   if (options.unitPrices) {
@@ -144,10 +185,28 @@ export function studioXlsx(doc: StudioDocument, options: StudioWorkbookOptions =
     scheduleRows.push(["جمع برآورد", "", round(total, 3)]);
   }
 
-  const openingRows: (string | number)[][] = [HEADERS.opening, ...openings.map((item, index) => [index + 1, item.id, CATALOG_BY_ID[item.catalogId]?.nameFa ?? item.catalogId, round(item.w, 3), round(CATALOG_BY_ID[item.catalogId]?.defaultSize.h ?? 0, 3), item.level + 1, round(item.rotationDeg, 1)])];
+  const openingRows: (string | number)[][] = [
+    HEADERS.opening,
+    ...openings.map((item, index) => [
+      index + 1,
+      item.id,
+      CATALOG_BY_ID[item.catalogId]?.nameFa ?? item.catalogId,
+      round(item.w, 3),
+      round(itemVertical(item, doc).height, 3),
+      item.level + 1,
+      round(item.rotationDeg, 1),
+      round(itemVertical(item, doc).sill, 3),
+    ]),
+  ];
   const spaceRows: (string | number)[][] = [
     HEADERS.space,
-    ...spaces.map((item) => [item.id, item.label ?? "فضا", round(item.w * item.d, 2), item.level + 1, `x=${round(item.x, 2)} , y=${round(item.y, 2)}`]),
+    ...spaces.map((item) => [
+      item.id,
+      item.label ?? "فضا",
+      round(item.w * item.d, 2),
+      item.level + 1,
+      `x=${round(item.x, 2)} , y=${round(item.y, 2)}`,
+    ]),
   ];
   const spaceTotal = spaces.reduce((sum, item) => sum + item.w * item.d, 0);
   spaceRows.push(["جمع", `${spaces.length} فضا`, round(spaceTotal, 2), "", ""]);
@@ -169,6 +228,8 @@ export function studioXlsx(doc: StudioDocument, options: StudioWorkbookOptions =
         round(item.w, 3),
         round(item.d, 3),
         round(item.rotationDeg, 1),
+        round(itemVertical(item, doc).height, 3),
+        round(itemVertical(item, doc).sill, 3),
       ];
     }),
   ];
@@ -221,8 +282,13 @@ export function studioXlsx(doc: StudioDocument, options: StudioWorkbookOptions =
       name: "[Content_Types].xml",
       data: Buffer.from(
         `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/>${sheets
-          .map((_, index) => `<Override PartName="/xl/worksheets/sheet${index + 1}.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/>`)
-          .join("")}<Override PartName="/xl/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.styles+xml"/></Types>`,
+          .map(
+            (_, index) =>
+              `<Override PartName="/xl/worksheets/sheet${index + 1}.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/>`,
+          )
+          .join(
+            "",
+          )}<Override PartName="/xl/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.styles+xml"/></Types>`,
       ),
     },
     {
@@ -243,8 +309,13 @@ export function studioXlsx(doc: StudioDocument, options: StudioWorkbookOptions =
       name: "xl/_rels/workbook.xml.rels",
       data: Buffer.from(
         `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">${sheets
-          .map((_, index) => `<Relationship Id="rId${index + 1}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet${index + 1}.xml"/>`)
-          .join("")}<Relationship Id="rId${sheets.length + 1}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/></Relationships>`,
+          .map(
+            (_, index) =>
+              `<Relationship Id="rId${index + 1}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet${index + 1}.xml"/>`,
+          )
+          .join(
+            "",
+          )}<Relationship Id="rId${sheets.length + 1}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/></Relationships>`,
       ),
     },
     {
@@ -263,29 +334,6 @@ export function studioXlsx(doc: StudioDocument, options: StudioWorkbookOptions =
 }
 
 /* ───────────────────────────────── IFC4 ───────────────────────────────── */
-
-function rectSolid(
-  item: StudioItem,
-  height: number,
-): { points: { x: number; y: number }[] } {
-  const radians = (-item.rotationDeg * Math.PI) / 180;
-  const cos = Math.cos(radians);
-  const sin = Math.sin(radians);
-  const hw = item.w / 2;
-  const hd = item.d / 2;
-  const rotate = (lx: number, ly: number) => ({
-    x: item.x + (lx * cos - ly * sin),
-    y: item.y + (lx * sin + ly * cos),
-  });
-  void height;
-  return { points: [rotate(-hw, -hd), rotate(hw, -hd), rotate(hw, hd), rotate(-hw, hd)] };
-}
-
-/** نام لاتین قابل استفاده در IFC؛ اگر حروف لاتین باقی نماند، عنوان پیش‌فرض. */
-function latinName(value: string, fallback: string): string {
-  const cleaned = value.replace(/[^\x20-\x7E]/g, "").replace(/[()\-—]/g, " ").trim();
-  return /[A-Za-z]/.test(cleaned) ? cleaned : fallback;
-}
 
 /**
  * نگاشت کلاس کتابخانه به موجودیت IFC4.
@@ -314,136 +362,126 @@ const IFC_ENTITY_BY_CLASS: Record<string, { entity: string; trailing: string }> 
   IfcWindow: { entity: "IFCWINDOW", trailing: ",$,$,.WINDOW.,.SINGLE_PANEL.,$" },
 };
 
+/** IFC4 حجمی: زنجیرهٔ جانمایی سه‌بعدی و ساختار فضایی معتبر؛ نه مدل اتصال اجرایی. */
 export function studioIfc(doc: StudioDocument): string {
   const lines: string[] = [];
-  let id = 1;
-  const next = () => id++;
-  const F = (value: number) => (Number.isFinite(value) ? value.toFixed(3) : "0.000");
-
-  lines.push("ISO-10303-21;", "HEADER;");
-  lines.push("FILE_DESCRIPTION(('ViewDefinition [CoordinationView]','HERMICAD Studio IFC4: spaces + building element proxies'),'2;1');");
-  lines.push(`FILE_NAME('${doc.project.code || doc.id}.ifc','${new Date(doc.updatedAt).toISOString()}',('HERMICAD'),('HERMICAD'),'hermicad-studio/1.0','HERMICAD','');`);
-  lines.push("FILE_SCHEMA(('IFC4'));", "ENDSEC;", "DATA;");
-
-  const person = next();
-  const organization = next();
-  const personOrg = next();
-  const owner = next();
-  const origin = next();
-  const zDir = next();
-  const axis = next();
-  const context = next();
-  const lengthUnit = next();
-  const areaUnit = next();
-  const units = next();
-  lines.push(`#${person}=IFCPERSON($,$,'HERMICAD',$,$,$,$,$);`);
-  lines.push(`#${organization}=IFCORGANIZATION($,'HERMICAD',$,$,$);`);
-  lines.push(`#${personOrg}=IFCPERSONANDORGANIZATION(#${person},#${organization},$);`);
-  lines.push(`#${owner}=IFCOWNERHISTORY(#${personOrg},$,$,.ADDED.,$,$,$,0);`);
-  lines.push(`#${origin}=IFCCARTESIANPOINT((0.,0.,0.));`);
-  lines.push(`#${zDir}=IFCDIRECTION((0.,0.,1.));`);
-  lines.push(`#${axis}=IFCAXIS2PLACEMENT3D(#${origin},#${zDir},$);`);
-  lines.push(`#${context}=IFCGEOMETRICREPRESENTATIONCONTEXT($,'Model',3,1.E-05,#${axis},$);`);
-  lines.push(`#${lengthUnit}=IFCSIUNIT(*,.LENGTHUNIT.,$,.METRE.);`);
-  lines.push(`#${areaUnit}=IFCSIUNIT(*,.AREAUNIT.,$,.SQUARE_METRE.);`);
-  lines.push(`#${units}=IFCUNITASSIGNMENT((#${lengthUnit},#${areaUnit}));`);
-  const projectPlacement = next();
-  const project = next();
-  const sitePlacement = next();
-  const site = next();
-  const buildingPlacement = next();
-  const building = next();
-  lines.push(`#${projectPlacement}=IFCAXIS2PLACEMENT3D(#${origin},#${zDir},$);`);
-  lines.push(
-    `#${project}=IFCPROJECT(${ifcGuid("studio-project" + doc.id)},$,'${doc.project.code || "HERMICAD"}','${latinName(doc.name, "HERMICAD STUDIO MODEL")}','IFC4',#${projectPlacement},(#${context}),#${units});`,
+  let sequence = 0;
+  const entity = (type: string, args: string): number => {
+    const id = ++sequence;
+    lines.push(`#${id}=${type}(${args});`);
+    return id;
+  };
+  const ref = (id: number) => `#${id}`;
+  const F = (value: number) => value.toFixed(6);
+  const guid = (key: string) => stepText(ifcGuid(doc.id + ":" + key));
+  const origin = entity("IFCCARTESIANPOINT", "(0.,0.,0.)");
+  const z = entity("IFCDIRECTION", "(0.,0.,1.)");
+  const axis = entity("IFCAXIS2PLACEMENT3D", `#${origin},$,$`);
+  const context = entity("IFCGEOMETRICREPRESENTATIONCONTEXT", `$,'Model',3,1.E-05,#${axis},$`);
+  const metre = entity("IFCSIUNIT", "*,.LENGTHUNIT.,$,.METRE.");
+  const area = entity("IFCSIUNIT", "*,.AREAUNIT.,$,.SQUARE_METRE.");
+  const units = entity("IFCUNITASSIGNMENT", `(#${metre},#${area})`);
+  const person = entity("IFCPERSON", "$,$,'HERMICAD',$,$,$,$,$");
+  const org = entity("IFCORGANIZATION", "$,'HERMICAD',$,$,$");
+  const user = entity("IFCPERSONANDORGANIZATION", `#${person},#${org},$`);
+  const app = entity("IFCAPPLICATION", `#${org},'1.0','HERMICAD','HERMICAD'`);
+  const owner = entity("IFCOWNERHISTORY", `#${user},#${app},$,.ADDED.,0,$,$,0`);
+  const placement = (parent: number | null, x: number, y: number, elevation: number, rotation = 0) => {
+    const point = entity("IFCCARTESIANPOINT", `(${F(x)},${F(y)},${F(elevation)})`);
+    const angle = (-rotation * Math.PI) / 180;
+    const direction = entity("IFCDIRECTION", `(${F(Math.cos(angle))},${F(Math.sin(angle))},0.)`);
+    const localAxis = entity("IFCAXIS2PLACEMENT3D", `#${point},#${z},#${direction}`);
+    return entity("IFCLOCALPLACEMENT", `${parent ? ref(parent) : "$"},#${localAxis}`);
+  };
+  const project = entity(
+    "IFCPROJECT",
+    `${guid("project")},#${owner},${stepText(doc.project.code)},${stepText(doc.project.name)},$,$,$,(#${context}),#${units}`,
   );
-  lines.push(`#${sitePlacement}=IFCLOCALPLACEMENT($,#${axis});`);
-  lines.push(`#${site}=IFCSITE(${ifcGuid("studio-site" + doc.id)},$,'Site','Parcel',$,#${sitePlacement},$,$,.ELEMENT.,$,$,$,$,$);`);
-  lines.push(`#${buildingPlacement}=IFCLOCALPLACEMENT(#${sitePlacement},#${axis});`);
-  lines.push(`#${building}=IFCBUILDING(${ifcGuid("studio-building" + doc.id)},$,'Building','Building',$,#${buildingPlacement},$,$,.ELEMENT.,$,$,$);`);
-
-  const storeyIds: number[] = [];
-  for (let level = 0; level < doc.levels; level += 1) {
-    const placement = next();
-    const storey = next();
-    lines.push(`#${placement}=IFCLOCALPLACEMENT(#${buildingPlacement},#${axis});`);
-    lines.push(
-      `#${storey}=IFCBUILDINGSTOREY(${ifcGuid(`studio-storey-${level}`)},$,'Level ${level + 1}','Level ${level + 1}',$,#${placement},$,$,.ELEMENT.,${F(level * 3.2)});`,
+  const sitePlacement = placement(null, 0, 0, 0);
+  const site = entity("IFCSITE", `${guid("site")},#${owner},'Site',$,$,#${sitePlacement},$,$,.ELEMENT.,$,$,$,$,$`);
+  const buildingPlacement = placement(sitePlacement, 0, 0, 0);
+  const building = entity(
+    "IFCBUILDING",
+    `${guid("building")},#${owner},${stepText(doc.name)},$,$,#${buildingPlacement},$,$,.ELEMENT.,$,$,$`,
+  );
+  const aggregate = (key: string, parent: number, children: number[]) => {
+    if (children.length) entity("IFCRELAGGREGATES", `${guid(key)},#${owner},$,$,#${parent},(${children.map(ref).join(",")})`);
+  };
+  aggregate("project-site", project, [site]);
+  aggregate("site-building", site, [building]);
+  const storeys: { id: number; placement: number; spaces: number[]; products: number[] }[] = [];
+  for (let level = 0; level < doc.levels; level++) {
+    const at = placement(buildingPlacement, 0, 0, level * floorHeight(doc));
+    const id = entity(
+      "IFCBUILDINGSTOREY",
+      `${guid("storey-" + level)},#${owner},${stepText(`طبقه ${level + 1}`)},$,$,#${at},$,$,.ELEMENT.,${F(level * floorHeight(doc))}`,
     );
-    storeyIds.push(storey);
+    storeys.push({ id, placement: at, spaces: [], products: [] });
   }
-
-  const productsByStorey = new Map<number, number[]>();
+  aggregate(
+    "building-storeys",
+    building,
+    storeys.map((s) => s.id),
+  );
   for (const item of doc.items) {
     const definition = CATALOG_BY_ID[item.catalogId];
-    if (!definition) continue;
-    const height = definition.defaultSize.h || 0.1;
-    const isSpace = definition.ifcClass === "IfcSpace";
-    const storeyId = storeyIds[Math.min(item.level, storeyIds.length - 1)];
-    const { points } = rectSolid(item, height);
-    const ox = Math.min(...points.map((point) => point.x));
-    const oy = Math.min(...points.map((point) => point.y));
-    const pointIds = points.map((point) => {
-      const pointId = next();
-      lines.push(`#${pointId}=IFCCARTESIANPOINT((${F(point.x - ox)},${F(point.y - oy)}));`);
-      return pointId;
-    });
-    const listId = next();
-    lines.push(`#${listId}=IFCCARTESIANPOINTLIST2D((${pointIds.map((pointId) => `#${pointId}`).join(",")}),$);`);
-    const curveId = next();
-    lines.push(`#${curveId}=IFCINDEXEDPOLYCURVE(#${listId},$,$);`);
-    const profileId = next();
-    lines.push(`#${profileId}=IFCARBITRARYCLOSEDPROFILEDEF(.AREA.,'${item.catalogId.replace(/[^\w-]/g, "_")}',#${curveId});`);
-    const solidAxis = next();
-    lines.push(`#${solidAxis}=IFCAXIS2PLACEMENT3D(#${origin},#${zDir},$);`);
-    const solid = next();
-    lines.push(`#${solid}=IFCEXTRUDEDAREASOLID(#${profileId},#${solidAxis},#${zDir},${F(height)});`);
-    const shape = next();
-    lines.push(`#${shape}=IFCSHAPEREPRESENTATION(#${context},'Body','SweptSolid',(#${solid}));`);
-    const productShape = next();
-    lines.push(`#${productShape}=IFCPRODUCTDEFINITIONSHAPE($,$,(#${shape}));`);
-    const localPlacement = next();
-    lines.push(`#${localPlacement}=IFCLOCALPLACEMENT(#${storeyIds[Math.min(item.level, storeyIds.length - 1)]},#${axis});`);
-    const placementPoint = next();
-    lines.push(`#${placementPoint}=IFCCARTESIANPOINT((${F(ox)},${F(oy)}));`);
-    const placementAxis = next();
-    lines.push(`#${placementAxis}=IFCAXIS2PLACEMENT2D(#${placementPoint},$);`);
-    const productPlacement = next();
-    lines.push(`#${productPlacement}=IFCLOCALPLACEMENT(#${localPlacement},#${placementAxis});`);
-    const product = next();
-    if (isSpace) {
-      lines.push(
-        `#${product}=IFCSPACE(${ifcGuid("studio-item" + item.id)},#${owner},'${item.label?.replace(/[^\x20-\x7E]/g, "") || "SPACE"}','${item.catalogId}',$,#${productPlacement},#${productShape},$,.ELEMENT.,.INTERNAL.,$);`,
-      );
+    const storey = storeys[item.level];
+    if (!definition || !storey) continue;
+    const { height, sill } = itemVertical(item, doc);
+    let shape: number;
+    if (height <= 0) {
+      const points = [
+        [-item.w / 2, -item.d / 2],
+        [item.w / 2, -item.d / 2],
+        [item.w / 2, item.d / 2],
+        [-item.w / 2, item.d / 2],
+      ].map(([x, y]) => entity("IFCCARTESIANPOINT", `(${F(x)},${F(y)},0.)`));
+      const curve = entity("IFCPOLYLINE", `(${[...points, points[0]].map(ref).join(",")})`);
+      const curves = entity("IFCGEOMETRICCURVESET", `(#${curve})`);
+      shape = entity("IFCSHAPEREPRESENTATION", `#${context},'FootPrint','GeometricCurveSet',(#${curves})`);
     } else {
-      // نوع موجودیت IFC از خودِ کتابخانه خوانده می‌شود (نه همه‌چیز Proxy):
-      // دیوار/دال/ستون/تیر/پله/مبلمان/درب/پنجره با موجودیت استاندارد خودشان
-      // صادر می‌شوند تا در Revit/ArchiCAD/BIM Vision قابل فیلتر و اندازه‌گیری
-      // باشند. مواردی که معادل دقیق ندارند همان IfcBuildingElementProxy می‌مانند
-      // (با ObjectType برابر کلاس کتابخانه، طبق قرارداد IFC).
-      const name = definition.nameEn.replace(/[^\x20-\x7E]/g, "").trim() || item.catalogId;
-      const mapping = IFC_ENTITY_BY_CLASS[definition.ifcClass];
-      if (mapping) {
-        lines.push(
-          `#${product}=${mapping.entity}(${ifcGuid("studio-item" + item.id)},#${owner},'${name}',$,'${definition.ifcClass}',#${productPlacement},#${productShape},$${mapping.trailing});`,
-        );
-      } else {
-        lines.push(
-          `#${product}=IFCBUILDINGELEMENTPROXY(${ifcGuid("studio-item" + item.id)},#${owner},'${name}',$,'${definition.ifcClass}',#${productPlacement},#${productShape},$,$);`,
-        );
-      }
+      const profile =
+        item.catalogId === "column-round" || item.catalogId === "pile"
+          ? entity("IFCCIRCLEPROFILEDEF", `.AREA.,$,$,${F(Math.min(item.w, item.d) / 2)}`)
+          : entity("IFCRECTANGLEPROFILEDEF", `.AREA.,$,$,${F(item.w)},${F(item.d)}`);
+      const solid = entity("IFCEXTRUDEDAREASOLID", `#${profile},#${axis},#${z},${F(height)}`);
+      shape = entity("IFCSHAPEREPRESENTATION", `#${context},'Body','SweptSolid',(#${solid})`);
     }
-    const list = productsByStorey.get(storeyId) ?? [];
-    list.push(product);
-    productsByStorey.set(storeyId, list);
+    const representation = entity("IFCPRODUCTDEFINITIONSHAPE", `$,$,(#${shape})`);
+    const at = placement(storey.placement, item.x, item.y, definition.category === "foundation" ? -height : sill, item.rotationDeg);
+    const base = `${guid("item-" + item.id)},#${owner},${stepText(item.label || definition.nameFa)},${stepText("نمایش حجمی؛ جزئیات اتصال و میزبان بازشو مدل نشده")},${stepText(item.catalogId)},#${at},#${representation},$`;
+    let product: number;
+    if (height <= 0) {
+      product = entity("IFCANNOTATION", base.slice(0, -2));
+      storey.products.push(product);
+    } else if (definition.ifcClass === "IfcSpace") {
+      product = entity("IFCSPACE", base + ",.ELEMENT.,.NOTDEFINED.,$");
+      storey.spaces.push(product);
+    } else {
+      const mapping = IFC_ENTITY_BY_CLASS[definition.ifcClass];
+      let trailing = mapping?.trailing ?? ",.NOTDEFINED.";
+      if (definition.ifcClass === "IfcDoor") trailing = `,${F(height)},${F(item.w)},.DOOR.,.NOTDEFINED.,$`;
+      if (definition.ifcClass === "IfcWindow") trailing = `,${F(height)},${F(item.w)},.WINDOW.,.NOTDEFINED.,$`;
+      product = entity(mapping?.entity ?? "IFCBUILDINGELEMENTPROXY", base + trailing);
+      storey.products.push(product);
+    }
   }
-
-  for (const [storeyId, products] of productsByStorey) {
-    const relation = next();
-    lines.push(
-      `#${relation}=IFCRELCONTAINEDINSPATIALSTRUCTURE(${ifcGuid(`studio-contain-${storeyId}`)},#${owner},$,$,(${products.map((product) => `#${product}`).join(",")}),#${storeyId});`,
-    );
-  }
-  lines.push("ENDSEC;", "END-ISO-10303-21;");
-  return lines.join("\n");
+  storeys.forEach((s, index) => {
+    aggregate("spaces-" + index, s.id, s.spaces);
+    if (s.products.length)
+      entity("IFCRELCONTAINEDINSPATIALSTRUCTURE", `${guid("products-" + index)},#${owner},$,$,(${s.products.map(ref).join(",")}),#${s.id}`);
+  });
+  const date = Number.isFinite(Date.parse(doc.updatedAt)) ? new Date(doc.updatedAt).toISOString() : "1970-01-01T00:00:00.000Z";
+  return [
+    "ISO-10303-21;",
+    "HEADER;",
+    "FILE_DESCRIPTION(('HERMICAD IFC4 geometric reference; not a certified MVD'),'2;1');",
+    `FILE_NAME(${stepText((doc.project.code || doc.id) + ".ifc")},${stepText(date)},('HERMICAD'),('HERMICAD'),'hermicad-studio','HERMICAD','');`,
+    "FILE_SCHEMA(('IFC4'));",
+    "ENDSEC;",
+    "DATA;",
+    ...lines,
+    "ENDSEC;",
+    "END-ISO-10303-21;",
+  ].join("\n");
 }

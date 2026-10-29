@@ -181,7 +181,7 @@ function validateIfc(buffer: Buffer, scheme: CanonicalScheme): FileCheck[] {
     check("spaces", spaces === roomTotal, `spaces ${spaces} must equal model rooms ${roomTotal}`),
     check("product-shapes", productShapes === roomTotal, `IfcProductDefinitionShape ${productShapes} for ${roomTotal} spaces`),
     check("storeys", storeys === scheme.levels.length, `storeys ${storeys}/${scheme.levels.length}`),
-    check("spatial-structure", text.includes("IFCSITE(") && text.includes("IFCBUILDING(") && text.includes("IFCRELCONTAINEDINSPATIALSTRUCTURE("), "site/building/containment"),
+    check("spatial-structure", text.includes("IFCSITE(") && text.includes("IFCBUILDING(") && text.includes("IFCRELAGGREGATES("), "site/building/spatial decomposition"),
     check("finite-numbers", !/\bNaN\b|\bundefined\b/.test(text), "no NaN/undefined tokens"),
     check("no-walls-claimed", !/=IFCWALL/.test(text), "walls are out of scope and must not be emitted"),
     check(

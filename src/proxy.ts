@@ -7,15 +7,28 @@
  * خودِ کاربر را ببیند.
  */
 
+import { assertSameOrigin, PRIVATE_HEADERS } from "@/server/accessError";
 import { NextResponse, type NextRequest } from "next/server";
 import { WORKSPACE_COOKIE, WORKSPACE_HEADER, isValidWorkspace, newWorkspaceId } from "@/server/workspace";
 
 export function proxy(request: NextRequest): NextResponse {
+  if (request.nextUrl.pathname.startsWith("/api/") && !["GET", "HEAD", "OPTIONS"].includes(request.method)) {
+    try {
+      assertSameOrigin(request);
+    } catch {
+      return NextResponse.json({ error: "مبدأ درخواست معتبر نیست.", detail: [] }, { status: 403, headers: PRIVATE_HEADERS });
+    }
+  }
+  const privateResponse = (response: NextResponse) => {
+    if (request.nextUrl.pathname.startsWith("/api/"))
+      for (const [key, value] of Object.entries(PRIVATE_HEADERS)) response.headers.set(key, value);
+    return response;
+  };
   const existing = request.cookies.get(WORKSPACE_COOKIE)?.value;
   if (isValidWorkspace(existing)) {
     const requestHeaders = new Headers(request.headers);
     requestHeaders.set(WORKSPACE_HEADER, existing);
-    return NextResponse.next({ request: { headers: requestHeaders } });
+    return privateResponse(NextResponse.next({ request: { headers: requestHeaders } }));
   }
 
   const workspace = newWorkspaceId();
@@ -26,11 +39,12 @@ export function proxy(request: NextRequest): NextResponse {
     name: WORKSPACE_COOKIE,
     value: workspace,
     httpOnly: true,
+    secure: request.nextUrl.protocol === "https:" || request.headers.get("x-forwarded-proto") === "https",
     sameSite: "lax",
     path: "/",
     maxAge: 60 * 60 * 24 * 365,
   });
-  return response;
+  return privateResponse(response);
 }
 
 export const config = {

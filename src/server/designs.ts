@@ -1,12 +1,9 @@
+import { AccessError } from "./accessError";
 import { and, desc, eq } from "drizzle-orm";
 import { getDb } from "@/db";
 import { designDocuments } from "@/db/schema";
 import { CATALOG_BY_ID } from "@/domain/studio/catalog";
-import {
-  createStudioDocument,
-  type StudioDocument,
-  type StudioItem,
-} from "@/domain/studio/document";
+import { createStudioDocument, documentFingerprint, type StudioDocument, type StudioItem } from "@/domain/studio/document";
 import { PUBLIC_WORKSPACE } from "@/server/workspace";
 
 /**
@@ -58,15 +55,7 @@ export async function listDesigns(workspace: string = PUBLIC_WORKSPACE): Promise
   }));
 }
 
-function fingerprintOf(doc: StudioDocument): string {
-  const payload = JSON.stringify(doc.items.map((item) => [item.catalogId, item.x, item.y, item.w, item.d]));
-  let hash = 2166136261;
-  for (let i = 0; i < payload.length; i += 1) {
-    hash ^= payload.charCodeAt(i);
-    hash = Math.imul(hash, 16777619);
-  }
-  return `hds-${(hash >>> 0).toString(16).padStart(8, "0")}`;
-}
+const fingerprintOf = documentFingerprint;
 
 /**
  * خواندن سند — با کنترل مالکیت.
@@ -75,6 +64,7 @@ function fingerprintOf(doc: StudioDocument): string {
  * وجود شناسه هم لو نرود. `PUBLIC_WORKSPACE` برای اسناد نمونه همیشه خوانا است.
  */
 export async function getDesign(id: string, workspace?: string): Promise<StudioDocument | null> {
+  if (!/^[0-9a-f-]{36}$/i.test(id)) return null;
   const db = await getDb();
   const rows = await db.select().from(designDocuments).where(eq(designDocuments.id, id)).limit(1);
   const row = rows[0];
@@ -85,10 +75,7 @@ export async function getDesign(id: string, workspace?: string): Promise<StudioD
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
-export async function createDesign(
-  input: Partial<StudioDocument> = {},
-  workspace: string = PUBLIC_WORKSPACE,
-): Promise<StudioDocument> {
+export async function createDesign(input: Partial<StudioDocument> = {}, workspace: string = PUBLIC_WORKSPACE): Promise<StudioDocument> {
   const base = createStudioDocument(input);
   // شناسهٔ دیتابیس باید UUID باشد؛ شناسهٔ داخلی سند با آن هم‌تراز می‌شود.
   const id = base.id && UUID.test(base.id) ? base.id : crypto.randomUUID();
@@ -105,43 +92,26 @@ export async function createDesign(
   return doc;
 }
 
-export async function saveDesign(
-  id: string,
-  doc: StudioDocument,
-  workspace: string = PUBLIC_WORKSPACE,
-): Promise<StudioDocument> {
-  const next: StudioDocument = {
-    ...doc,
-    id,
-    revision: doc.revision + 1,
-    updatedAt: new Date().toISOString(),
-  };
+export async function saveDesign(id: string, doc: StudioDocument, workspace: string = PUBLIC_WORKSPACE): Promise<StudioDocument> {
+  if (!Number.isInteger(doc.revision) || doc.revision < 1) throw new AccessError(422, "شمارهٔ نسخه معتبر نیست.");
   const db = await getDb();
-  const rows = await db
-    .select({ id: designDocuments.id, workspace: designDocuments.workspace })
+  const [owner] = await db
+    .select({ workspace: designDocuments.workspace })
     .from(designDocuments)
     .where(eq(designDocuments.id, id))
     .limit(1);
-  if (rows.length === 0) {
-    await db.insert(designDocuments).values({
-      id,
-      name: next.name,
-      kind: next.kind,
-      revision: next.revision,
-      workspace,
-      data: next,
-    });
-    return next;
-  }
-  // سند فضای دیگر قابل بازنویسی نیست (نمونهٔ عمومی استثناست)
-  if (rows[0].workspace !== workspace && rows[0].workspace !== PUBLIC_WORKSPACE) {
-    throw new WorkspaceMismatchError(id);
-  }
-  // ویرایش سند عمومی، مالکیت آن را به ویرایشگر منتقل نمی‌کند
-  await db
+  if (!owner || owner.workspace !== workspace) throw new AccessError(404, "سند طراحی یافت نشد یا قابل ویرایش نیست.");
+  const next: StudioDocument = { ...doc, id, revision: doc.revision + 1, updatedAt: new Date().toISOString() };
+  const rows = await db
     .update(designDocuments)
     .set({ name: next.name, kind: next.kind, revision: next.revision, data: next, updatedAt: new Date() })
-    .where(eq(designDocuments.id, id));
+    .where(and(eq(designDocuments.id, id), eq(designDocuments.workspace, workspace), eq(designDocuments.revision, doc.revision)))
+    .returning({ id: designDocuments.id });
+  if (!rows.length)
+    throw new AccessError(
+      409,
+      "نسخهٔ جدیدتری روی سرور ذخیره شده است؛ تغییرات شما بازنویسی نشد. ابتدا JSON محلی را دریافت کنید، سپس آخرین نسخه را باز کنید.",
+    );
   return next;
 }
 
@@ -159,11 +129,7 @@ export class WorkspaceMismatchError extends Error {
  */
 export async function deleteDesign(id: string, workspace: string = PUBLIC_WORKSPACE): Promise<boolean> {
   const db = await getDb();
-  const rows = await db
-    .select({ workspace: designDocuments.workspace })
-    .from(designDocuments)
-    .where(eq(designDocuments.id, id))
-    .limit(1);
+  const rows = await db.select({ workspace: designDocuments.workspace }).from(designDocuments).where(eq(designDocuments.id, id)).limit(1);
   if (rows.length === 0) return false;
   if (rows[0].workspace !== workspace) return false;
   await db.delete(designDocuments).where(and(eq(designDocuments.id, id), eq(designDocuments.workspace, workspace)));
@@ -172,16 +138,16 @@ export async function deleteDesign(id: string, workspace: string = PUBLIC_WORKSP
 
 /* ─────────────────────── سند نمونهٔ آماده ─────────────────────── */
 
-const at = (
-  id: string,
-  catalogId: string,
-  x: number,
-  y: number,
-  w: number,
-  d: number,
-  rotationDeg = 0,
-  level = 0,
-): StudioItem => ({ id, catalogId, x, y, w, d, rotationDeg, level });
+const at = (id: string, catalogId: string, x: number, y: number, w: number, d: number, rotationDeg = 0, level = 0): StudioItem => ({
+  id,
+  catalogId,
+  x,
+  y,
+  w,
+  d,
+  rotationDeg,
+  level,
+});
 
 const round3 = (value: number): number => Math.round(value * 1000) / 1000;
 
@@ -189,21 +155,11 @@ const round3 = (value: number): number => Math.round(value * 1000) / 1000;
  * دیوار از دو نقطهٔ محور (نه مرکز+چرخش). این شکل نوشتن، هندسهٔ غلط را تقریباً
  * غیرممکن می‌کند: طول و زاویه از مختصات محاسبه می‌شوند.
  */
-function wallFromLine(
-  id: string,
-  catalogId: string,
-  from: { x: number; y: number },
-  to: { x: number; y: number },
-  level = 0,
-): StudioItem {
+function wallFromLine(id: string, catalogId: string, from: { x: number; y: number }, to: { x: number; y: number }, level = 0): StudioItem {
   // ضخامت هر عضو از معنای خودش می‌آید؛ پی نواری ضخامت دیوار نیست و باید
   // عرض واقعی خودش (پیش‌فرض کتابخانه) را داشته باشد.
   const thickness =
-    catalogId === "wall-exterior"
-      ? 0.25
-      : catalogId === "wall-partition"
-        ? 0.12
-        : (CATALOG_BY_ID[catalogId]?.defaultSize.d ?? 0.12);
+    catalogId === "wall-exterior" ? 0.25 : catalogId === "wall-partition" ? 0.12 : (CATALOG_BY_ID[catalogId]?.defaultSize.d ?? 0.12);
   return special(id, catalogId, from, to, thickness, level);
 }
 
@@ -492,11 +448,7 @@ export function sampleDesign(): StudioDocument {
  */
 export async function ensureSampleDesign(workspace: string = PUBLIC_WORKSPACE): Promise<StudioDocument> {
   const db = await getDb();
-  const rows = await db
-    .select({ id: designDocuments.id })
-    .from(designDocuments)
-    .where(eq(designDocuments.workspace, workspace))
-    .limit(1);
+  const rows = await db.select({ id: designDocuments.id }).from(designDocuments).where(eq(designDocuments.workspace, workspace)).limit(1);
   if (rows.length > 0) {
     const doc = await getDesign(rows[0].id, workspace);
     if (doc) return doc;

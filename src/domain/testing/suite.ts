@@ -46,3 +46,5 @@ export function runQualitySuite(): QualitySuiteResult {
     ok: run.failed === 0,
   };
 }
+
+import "./studioAdvanced.test";

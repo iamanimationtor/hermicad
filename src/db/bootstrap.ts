@@ -125,4 +125,35 @@ create index if not exists design_documents_workspace_idx on design_documents (w
 create index if not exists schemes_project_idx on schemes (project_id);
 create index if not exists validation_runs_scheme_idx on validation_runs (scheme_id);
 create index if not exists audit_events_project_idx on audit_events (project_id);
+
+create table if not exists workspace_access (
+  workspace text primary key,
+  username text unique,
+  password_hash text,
+  recovery_hash text unique,
+  created_at timestamptz not null default now()
+);
+create table if not exists workspace_sessions (
+  token_hash text primary key,
+  workspace text not null references workspace_access(workspace) on delete cascade,
+  expires_at timestamptz not null
+);
+create index if not exists workspace_sessions_workspace_idx on workspace_sessions(workspace);
+create table if not exists auth_attempts (
+  key text primary key,
+  count integer not null,
+  started_at timestamptz not null
+);
+create table if not exists design_shares (
+  id uuid primary key default gen_random_uuid(),
+  design_id uuid not null references design_documents(id) on delete cascade,
+  workspace text not null,
+  token_hash text not null unique,
+  snapshot jsonb not null,
+  expires_at timestamptz not null,
+  created_at timestamptz not null default now()
+);
+create index if not exists design_shares_owner_idx on design_shares(workspace,design_id);
+alter table projects add column if not exists workspace text not null default 'public';
+create index if not exists projects_workspace_idx on projects(workspace);
 `;

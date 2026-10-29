@@ -1,3 +1,4 @@
+import { parameterErrors } from "./parameters";
 import { slabConfig, SLAB_REBAR_DEFAULTS, type SlabRebarConfig } from "./slabConfig";
 /**
  * HERMICAD Studio — مدل سند طراحی و عملیات خالص
@@ -34,6 +35,8 @@ export interface StudioItem {
   rotationDeg: number;
   level: number;
   label?: string;
+  heightM?: number;
+  sillM?: number;
 }
 
 export interface StudioSheet {
@@ -64,6 +67,7 @@ export interface StudioDocument {
   gridVisible: boolean;
   levels: number;
   currentLevel: number;
+  floorHeightM?: number;
   layers: Record<StudioLayerId, boolean>;
   classification: DisciplineId | "all";
   /** فرض‌های ذخیره‌شوندهٔ مترهٔ سقف؛ نه محاسبات سازه */
@@ -124,6 +128,7 @@ export function createStudioDocument(input: Partial<StudioDocument> = {}): Studi
     gridVisible: input.gridVisible ?? true,
     levels: input.levels ?? 1,
     currentLevel: input.currentLevel ?? 0,
+    ...(input.floorHeightM===undefined?{}:{floorHeightM:input.floorHeightM}),
     layers: { ...emptyLayers(), ...(input.layers ?? {}) },
     classification: input.classification ?? "all",
     ...(input.slabRebar === undefined ? {} : { slabRebar: slabConfig(input.slabRebar) }),
@@ -398,7 +403,7 @@ export interface StudioIssue {
 
 /** بررسی‌های یکپارچگی سند — نه بررسی ضوابط. */
 export function validateDocument(doc: StudioDocument): StudioIssue[] {
-  const issues: StudioIssue[] = [];
+  const issues: StudioIssue[] = parameterErrors(doc).map(message=>({severity:"error",code:"INVALID_PARAMETER",message}));
   const missing = doc.items.filter((item) => !CATALOG_BY_ID[item.catalogId]);
   if (missing.length > 0) {
     issues.push({
@@ -448,10 +453,11 @@ export function documentFingerprint(doc: StudioDocument): string {
   const payload = JSON.stringify({
     sheet: doc.sheet,
     levels: doc.levels,
+    floorHeightM: doc.floorHeightM,
     slabRebar: { ...SLAB_REBAR_DEFAULTS, ...doc.slabRebar },
     items: [...doc.items]
       .sort((a, b) => a.id.localeCompare(b.id))
-      .map((item) => [item.catalogId, item.x, item.y, item.w, item.d, item.rotationDeg, item.level]),
+      .map((item) => [item.catalogId, item.x, item.y, item.w, item.d, item.rotationDeg, item.level, item.heightM, item.sillM]),
   });
   let hash = 2166136261;
   for (let i = 0; i < payload.length; i += 1) {

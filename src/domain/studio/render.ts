@@ -1,3 +1,5 @@
+import { itemVertical, parameterErrors } from "./parameters";
+import { SlabInputError } from "./slabConfig";
 /**
  * HERMICAD Studio — خروجی‌های نقشه
  *
@@ -1140,7 +1142,7 @@ export function studioScheduleCsv(doc: StudioDocument): string {
 }
 
 export function studioItemsCsv(doc: StudioDocument): string {
-  const header = ["id", "catalogId", "name", "discipline", "layer", "level", "x", "y", "w", "d", "rotation"];
+  const header = ["id", "catalogId", "name", "discipline", "layer", "level", "x", "y", "w", "d", "rotation", "heightM", "sillM"];
   const lines = doc.items.map((item) => {
     const definition = CATALOG_BY_ID[item.catalogId];
     return [
@@ -1155,6 +1157,8 @@ export function studioItemsCsv(doc: StudioDocument): string {
       item.w.toFixed(3),
       item.d.toFixed(3),
       String(item.rotationDeg),
+      String(itemVertical(item,doc).height),
+      String(itemVertical(item,doc).sill),
     ];
   });
   const escapeCell = (value: string) => (/[",\n]/.test(value) ? `"${value.replace(/"/g, '""')}"` : value);
@@ -1214,6 +1218,8 @@ export function exportStudio(
   format: StudioFormat,
   options: RenderOptions = {},
 ): { filename: string; mime: string; data: Buffer } {
+  const errors=parameterErrors(doc);
+  if(errors.length)throw new SlabInputError(errors.join(" "));
   if (format.startsWith("slab-rebar") && options.onlyLevel != null) doc = { ...doc, currentLevel: options.onlyLevel };
   const base = `${doc.project.code || "hermicad"}-${doc.sheet.format}-${doc.currentLevel + 1}`;
   switch (format) {
