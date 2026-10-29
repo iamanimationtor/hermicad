@@ -96,11 +96,14 @@ export async function saveDesign(id: string, doc: StudioDocument, workspace: str
   if (!Number.isInteger(doc.revision) || doc.revision < 1) throw new AccessError(422, "شمارهٔ نسخه معتبر نیست.");
   const db = await getDb();
   const [owner] = await db
-    .select({ workspace: designDocuments.workspace })
+    .select({ workspace: designDocuments.workspace, data: designDocuments.data })
     .from(designDocuments)
     .where(eq(designDocuments.id, id))
     .limit(1);
   if (!owner || owner.workspace !== workspace) throw new AccessError(404, "سند طراحی یافت نشد یا قابل ویرایش نیست.");
+  const family = owner.data?.brief?.structural?.family;
+  if (family && doc.brief?.structural?.family !== family)
+    throw new AccessError(422, "خانوادهٔ سازهٔ این پرونده قابل حذف یا تغییر نیست؛ برای مسیر دیگر پروندهٔ جدید بسازید.");
   const next: StudioDocument = { ...doc, id, revision: doc.revision + 1, updatedAt: new Date().toISOString() };
   const rows = await db
     .update(designDocuments)

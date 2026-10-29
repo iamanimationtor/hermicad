@@ -26,6 +26,7 @@ export default async function GuidePage() {
         این مسیر، ثبت نیازها و تحویل پیش‌طرح را یکپارچه می‌کند؛ هنوز تولید خودکار نقشهٔ اجرایی همهٔ رشته‌ها نیست. تکمیل فرم به معنی انطباق
         با همهٔ مقررات نیست.
       </div>
+      <Link href="/structures" className="btn btn-primary mb-5">شروع مسیر تخصصی بر اساس خانوادهٔ سازه</Link>
       {error ? (
         <p role="alert">
           {error}{" "}

@@ -1,3 +1,4 @@
+import { structuralErrors, type StructuralProfile } from "../structures/catalog";
 /** قرارداد مسیر راهنما؛ حدود عددی این فرم حدود نرم‌افزارند، نه ضابطهٔ ایران. */
 export const USES = [
   ["residential", "مسکونی"],
@@ -24,6 +25,7 @@ export type Trade = (typeof TRADES)[number][0];
 export type Use = (typeof USES)[number][0];
 export const STEPS = ["پروژه و هدف", "زمین و مجوز", "نیازهای ساختمان", "رشته‌ها و مدارک", "کنترل و رفع کمبود", "بستهٔ تحویل"] as const;
 export interface Brief {
+  structural?: StructuralProfile;
   version: 1;
   step: number;
   use: Use;
@@ -419,7 +421,7 @@ const object = (v: unknown): v is Record<string, unknown> => !!v && typeof v ===
 /** پیش‌نویس ناقص پذیرفته می‌شود؛ مقدار نامعتبر و حدود غیرمجاز هرگز. */
 export function briefErrors(value: unknown): string[] {
   if (!object(value)) return ["پروندهٔ راهنما باید یک شیء باشد."];
-  const errors: string[] = [];
+  const errors: string[] = value.structural === undefined ? [] : structuralErrors(value.structural);
   if (value.version !== 1 || !Number.isInteger(value.step) || (value.step as number) < 0 || (value.step as number) >= STEPS.length)
     errors.push("نسخه یا مرحلهٔ راهنما معتبر نیست.");
   if (!USES.some((u) => u[0] === value.use) || !["concept", "permit", "execution"].includes(String(value.goal)))

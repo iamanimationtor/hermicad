@@ -11,6 +11,7 @@ const sha = (data: Buffer) => createHash("sha256").update(data).digest("hex");
 export function deliveryPackage(document: StudioDocument, purpose: unknown) {
   if (purpose !== "review") throw new AccessError(422, "تحویل اجرایی/پروانه تأیید نشده است؛ فقط بستهٔ بازبینی مقدماتی قابل تولید است.");
   assertStudioDocument(document);
+  if (document.brief?.structural) throw new AccessError(422, "برای این پرونده از بستهٔ گزارش تخصصی سازه استفاده کنید.");
   if (!document.brief) throw new AccessError(422, "ابتدا پروندهٔ راهنما و خروجی‌های موردنیاز را ذخیره کنید.");
   const review = reviewJourney(document);
   if (!review.canDownloadReview)

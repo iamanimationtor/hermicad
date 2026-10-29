@@ -14,6 +14,7 @@ export const metadata: Metadata = {
 const nav = [
   { href: "/", label: "نمای کلی" },
   { href: "/guide", label: "شروع گام‌به‌گام" },
+  { href: "/structures", label: "مسیرهای سازه" },
   { href: "/projects", label: "پروژه‌های مولد" },
   { href: "/design", label: "استودیو طراحی" },
   { href: "/architecture", label: "معماری سیستم" },

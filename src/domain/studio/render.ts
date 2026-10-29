@@ -1,3 +1,4 @@
+import { structuralExportError } from "../structures/exportPolicy";
 import { itemVertical, parameterErrors } from "./parameters";
 import { SlabInputError } from "./slabConfig";
 /**
@@ -1218,6 +1219,8 @@ export function exportStudio(
   format: StudioFormat,
   options: RenderOptions = {},
 ): { filename: string; mime: string; data: Buffer } {
+  const scopeError = structuralExportError(doc.brief?.structural?.family, format);
+  if (scopeError) throw new SlabInputError(scopeError);
   const errors=parameterErrors(doc);
   if(errors.length)throw new SlabInputError(errors.join(" "));
   if (format.startsWith("slab-rebar") && options.onlyLevel != null) doc = { ...doc, currentLevel: options.onlyLevel };

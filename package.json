@@ -9,13 +9,14 @@
     "typecheck": "tsc --noEmit",
     "test": "tsx scripts/quality.ts",
     "preview:design": "tsx scripts/preview.ts",
-    "test:studio-http": "tsx scripts/qa-studio-http.ts"
+    "test:studio-http": "tsx scripts/qa-studio-http.ts",
+    "test:http": "tsx scripts/qa-http-suite.ts"
   },
   "dependencies": {
     "@electric-sql/pglite": "^0.5.13",
     "dotenv": "17.3.1",
     "drizzle-orm": "0.45.2",
-    "next": "16.2.6",
+    "next": "16.4.3",
     "pg": "8.20.0",
     "react": "19.2.6",
     "react-dom": "19.2.6"
@@ -30,8 +31,8 @@
     "drizzle-kit": "0.31.10",
     "dxf-parser": "^1.1.2",
     "eslint": "9.39.4",
-    "eslint-config-next": "16.2.6",
-    "postcss": "8.5.8",
+    "eslint-config-next": "16.4.3",
+    "postcss": "8.5.32",
     "tailwindcss": "4.1.17",
     "tsx": "^4.23.15",
     "typescript": "5.9.3"

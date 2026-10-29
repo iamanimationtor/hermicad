@@ -1,5 +1,7 @@
 import Link from "next/link";
-import { notFound } from "next/navigation";
+import { familyOf } from "@/domain/structures/catalog";
+import { structuralExportError } from "@/domain/structures/exportPolicy";
+import { notFound, redirect } from "next/navigation";
 
 import { CLASSIFICATION_LABELS } from "@/domain/studio/document";
 import { getDesign } from "@/server/designs";
@@ -22,6 +24,9 @@ export default async function DesignGalleryPage({ params }: { params: Promise<{ 
   const design = await getDesign(id, await currentWorkspace()).catch(() => null);
   if (!design) notFound();
 
+  const family = familyOf(design.brief?.structural?.family);
+  if (family && !family.building) redirect(`/structures/${family.id}/${id}`);
+  const allowConcrete = !structuralExportError(family?.id, "details");
   const base = `/api/designs/${design.id}/export`;
   const sheets = [
     { key: "all", label: "پلان ترکیبی (معماری + سازه)", url: `${base}?format=svg&classification=all` },
@@ -32,7 +37,7 @@ export default async function DesignGalleryPage({ params }: { params: Promise<{ 
     })),
     { key: "elevations", label: "برگهٔ نماها (۴ جهت)", url: `${base}?format=elevations` },
     { key: "section", label: "برش A-A", url: `${base}?format=section` },
-    { key: "details", label: "جزئیات اجرایی سازه و جدول میلگرد", url: `${base}?format=details` },
+    ...(allowConcrete ? [{ key: "details", label: "جزئیات سازه و جدول میلگرد؛ نیازمند بازبینی", url: `${base}?format=details` }] : []),
     { key: "arch-details", label: "جزئیات اجرایی معماری", url: `${base}?format=arch-details` },
     { key: "schedules", label: "جداول، کیپلان و بازشوها", url: `${base}?format=schedules` },
   ];
@@ -44,8 +49,7 @@ export default async function DesignGalleryPage({ params }: { params: Promise<{ 
           <p className="text-[11px] text-teal-300">گالری رندرهای طبقه‌بندی‌شده</p>
           <h1 className="mt-1 text-xl font-bold text-white">{design.name}</h1>
           <p className="mt-1 text-xs text-slate-400">
-            {design.project.code} · {design.sheet.format} · مقیاس 1:{design.sheet.scale} · {design.levels} طبقه ·{" "}
-            {design.items.length} شیء
+            {design.project.code} · {design.sheet.format} · مقیاس 1:{design.sheet.scale} · {design.levels} طبقه · {design.items.length} شیء
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
@@ -92,8 +96,8 @@ export default async function DesignGalleryPage({ params }: { params: Promise<{ 
       <section className="panel mt-6 p-5">
         <h2 className="text-sm font-bold text-white">بستهٔ چاپی PDF</h2>
         <p className="mt-1 text-[11px] leading-6 text-slate-400">
-          همان برگه‌های SVG، این‌بار به‌صورت PDF برداری با فونت فارسی جاسازی‌شده (متن قابل جست‌وجو و کپی).
-          برای چاپ A3 و تحویل به شهرداری/ناظر آماده است.
+          همان برگه‌های SVG، این‌بار به‌صورت PDF برداری با فونت فارسی جاسازی‌شده (متن قابل جست‌وجو و کپی). چاپ‌پذیری فایل به معنی تأیید برای
+          اجرا یا صدور مجوز نیست؛ مدارک به بازبینی متخصص نیاز دارند.
         </p>
         <div className="mt-3 flex flex-wrap gap-2">
           <a href={`${base}?format=elevations-pdf`} className="btn" download>
@@ -102,12 +106,16 @@ export default async function DesignGalleryPage({ params }: { params: Promise<{ 
           <a href={`${base}?format=section-pdf`} className="btn" download>
             برش A-A (PDF)
           </a>
-          <a href={`${base}?format=details-pdf`} className="btn" download>
-            جزئیات سازه و جدول میلگرد
-          </a>
-          <a href={`${base}?format=slab-rebar-pdf`} className="btn" download>
-            پلان آرماتور سقف (نشان‌گذاری میلگرد)
-          </a>
+          {allowConcrete && (
+            <a href={`${base}?format=details-pdf`} className="btn" download>
+              جزئیات سازه و جدول میلگرد
+            </a>
+          )}
+          {allowConcrete && (
+            <a href={`${base}?format=slab-rebar-pdf`} className="btn" download>
+              پلان آرماتور سقف (نشان‌گذاری میلگرد)
+            </a>
+          )}
           <a href={`${base}?format=schedules-pdf`} className="btn" download>
             جداول، کیپلان و بازشوها
           </a>
@@ -117,9 +125,11 @@ export default async function DesignGalleryPage({ params }: { params: Promise<{ 
           <a href={`${base}?format=elevations-dxf`} className="btn" download>
             نماها DXF (۱:۱)
           </a>
-          <a href={`${base}?format=details-dxf`} className="btn" download>
-            جزئیات سازه DXF (۱:۱)
-          </a>
+          {allowConcrete && (
+            <a href={`${base}?format=details-dxf`} className="btn" download>
+              جزئیات سازه DXF (۱:۱)
+            </a>
+          )}
           <a href={`${base}?format=arch-details-pdf`} className="btn" download>
             جزئیات اجرایی معماری (PDF)
           </a>
@@ -130,12 +140,7 @@ export default async function DesignGalleryPage({ params }: { params: Promise<{ 
             برش DXF (۱:۱)
           </a>
           {DISCIPLINES.map((entry) => (
-            <a
-              key={entry.id}
-              href={`${base}?format=pdf&classification=${entry.id}`}
-              className="btn"
-              download
-            >
+            <a key={entry.id} href={`${base}?format=pdf&classification=${entry.id}`} className="btn" download>
               PDF {entry.label}
             </a>
           ))}
@@ -143,9 +148,8 @@ export default async function DesignGalleryPage({ params }: { params: Promise<{ 
       </section>
 
       <p className="mt-6 text-[11px] leading-6 text-slate-500">
-        تصاویر، همان برگه‌های رسمی SVG هستند (چاپ‌پذیر در A3). هر برگه فقط اشیای رشتهٔ خودش را با رنگ
-        اختصاصی نشان می‌دهد و رشته‌های دیگر به‌صورت زمینهٔ محو برای انطباق می‌آیند. کنترل نهایی نقشه‌ها با
-        مهندس دارای صلاحیت است.
+        تصاویر، همان برگه‌های رسمی SVG هستند (چاپ‌پذیر در A3). هر برگه فقط اشیای رشتهٔ خودش را با رنگ اختصاصی نشان می‌دهد و رشته‌های دیگر
+        به‌صورت زمینهٔ محو برای انطباق می‌آیند. کنترل نهایی نقشه‌ها با مهندس دارای صلاحیت است.
       </p>
     </main>
   );

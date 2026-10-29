@@ -1,4 +1,4 @@
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import Link from "next/link";
 import { getDesign } from "@/server/designs";
 import { currentWorkspace } from "@/server/workspace";
@@ -26,5 +26,6 @@ export default async function GuidedProject({ params }: { params: Promise<{ id: 
     );
   }
   if (!doc) notFound();
+  if (doc.brief?.structural) redirect(`/structures/${doc.brief.structural.family}/${doc.id}`);
   return <JourneyWorkspace initial={doc} />;
 }

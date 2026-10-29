@@ -1,4 +1,5 @@
 "use client";
+import { structuralExportError } from "@/domain/structures/exportPolicy";
 import { floorHeight, itemVertical, isOpening } from "@/domain/studio/parameters";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -1088,7 +1089,7 @@ export function DesignStudio({ initialDesign }: { initialDesign: StudioDocument 
               { id: "xlsx", label: "XLSX متره و برآورد" },
               { id: "ifc", label: "IFC4 (BIM)" },
               { id: "json", label: "JSON مدل" },
-            ].map((format) => (
+            ].filter(format=>!structuralExportError(doc.brief?.structural?.family, format.id)).map((format) => (
               <button
                 key={format.id}
                 type="button"

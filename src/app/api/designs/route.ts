@@ -1,3 +1,5 @@
+import { familyOf, emptyStructure } from "@/domain/structures/catalog";
+import { emptyBrief } from "@/domain/journey/model";
 import { createDesignTemplate, isDesignTemplate } from "@/domain/studio/templates";
 import { AccessError } from "@/server/accessError";
 import { createDesign, ensureSampleDesign, listDesigns, sampleDesign } from "@/server/designs";
@@ -23,6 +25,7 @@ interface CreateBody {
   sheet?: { format?: "A4" | "A3" | "A2" | "A1" | "A0"; orientation?: "landscape" | "portrait"; scale?: number };
   levels?: number;
   template?: string;
+  structureFamily?: string;
 }
 
 export async function POST(request: Request) {
@@ -42,9 +45,24 @@ export async function POST(request: Request) {
       throw new AccessError(422, "جهت برگه معتبر نیست.");
     if (body.sheet?.scale !== undefined && (!Number.isFinite(body.sheet.scale) || body.sheet.scale < 10 || body.sheet.scale > 1000))
       throw new AccessError(422, "مقیاس باید بین ۱۰ و ۱۰۰۰ باشد.");
+    const family = familyOf(body.structureFamily);
+    if (body.structureFamily !== undefined && !family) throw new AccessError(422, "خانوادهٔ سازه معتبر نیست.");
+    if (family && body.template && body.template !== "empty")
+      throw new AccessError(422, "مسیر تخصصی از سند خالی آغاز می‌شود؛ الگوی ساختمانی به آن تحمیل نمی‌شود.");
     const base = createStudioDocument({
+      ...(family
+        ? {
+            brief: {
+              ...emptyBrief(),
+              use: "other" as const,
+              trades: ["structure" as const],
+              outputs: [],
+              structural: emptyStructure(family.id),
+            },
+          }
+        : {}),
       name: body.name?.trim() || "سند طراحی جدید",
-      kind: body.kind ?? "architecture",
+      kind: family ? "structure" : (body.kind ?? "architecture"),
       levels: body.levels ?? 1,
       sheet: {
         format: body.sheet?.format ?? "A3",
