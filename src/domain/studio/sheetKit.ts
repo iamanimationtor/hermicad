@@ -113,8 +113,11 @@ export function drawChrome(scene: Scene, doc: StudioDocument, options: ChromeOpt
     data: 'data-title-block="1"',
   });
 
-  scene.text(sheet.w - MARGIN - 4, MARGIN + 9, `${doc.project.code} · ${doc.project.name}`, 5.2, { anchor: "end", bold: true });
-  scene.text(sheet.w - MARGIN - 4, MARGIN + 14, options.subtitle, 2.8, { anchor: "end", gray: 0.4 });
+  // چیدمان عمودی سرصفحه: خط جداکننده در MARGIN+HEADER_H+2 است؛ اگر خط پایهٔ
+  // زیرنویس همان مقدار باشد، خط از میان حروف می‌گذرد و متن ناخوانا می‌شود.
+  // عنوان ۵٫۲ و زیرنویس ۲٫۸ طوری بالا می‌آیند که دنبالهٔ حروف به خط نرسد.
+  scene.text(sheet.w - MARGIN - 4, MARGIN + 8, `${doc.project.code} · ${doc.project.name}`, 5.2, { anchor: "end", bold: true });
+  scene.text(sheet.w - MARGIN - 4, MARGIN + 12.5, options.subtitle, 2.8, { anchor: "end", gray: 0.4 });
   scene.text(MARGIN + 4, MARGIN + 9, documentFingerprint(doc), 2.4, { direction: "ltr", gray: 0.5 });
   scene.line(MARGIN + 3, MARGIN + HEADER_H + 2, sheet.w - MARGIN - 3, MARGIN + HEADER_H + 2, { width: 0.35, gray: 0.4 });
 
