@@ -47,9 +47,12 @@ services:
       HERMICAD_QUOTA_DESIGNS: ${HERMICAD_QUOTA_DESIGNS:-300}
     ports:
       - "${HERMICAD_PORT:-3000}:3000"
+    # فایل‌سیستم فقط‌خواندنی؛ فقط مسیرهای نوشتنی لازم به‌صورت tmpfs سوار می‌شوند.
+    # ‎/app/.next/cache را Next برای بهینه‌سازی تصویر و کش ISR می‌نویسد.
     read_only: true
     tmpfs:
       - /tmp
+      - /app/.next/cache
     security_opt:
       - no-new-privileges:true
     cap_drop:
