@@ -18,7 +18,14 @@ export async function GET(request: Request, context: { params: Promise<{ id: str
     }
     const classificationParam = url.searchParams.get("classification");
     const allowed = CLASSIFICATION_LABELS.map((entry) => entry.id) as string[];
-    const classification = classificationParam && allowed.includes(classificationParam)
+    if (classificationParam && !allowed.includes(classificationParam)) {
+      // رشتهٔ ناشناخته نباید بی‌صدا برگهٔ «همه» را بدهد؛ خطای صریح بهتر است
+      return Response.json(
+        { error: "رشتهٔ درخواستی معتبر نیست.", detail: allowed },
+        { status: 422 },
+      );
+    }
+    const classification = classificationParam
       ? (classificationParam as StudioDocument["classification"])
       : undefined;
     const levelParam = url.searchParams.get("level");

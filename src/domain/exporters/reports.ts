@@ -496,7 +496,6 @@ function crc32(buf: Buffer): number {
   for (let i = 0; i < buf.length; i++) crc = (crc >>> 8) ^ table[(crc ^ buf[i]) & 0xff];
   return (crc ^ -1) >>> 0;
 }
-// eslint-disable-next-line @typescript-eslint/no-namespace
 declare namespace crc32 {
   let table: Int32Array | undefined;
 }

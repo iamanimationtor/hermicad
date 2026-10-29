@@ -11,7 +11,6 @@ import { FIXTURES } from "./fixtures";
 import { approx, assert, test } from "./harness";
 
 // Independent DXF parser (real library, not our own writer).
-// eslint-disable-next-line @typescript-eslint/no-require-imports
 import DxfParser from "dxf-parser";
 
 const SCENE = buildFloorPlanScene(FIXTURES.cleanScheme, 0, { includeSiteContext: true });

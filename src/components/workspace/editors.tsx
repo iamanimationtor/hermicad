@@ -34,11 +34,15 @@ export function SiteView(ctx: Ctx) {
   const [spotText, setSpotText] = useState(project.site.spotLevels.map((s) => `${s.x}, ${s.y}, ${s.z}`).join("\n"));
   const [errors, setErrors] = useState<string[]>([]);
 
-  useEffect(() => {
+  // هم‌گام‌سازی با پروپ در فاز رندر (الگوی رسمی «تنظیم state هنگام تغییر پروپ»
+  // به‌جای useEffect) — از رندر دوبارهٔ زنجیره‌ای جلوگیری می‌کند.
+  const [syncedSite, setSyncedSite] = useState(project.site);
+  if (syncedSite !== project.site) {
+    setSyncedSite(project.site);
     setDraft(project.site);
     setText(boundaryToText(project.site.boundary));
     setSpotText(project.site.spotLevels.map((s) => `${s.x}, ${s.y}, ${s.z}`).join("\n"));
-  }, [project.site]);
+  }
 
   const analysis = useMemo(() => analyzeSite(draft), [draft]);
   const validation = useMemo(() => validateSite(draft), [draft]);
@@ -251,11 +255,13 @@ export function RequirementsView(ctx: Ctx) {
   const [raw, setRaw] = useState(project.requirements.rawText);
   const [parse, setParse] = useState(project.requirements.parse);
 
-  useEffect(() => {
+  const [syncedRequirements, setSyncedRequirements] = useState(project.requirements);
+  if (syncedRequirements !== project.requirements) {
+    setSyncedRequirements(project.requirements);
     setDraft(project.requirements);
     setRaw(project.requirements.rawText);
     setParse(project.requirements.parse);
-  }, [project.requirements]);
+  }
 
   const validation = validateRequirements(draft);
   const total = draft.dwellings.reduce((s, d) => s + d.count, 0);

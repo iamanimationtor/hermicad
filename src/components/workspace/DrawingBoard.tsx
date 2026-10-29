@@ -33,6 +33,8 @@ export function DrawingBoard({
   const [showTints, setShowTints] = useState(true);
   const [activeIssue, setActiveIssue] = useState<string | null>(null);
   const dragging = useRef<{ x: number; y: number } | null>(null);
+  // وضعیت «در حال کشیدن» باید state باشد؛ خواندن ref در رندر مجاز نیست
+  const [isDragging, setIsDragging] = useState(false);
 
   const svg = useMemo(() => {
     const base = renderSceneSvg(scene, {
@@ -58,6 +60,7 @@ export function DrawingBoard({
 
   const onPointerDown = (event: React.PointerEvent) => {
     dragging.current = { x: event.clientX - pan.x, y: event.clientY - pan.y };
+    setIsDragging(true);
     (event.target as Element).setPointerCapture?.(event.pointerId);
   };
   const onPointerMove = (event: React.PointerEvent) => {
@@ -66,6 +69,7 @@ export function DrawingBoard({
   };
   const onPointerUp = () => {
     dragging.current = null;
+    setIsDragging(false);
   };
 
   const blocking = scene.issues.filter((issue) => issue.severity === "fail");
@@ -116,7 +120,7 @@ export function DrawingBoard({
 
       <div
         className="relative overflow-hidden rounded-lg border border-white/10 bg-white"
-        style={{ cursor: dragging.current ? "grabbing" : "grab" }}
+        style={{ cursor: isDragging ? "grabbing" : "grab" }}
         onPointerDown={onPointerDown}
         onPointerMove={onPointerMove}
         onPointerUp={onPointerUp}
@@ -128,7 +132,7 @@ export function DrawingBoard({
         }}
       >
         <div
-          style={{ transform: `translate(${pan.x}px, ${pan.y}px) scale(${zoom})`, transformOrigin: "center center", transition: dragging.current ? "none" : "transform 120ms ease-out" }}
+          style={{ transform: `translate(${pan.x}px, ${pan.y}px) scale(${zoom})`, transformOrigin: "center center", transition: isDragging ? "none" : "transform 120ms ease-out" }}
           dangerouslySetInnerHTML={{ __html: svg }}
         />
         <div className="pointer-events-none absolute bottom-2 left-2 rounded bg-black/70 px-2 py-1 text-[9px] text-white">

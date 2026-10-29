@@ -81,7 +81,13 @@ export function DesignStudio({ initialDesign }: { initialDesign: StudioDocument 
   const [snapOn, setSnapOn] = useState(true);
   const [status, setStatus] = useState<string>("");
   const [busy, setBusy] = useState<string | null>(null);
-  const [view, setView] = useState({ x: -2, y: -2, w: 16, h: 12 });
+  // نمای اولیه از خود سند محاسبه می‌شود (نه در افکت با setState) تا رندر دوباره ناخواسته نباشد
+  const [view, setView] = useState(() => {
+    const bounds = documentBounds(initialDesign);
+    const padX = Math.max(1, bounds.w * 0.08);
+    const padY = Math.max(1, bounds.h * 0.08);
+    return { x: bounds.x - padX, y: bounds.y - padY, w: bounds.w + padX * 2, h: bounds.h + padY * 2 };
+  });
   const [size, setSize] = useState({ w: 900, h: 620 });
   const past = useRef<StudioDocument[]>([]);
   const future = useRef<StudioDocument[]>([]);
@@ -149,12 +155,6 @@ export function DesignStudio({ initialDesign }: { initialDesign: StudioDocument 
   }, [doc]);
 
   useEffect(() => {
-    fit();
-    // فقط در بارگذاری اولیه
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  useEffect(() => {
     const element = canvasRef.current;
     if (!element) return;
     const observer = new ResizeObserver(() => {
@@ -199,7 +199,7 @@ export function DesignStudio({ initialDesign }: { initialDesign: StudioDocument 
     };
     element.addEventListener("wheel", handler, { passive: false });
     return () => element.removeEventListener("wheel", handler);
-  }, [offsetX, offsetY, scalePx, view.x, view.h, zoomBy]);
+  }, [offsetX, offsetY, scalePx, view.x, view.y, view.h, zoomBy]);
 
   const keyHandler = useCallback(
     (event: KeyboardEvent) => {
