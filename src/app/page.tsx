@@ -16,7 +16,7 @@ const capabilities: { area: string; detail: string; status: "done" | "limited" |
   { area: "اصلاح خودکار و بازاعتبارسنجی", detail: "حلقه اصلاح (تراکم، پارکینگ، ادغام فضا، پی) با ثبت اقدامات اعمال‌شده و اعمال‌نشده", status: "done" },
   { area: "تحلیل معماری/سازه/MEP/پارکینگ/گردش", detail: "روابط سرانگشتی مهندسی با فرمول و فرضیات صریح؛ طرح مقدماتی نه محاسبات اجرایی", status: "done" },
   { area: "خروجی PDF/DXF/SVG/IFC/XLSX/CSV/JSON", detail: "فایل‌های واقعی و مستقل از کتابخانه تجاری؛ IFC فقط زیرمجموعه فضایی", status: "limited" },
-  { area: "بارگذاری DWG/IFC موجود و ویرایشگر گرافیکی", detail: "در نقشه راه؛ ورودی فعلی مختصات عددی و فرم است", status: "out" },
+  { area: "بارگذاری DWG/IFC موجود", detail: "ورود مدل خارجی هنوز پیاده نشده؛ ویرایشگر گرافیکی استودیو برای مدل بومی موجود است", status: "out" },
   { area: "تحلیل سازه اجرایی و MEP دقیق", detail: "نیازمند نرم‌افزار تخصصی و مهندس دارای صلاحیت؛ HERMICAD فقط طرح مقدماتی و کنترل اولیه می‌دهد", status: "out" },
   { area: "استنتاج با مدل زبانی ابری", detail: "عمداً وابسته نیستیم؛ هوشمندی از الگوریتم، هندسه، قواعد و بهینه‌سازی می‌آید", status: "out" },
 ];
@@ -48,8 +48,8 @@ export default function HomePage() {
               از یک مدل مرکزی صادر می‌شود. هر عدد، منبع، فرمول و فرض دارد.
             </p>
             <div className="mt-6 flex flex-wrap gap-3">
-              <Link href="/projects" className="btn btn-primary px-5 py-2.5 text-sm">
-                ورود به کارگاه پروژه‌ها
+              <Link href="/guide" className="btn btn-primary px-5 py-2.5 text-sm">
+                شروع گام‌به‌گام پروژه
               </Link>
               <Link href="/architecture" className="btn px-5 py-2.5 text-sm">
                 معماری و مدل داده

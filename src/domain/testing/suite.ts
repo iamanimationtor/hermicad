@@ -48,3 +48,5 @@ export function runQualitySuite(): QualitySuiteResult {
 }
 
 import "./studioAdvanced.test";
+
+import "./journey.test";

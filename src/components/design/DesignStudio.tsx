@@ -628,6 +628,7 @@ export function DesignStudio({ initialDesign }: { initialDesign: StudioDocument 
             ↷
           </button>
           <span className="flex-1" />
+          <Link href={`/guide/${doc.id}`} onClick={e=>{if(!window.confirm("مسیر راهنما آخرین نسخهٔ ذخیره‌شده را باز می‌کند. تغییرات نقشه را ذخیره کرده‌اید؟"))e.preventDefault();}} className="btn px-3 py-1">پرونده و تحویل گام‌به‌گام</Link>
           <button type="button" onClick={save} disabled={busy === "save"} className="btn px-3 py-1">
             {busy === "save" ? "در حال ذخیره…" : "ذخیره"}
           </button>

@@ -1,3 +1,4 @@
+import { briefErrors } from "../journey/model";
 /** مرز ورودی شبکه؛ TypeScript جای اعتبارسنجی JSON نامطمئن را نمی‌گیرد. */
 import { CATALOG_BY_ID } from "./catalog";
 import { CLASSIFICATION_LABELS, type StudioDocument } from "./document";
@@ -78,5 +79,9 @@ export function assertStudioDocument(value: unknown): asserts value is StudioDoc
   }
   const errors = parameterErrors(value as StudioDocument);
   if (errors.length) fail(errors[0]);
+  if (doc.brief !== undefined) {
+    const errors = briefErrors(doc.brief);
+    if (errors.length) fail(errors[0]);
+  }
   if (doc.slabRebar !== undefined) slabConfig(doc.slabRebar);
 }

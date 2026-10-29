@@ -513,7 +513,7 @@ export function zipStore(files: { name: string; data: Buffer }[]): Buffer {
     const local = Buffer.alloc(30);
     local.writeUInt32LE(0x04034b50, 0);
     local.writeUInt16LE(20, 4);
-    local.writeUInt16LE(0, 6);
+    local.writeUInt16LE(0x0800, 6); // نام فایل UTF-8 (از جمله راهنمای فارسی)
     local.writeUInt16LE(0, 8);
     local.writeUInt16LE(0, 10);
     local.writeUInt16LE(0, 12);
@@ -527,7 +527,7 @@ export function zipStore(files: { name: string; data: Buffer }[]): Buffer {
     dir.writeUInt32LE(0x02014b50, 0);
     dir.writeUInt16LE(20, 4);
     dir.writeUInt16LE(20, 6);
-    dir.writeUInt16LE(0, 8);
+    dir.writeUInt16LE(0x0800, 8);
     dir.writeUInt16LE(0, 10);
     dir.writeUInt16LE(0, 12);
     dir.writeUInt16LE(0, 14);

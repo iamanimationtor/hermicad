@@ -1,3 +1,4 @@
+import type { Brief } from "../journey/model";
 import { parameterErrors } from "./parameters";
 import { slabConfig, SLAB_REBAR_DEFAULTS, type SlabRebarConfig } from "./slabConfig";
 /**
@@ -57,6 +58,7 @@ export interface StudioProjectInfo {
 
 export interface StudioDocument {
   version: 1;
+  brief?: Brief;
   id: string;
   name: string;
   kind: "architecture" | "structure" | "mep" | "site";
@@ -128,6 +130,7 @@ export function createStudioDocument(input: Partial<StudioDocument> = {}): Studi
     gridVisible: input.gridVisible ?? true,
     levels: input.levels ?? 1,
     currentLevel: input.currentLevel ?? 0,
+    ...(input.brief ? {brief:input.brief} : {}),
     ...(input.floorHeightM===undefined?{}:{floorHeightM:input.floorHeightM}),
     layers: { ...emptyLayers(), ...(input.layers ?? {}) },
     classification: input.classification ?? "all",
@@ -454,6 +457,7 @@ export function documentFingerprint(doc: StudioDocument): string {
     sheet: doc.sheet,
     levels: doc.levels,
     floorHeightM: doc.floorHeightM,
+    brief: doc.brief,
     slabRebar: { ...SLAB_REBAR_DEFAULTS, ...doc.slabRebar },
     items: [...doc.items]
       .sort((a, b) => a.id.localeCompare(b.id))
