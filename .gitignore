@@ -1,0 +1,12 @@
+node_modules/
+.next/
+out/
+.env
+.env.local
+.data/
+*.log
+.DS_Store
+tsconfig.tsbuildinfo
+
+# پیش‌نمایش تصویری موقت (خروجی npm run preview:design)
+.preview/
