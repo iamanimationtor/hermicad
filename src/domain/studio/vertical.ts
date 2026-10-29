@@ -15,6 +15,7 @@
  */
 
 import { CATALOG_BY_ID, type StudioLayerId } from "./catalog";
+import { DxfWriter, dxfText } from "./dxf";
 import { documentFingerprint, renderableItems, sheetSizeMm, todayJalali, type StudioDocument, type StudioItem } from "./document";
 
 export type ElevationDirection = "north" | "south" | "east" | "west";
@@ -383,4 +384,97 @@ export function renderStudioElevationSheet(doc: StudioDocument): string {
   const body = frames.map((frame, index) => frameSvg(frame) + views[index].svg).join("");
   const scaleText = views.map((view) => `1:${view.scale}`).filter((value, index, all) => all.indexOf(value) === index).join(" / ");
   return sheetBase(doc, "برگهٔ نماها و برش", `${doc.project.code} · مقیاس ${scaleText} · ${doc.sheet.format}`, body, "نماها از مدل پلان ساخته می‌شوند؛ کنترل نهایی با مهندس دارای صلاحیت است.");
+}
+
+/* ───────────────────────────── DXF نما و برش ───────────────────────────── */
+
+/**
+ * نما/برش به‌صورت DXF در مقیاس واقعی (متر).
+ *
+ * چرا در متر و نه روی برگه: کاربر اتوکد می‌خواهد نمای ۱:۱ را در مدل‌اسپیس داشته
+ * باشد و خودش مقیاس چاپ را انتخاب کند؛ تبدیل به میلی‌متر برگه در DXF یعنی
+ * دو بار مقیاس‌کردن و ابعاد نادرست. این خروجی از همان `collectBlocks` نما
+ * استفاده می‌کند تا با SVG/PDF هم‌هندسه بماند.
+ */
+const VERTICAL_DXF_LAYERS: { name: string; color: number }[] = [
+  { name: "WALLS", color: 7 },
+  { name: "STRUCTURE", color: 1 },
+  { name: "FOUNDATION", color: 30 },
+  { name: "OPENINGS", color: 4 },
+  { name: "LEVELS", color: 8 },
+  { name: "LABELS", color: 8 },
+];
+
+const LAYER_TO_DXF: Record<string, string> = {
+  walls: "WALLS",
+  structure: "STRUCTURE",
+  foundation: "FOUNDATION",
+};
+
+/**
+ * یک یا چند نما/برش را در مدل‌اسپیس DXF می‌نویسد.
+ * `views` پشت سر هم روی محور X با فاصلهٔ `gapM` متر چیده می‌شوند.
+ */
+const FA_DIGITS = "۰۱۲۳۴۵۶۷۸۹";
+/** عدد با ارقام فارسی و ممیز «٫» برای متن‌های DXF. */
+function faFixed(value: number, digits = 2): string {
+  return value
+    .toFixed(digits)
+    .replace(".", "٫")
+    .replace(/[0-9]/g, (digit) => FA_DIGITS[Number(digit)]);
+}
+
+export function studioVerticalDxf(
+  doc: StudioDocument,
+  views: { direction?: ElevationDirection; sectionAt?: number; sectionWidth?: number; title?: string }[],
+  gapM = 4,
+): string {
+  const writer = new DxfWriter(VERTICAL_DXF_LAYERS);
+  let offsetX = 0;
+  for (const spec of views) {
+    const isSection = spec.sectionAt != null;
+    const direction = spec.direction ?? "south";
+    const blocks = collectBlocks(
+      doc,
+      direction,
+      isSection ? { at: spec.sectionAt!, width: spec.sectionWidth ?? 1.2 } : undefined,
+    );
+    const minX = blocks.length ? Math.min(...blocks.map((block) => block.x0)) : 0;
+    const maxX = blocks.length ? Math.max(...blocks.map((block) => block.x1)) : 12;
+    const spanX = Math.max(maxX - minX, 1);
+    // در پلان محور x از راست به چپ است؛ در DXF هم همان ترتیب دیداری حفظ می‌شود.
+    const mapX = (value: number) => offsetX + (maxX - value);
+
+    for (const block of blocks) {
+      const layer = block.kind === "opening" ? "OPENINGS" : LAYER_TO_DXF[block.layer] ?? "WALLS";
+      const points: [number, number][] = [
+        [mapX(block.x1), block.y0],
+        [mapX(block.x0), block.y0],
+        [mapX(block.x0), block.y1],
+        [mapX(block.x1), block.y1],
+      ];
+      if (isSection && block.kind !== "opening") writer.solid(points, layer);
+      else writer.polyline(points, layer);
+    }
+
+    // خطوط تراز: کف هر طبقه، بام و جان‌پناه
+    for (let level = 0; level <= doc.levels; level += 1) {
+      const y = level * DEFAULT_FLOOR_HEIGHT;
+      writer.line(mapX(maxX + 0.3), y, mapX(minX - 0.3), y, "LEVELS");
+      writer.text(
+        mapX(minX - 0.35),
+        y + 0.06,
+        0.22,
+        dxfText(`تراز ${level === 0 ? "±۰٫۰۰" : `+${faFixed(y)}`}`),
+        "LABELS",
+      );
+    }
+    const roofLevel = doc.levels * DEFAULT_FLOOR_HEIGHT;
+    writer.line(mapX(maxX + 0.3), roofLevel + 0.9, mapX(minX - 0.3), roofLevel + 0.9, "LEVELS");
+
+    const title = spec.title ?? (isSection ? "برش" : ELEVATION_LABELS[direction]);
+    writer.text(offsetX + spanX / 2, -0.8, 0.35, dxfText(`${title} — مقیاس ۱:۱ (متر)`), "LABELS");
+    offsetX += spanX + gapM;
+  }
+  return writer.build();
 }

@@ -12,13 +12,14 @@
 
 import { CATALOG_BY_ID, STUDIO_LAYERS, type Part, type StudioLayerId } from "./catalog";
 import { Scene, scenePdfOps, sceneSvg } from "./draw";
+import { DxfWriter, dxfText } from "./dxf";
 import { drawChrome, faArea, faNumber, sheetFrame } from "./sheetKit";
 import { shapeForDisplay } from "./pdf/arabic";
 import { PdfText, type TextAnchor } from "./pdf/text";
 import { embedFont, loadTypeface, writeToUnicode } from "./pdf/typeface";
 import { PdfWriter } from "./pdf/writer";
 import { studioIfc, studioXlsx } from "./exporters";
-import { renderStudioElevationSheet, renderStudioVertical } from "./vertical";
+import { renderStudioElevationSheet, renderStudioVertical, studioVerticalDxf } from "./vertical";
 import { renderStudioElevationsPdf, renderStudioVerticalPdf } from "./verticalPdf";
 import { renderStudioDetailPdf, renderStudioDetailSheet } from "./details";
 import { renderStudioSchedulePdf, renderStudioScheduleSheet } from "./schedules";
@@ -306,11 +307,11 @@ export function withAxisLabels(doc: StudioDocument): StudioDocument {
 /** برچسب قابل نوشتن برای یک شیء در PDF/DXF (هم‌خوان با منطق صحنه). */
 function pdfLabelFor(item: StudioItem, definition: (typeof CATALOG_BY_ID)[string]): string | null {
   if (SPACE_IDS.has(item.catalogId)) {
-    const area = (item.w * item.d).toFixed(1);
     const name = item.label?.trim() || (item.catalogId === "space-terrace" ? "تراس" : item.catalogId === "space-shaft" ? "شفت" : "فضا");
-    return `${name} (${area} m²)`;
+    // ارقام و واحد فارسی — همان قاعدهٔ برگه، تا DXF با PDF ناهمگون نباشد.
+    return `${name} (${faArea(item.w * item.d, 1)})`;
   }
-  if (item.catalogId === "dim-linear") return `${item.w.toFixed(2)} m`;
+  if (item.catalogId === "dim-linear") return faNumber(item.w, 2);
   if (UNLABELLED_IDS.has(item.catalogId)) return null;
   if (!LABELLED_CATEGORIES.has(definition.category) && !item.label) return null;
   if (!item.label && (Math.min(item.w, item.d) < 0.75 || item.w * item.d < 0.4)) return null;
@@ -852,39 +853,24 @@ const DXF_COLORS: Record<string, number> = {
   dimension: 8,
 };
 
-function dxfPolyline(points: { x: number; y: number }[], layer: string): string[] {
-  return [
-    "0",
-    "LWPOLYLINE",
-    "8",
-    layer.toUpperCase(),
-    "90",
-    String(points.length),
-    "70",
-    "1",
-    ...points.flatMap((point) => ["10", point.x.toFixed(4), "20", point.y.toFixed(4)]),
-  ];
-}
-
 /** متن برچسب برای DXF (همان قاعدهٔ PDF). */
 function dxfLabelFor(item: StudioItem, definition: (typeof CATALOG_BY_ID)[string]): string | null {
   return pdfLabelFor(item, definition);
 }
 
+/**
+ * پلان به DXF (AC1015، واحد متر).
+ *
+ * هندسه با همان تبدیل SVG (مرکز شیء + چرخش) ساخته می‌شود تا DXF و برگهٔ چاپی
+ * دقیقاً یک نقشه باشند؛ فقط y محور در DXF رو به شمال است (استاندارد نقشه).
+ */
 export function renderStudioDxf(doc: StudioDocument, options: RenderOptions = {}): string {
   doc = withAxisLabels(doc);
-  const out: string[] = [];
-  const push = (...values: (string | number)[]) => out.push(...values.map(String));
   const view: StudioDocument = options.classification ? { ...doc, classification: options.classification } : doc;
   const levelFilter = options.onlyLevel === undefined ? view.currentLevel : options.onlyLevel;
-  const items = renderableItems(view).filter((item) => options.allLevels === true || levelFilter == null || item.level === levelFilter);
-
-  push(0, "SECTION", 2, "HEADER");
-  push(9, "$ACADVER", 1, "AC1015");
-  push(9, "$INSUNITS", 70, 6); // metres
-  push(9, "$MEASUREMENT", 70, 1);
-  push(9, "$LUPREC", 70, 4);
-  push(0, "ENDSEC");
+  const items = renderableItems(view).filter(
+    (item) => options.allLevels === true || levelFilter == null || item.level === levelFilter,
+  );
 
   const usedLayers = new Set<string>();
   for (const item of items) {
@@ -892,97 +878,65 @@ export function renderStudioDxf(doc: StudioDocument, options: RenderOptions = {}
     if (definition) usedLayers.add(definition.layer);
   }
   usedLayers.add("labels");
-  push(0, "SECTION", 2, "TABLES");
-  push(0, "TABLE", 2, "LAYER", 70, usedLayers.size);
-  for (const layer of usedLayers) {
-    push(0, "LAYER", 2, layer.toUpperCase(), 70, 0, 62, DXF_COLORS[layer] ?? 7, 6, "CONTINUOUS");
-  }
-  push(0, "ENDTAB", 0, "ENDSEC");
+  const writer = new DxfWriter(
+    [...usedLayers].map((layer) => ({ name: layer.toUpperCase(), color: DXF_COLORS[layer] ?? 7 })),
+  );
 
-  push(0, "SECTION", 2, "ENTITIES");
   for (const item of items) {
     const definition = CATALOG_BY_ID[item.catalogId];
     if (!definition) continue;
+    const layer = definition.layer.toUpperCase();
     const rad = (item.rotationDeg * Math.PI) / 180;
     const cos = Math.cos(rad);
     const sin = Math.sin(rad);
-    const map = (lx: number, ly: number) => ({
-      x: item.x + (lx * cos - ly * sin),
-      y: item.y - (lx * sin + ly * cos),
-    });
+    const map = (lx: number, ly: number): [number, number] => [
+      item.x + (lx * cos - ly * sin),
+      item.y - (lx * sin + ly * cos),
+    ];
     for (const part of definition.parts) {
       if (part.kind === "rect") {
         const x0 = (part.x - 0.5) * item.w;
         const y0 = (part.y - 0.5) * item.d;
         const x1 = x0 + part.w * item.w;
         const y1 = y0 + part.h * item.d;
-        push(
-          ...dxfPolyline(
-            [map(x0, y0), map(x1, y0), map(x1, y1), map(x0, y1)],
-            definition.layer,
-          ),
-        );
+        writer.polyline([map(x0, y0), map(x1, y0), map(x1, y1), map(x0, y1)], layer);
       } else if (part.kind === "circle") {
         const center = map((part.cx - 0.5) * item.w, (part.cy - 0.5) * item.d);
-        push(
-          0,
-          "CIRCLE",
-          8,
-          definition.layer.toUpperCase(),
-          "10",
-          center.x.toFixed(4),
-          "20",
-          center.y.toFixed(4),
-          "40",
-          (part.r * Math.min(item.w, item.d) * 0.5).toFixed(4),
-        );
+        writer.circle(center[0], center[1], part.r * Math.min(item.w, item.d) * 0.5, layer);
       } else if (part.kind === "mline") {
         const a = map(part.x1, part.y1);
         const b = map(part.x2, part.y2);
-        push(0, "LINE", 8, definition.layer.toUpperCase(), "10", a.x.toFixed(4), "20", a.y.toFixed(4), "11", b.x.toFixed(4), "21", b.y.toFixed(4));
+        writer.line(a[0], a[1], b[0], b[1], layer);
       } else if (part.kind === "marc") {
         const steps = 16;
-        const points: { x: number; y: number }[] = [];
+        const points: [number, number][] = [];
         for (let i = 0; i <= steps; i += 1) {
           const angle = ((part.from + ((part.to - part.from) * i) / steps) * Math.PI) / 180;
           points.push(map(part.cx + part.r * Math.cos(angle), part.cy + part.r * Math.sin(angle)));
         }
         for (let i = 0; i < points.length - 1; i += 1) {
-          const a = points[i];
-          const b = points[i + 1];
-          push(0, "LINE", 8, definition.layer.toUpperCase(), "10", a.x.toFixed(4), "20", a.y.toFixed(4), "11", b.x.toFixed(4), "21", b.y.toFixed(4));
+          writer.line(points[i][0], points[i][1], points[i + 1][0], points[i + 1][1], layer);
         }
       } else if (part.kind === "poly") {
         const points = part.points.map(([u, v]) => map((u - 0.5) * item.w, (v - 0.5) * item.d));
         if (part.closed === false) {
           for (let i = 0; i < points.length - 1; i += 1) {
-            const a = points[i];
-            const b = points[i + 1];
-            push(0, "LINE", 8, definition.layer.toUpperCase(), "10", a.x.toFixed(4), "20", a.y.toFixed(4), "11", b.x.toFixed(4), "21", b.y.toFixed(4));
+            writer.line(points[i][0], points[i][1], points[i + 1][0], points[i + 1][1], layer);
           }
         } else {
-          push(...dxfPolyline(points, definition.layer));
+          writer.polyline(points, layer);
         }
       } else {
         const a = map((part.x1 - 0.5) * item.w, (part.y1 - 0.5) * item.d);
         const b = map((part.x2 - 0.5) * item.w, (part.y2 - 0.5) * item.d);
-        push(0, "LINE", 8, definition.layer.toUpperCase(), "10", a.x.toFixed(4), "20", a.y.toFixed(4), "11", b.x.toFixed(4), "21", b.y.toFixed(4));
+        writer.line(a[0], a[1], b[0], b[1], layer);
       }
     }
-    push(
-      0,
-      "TEXT",
-      8,
-      definition.layer.toUpperCase(),
-      "10",
-      item.x.toFixed(4),
-      "20",
-      (item.y - item.d / 2 - 0.1).toFixed(4),
-      "40",
-      "0.2",
-      "1",
-      definition.nameEn.replace(/[^\x20-\x7E]/g, ""),
-    );
+    // نام لاتین فقط برای اقلامی که برچسب فارسی ندارند؛ وگرنه متن تکراری روی نقشه
+    // می‌نشیند و انتخاب/ویرایش در اتوکد را شلوغ می‌کند.
+    if (!dxfLabelFor(item, definition)) {
+      writer.text(item.x, item.y - item.d / 2 - 0.1, 0.2, definition.nameEn.replace(/[^\x20-\x7E]/g, ""), layer);
+    }
   }
 
   // برچسب‌های فارسی: DXF (R2000) کدگذاری تک‌بایتی دارد؛ متن فارسی به‌صورت
@@ -993,25 +947,14 @@ export function renderStudioDxf(doc: StudioDocument, options: RenderOptions = {}
     if (!definition) continue;
     const text = dxfLabelFor(item, definition);
     if (!text) continue;
-    const shaped = shapeForDisplay(text, "rtl");
-    const encoded = shaped.map((code) => DXF_UNICODE + code.toString(16).toUpperCase().padStart(4, "0")).join("");
-    push(
-      0,
-      "TEXT",
-      8,
-      "LABELS",
-      "10",
-      item.x.toFixed(4),
-      "20",
-      (item.y - item.d / 2 - 0.12).toFixed(4),
-      "40",
-      "0.2",
-      "1",
-      encoded,
-    );
+    // برچسب فضا در مرکز فضا (مثل برگهٔ چاپی) و بقیهٔ برچسب‌ها کمی زیر شیء، تا
+    // متن‌ها روی خطوط نقشه نیفتند.
+    const isSpace = item.catalogId.startsWith("space-");
+    const y = isSpace ? item.y + 0.2 : item.y - item.d / 2 - 0.12;
+    writer.text(item.x, y, isSpace ? 0.25 : 0.2, dxfText(text), "LABELS");
   }
-  push(0, "ENDSEC", 0, "EOF");
-  return `${out.join("\n")}\n`;
+
+  return writer.build();
 }
 
 /* ───────────────────────────── PDF ───────────────────────────── */
@@ -1192,6 +1135,8 @@ export const STUDIO_FORMATS = [
   "details-pdf",
   "schedules",
   "schedules-pdf",
+  "elevations-dxf",
+  "section-dxf",
 ] as const;
 export type StudioFormat = (typeof STUDIO_FORMATS)[number];
 
@@ -1273,6 +1218,31 @@ export function exportStudio(
         filename: `${base}-structural-details.pdf`,
         mime: "application/pdf",
         data: Buffer.from(renderStudioDetailPdf(doc)),
+      };
+    case "elevations-dxf":
+      return {
+        filename: `${base}-elevations.dxf`,
+        mime: "application/dxf",
+        data: Buffer.from(
+          studioVerticalDxf(doc, [
+            { direction: "south" },
+            { direction: "north" },
+            { direction: "east" },
+            { direction: "west" },
+          ]),
+          "utf8",
+        ),
+      };
+    case "section-dxf":
+      return {
+        filename: `${base}-section.dxf`,
+        mime: "application/dxf",
+        data: Buffer.from(
+          studioVerticalDxf(doc, [
+            { direction: "west", sectionAt: options.sectionAt ?? 6, sectionWidth: options.sectionWidth ?? 1.2, title: "برش A-A" },
+          ]),
+          "utf8",
+        ),
       };
     case "section-pdf":
       return {

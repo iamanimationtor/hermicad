@@ -775,3 +775,29 @@ test("studio/render", "برچسب فضا با ارقام فارسی و بدون 
   assert(/[۰-۹]+٫[۰-۹] م²/.test(svg), "مساحت فضا با ارقام فارسی و واحد م² نیست");
   return `${spaceLabels.length} فضا`;
 });
+
+test("studio/exporters", "DXF استاندارد R2000 است: زیرکلاس‌ها، دسته‌ها، جدول‌ها و بلوک‌ها", () => {
+  const dxf = renderStudioDxf(sampleDesign());
+  for (const marker of ["$ACADVER", "AcDbEntity", "AcDbPolyline", "AcDbLine", "AcDbCircle", "AcDbText", "BLOCK_RECORD", "OBJECTS", "BLOCKS", "CLASSES", "$HANDSEED"]) {
+    assert(dxf.includes(marker), `نشانگر ${marker} در DXF نیست`);
+  }
+  assert(/\n5\n[0-9A-F]+\n/.test(dxf), "دستهٔ موجودیت (handle) نوشته نشده");
+  assert(dxf.includes("ANSI") === false, "کدگذاری نادرست");
+  // متن فارسی باید با دنبالهٔ یونیکد DXF نوشته شود، نه خام
+  assert(dxf.includes("\\U+"), "برچسب فارسی به یونیکد DXF تبدیل نشده");
+});
+
+test("studio/exporters", "نمای DXF در مقیاس ۱:۱ با لایه‌های سازه‌ای صادر می‌شود", () => {
+  const elevations = exportStudio(sampleDesign(), "elevations-dxf");
+  const text = elevations.data.toString("utf8");
+  assert(elevations.filename.endsWith(".dxf"), "پسوند فایل نما");
+  assert(text.includes("WALLS") && text.includes("LEVELS") && text.includes("LABELS"), "لایه‌های نمای DXF ناقص‌اند");
+  assert(text.includes("$INSUNITS\n70\n6"), "واحد نما باید متر باشد");
+  const poly = (text.match(/LWPOLYLINE/g) ?? []).length;
+  assert(poly > 20, `تعداد بلوک‌های نمای DXF: ${poly}`);
+  const section = exportStudio(sampleDesign(), "section-dxf");
+  const sectionText = section.data.toString("utf8");
+  assert(sectionText.includes("SOLID"), "پوشش برش (poché) در DXF برش نیامده");
+  assert(text.split("\nTEXT\n").length > 4, "برچسب تراز در نمای DXF نیست");
+  return `${poly} بلوک نما`;
+});
