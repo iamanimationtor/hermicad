@@ -667,11 +667,11 @@ function drawShapedColumnDetail(
   scene.poly(outline, { width: 0.5, fill: 0.94 });
   // هاشور بتن فقط داخل خودِ مقطع (نه کل کادر محیطی؛ وگرنه گوشهٔ خالی هاشور می‌خورد)
   if (kind === "column-l") {
-    scene.hatch(left, top, w * 0.42, h, 4.2, { gray: 0.9, width: 0.1 });
-    scene.hatch(left + w * 0.42, top, w * 0.58, h * 0.42, 4.2, { gray: 0.9, width: 0.1 });
+    scene.hatch(left, top, w * 0.42, h, 4.2, { gray: 0.9, width: 0.1, pattern: "concrete" });
+    scene.hatch(left + w * 0.42, top, w * 0.58, h * 0.42, 4.2, { gray: 0.9, width: 0.1, pattern: "concrete" });
   } else {
-    scene.hatch(left, top, w, h * 0.36, 4.2, { gray: 0.9, width: 0.1 });
-    scene.hatch(left + w * 0.32, top + h * 0.36, w * 0.36, h * 0.64, 4.2, { gray: 0.9, width: 0.1 });
+    scene.hatch(left, top, w, h * 0.36, 4.2, { gray: 0.9, width: 0.1, pattern: "concrete" });
+    scene.hatch(left + w * 0.32, top + h * 0.36, w * 0.36, h * 0.64, 4.2, { gray: 0.9, width: 0.1, pattern: "concrete" });
   }
 
   // خاموت بسته با پوشش ۳ سانتی‌متر
@@ -761,7 +761,7 @@ function drawFootingDetail(scene: Scene, member: RebarMember, x: number, y: numb
   const top = y + 14;
   scene.text(x + size, y + 5, "جزئیات پی", 2.8, { anchor: "end", bold: true, gray: 0.15 });
   scene.rect(left, top, w, h, { width: 0.5 });
-  scene.hatch(left, top, w, h, 3, { gray: 0.55, width: 0.16 });
+  scene.hatch(left, top, w, h, 3, { gray: 0.55, width: 0.16, pattern: "concrete" });
   // شبکهٔ آرماتور
   const coverMm = Math.max(1.5, w * (CONCRETE_COVER / member.b));
   scene.line(left + coverMm, top + h - coverMm, left + w - coverMm, top + h - coverMm, { width: 0.5, gray: 0.1 });
@@ -996,7 +996,7 @@ function drawBoundarySection(
 
   scene.text(x + width - 4, y + 6, "مقطع افقی — المان مرزی", 2.1, { anchor: "end", gray: 0.35 });
   scene.rect(left, top, L, T, { width: 0.45 });
-  scene.hatch(left, top, L, T, 3.4, { gray: 0.62, width: 0.15 });
+  scene.hatch(left, top, L, T, 3.4, { gray: 0.62, width: 0.15, pattern: "concrete" });
 
   // ناحیهٔ محصور
   const bc = confined * scale;
@@ -1070,7 +1070,7 @@ function drawWallDetail(scene: Scene, member: RebarMember, x: number, y: number,
   const top = y + 16;
 
   scene.rect(left, top, w, h, { width: 0.45 });
-  scene.hatch(left, top, w, h, 3.4, { gray: 0.55, width: 0.16 });
+  scene.hatch(left, top, w, h, 3.4, { gray: 0.55, width: 0.16, pattern: "concrete" });
 
   // دو لایهٔ میلگرد قائم در دو لبه (لبهٔ کشش و فشار) + میلگرد افقی
   const cover = 2.2;
@@ -1129,10 +1129,10 @@ function drawSlabDetail(
   const left = x + (sectionW - spanMm) / 2;
   const top = y + 18;
   scene.rect(left, top, spanMm, thicknessMm, { width: 0.5 });
-  scene.hatch(left, top, spanMm, thicknessMm, 2.4, { gray: 0.55, width: 0.16 });
+  scene.hatch(left, top, spanMm, thicknessMm, 2.4, { gray: 0.55, width: 0.16, pattern: "concrete" });
   for (const bx of [left - beamW, left + spanMm]) {
     scene.rect(bx, top + thicknessMm, beamW, beamH, { width: 0.45 });
-    scene.hatch(bx, top + thicknessMm, beamW, beamH, 2, { gray: 0.62, width: 0.14 });
+    scene.hatch(bx, top + thicknessMm, beamW, beamH, 2, { gray: 0.62, width: 0.14, pattern: "concrete" });
   }
   const cover = Math.max(1.2, thicknessMm * 0.22);
   for (const barY of [top + cover, top + thicknessMm - cover]) {
@@ -1190,7 +1190,7 @@ function drawConnectionDetail(scene: Scene, column: RebarMember, beam: RebarMemb
   const top = y + 20;
   scene.text(x + size, y + 5, "جزئیات اتصال تیر به ستون", 2.8, { anchor: "end", bold: true, gray: 0.15 });
   scene.rect(left, top, colW, colH, { width: 0.55 });
-  scene.hatch(left, top, colW, colH, 3.2, { gray: 0.62, width: 0.15 });
+  scene.hatch(left, top, colW, colH, 3.2, { gray: 0.62, width: 0.15, pattern: "concrete" });
   const inset = Math.max(1.2, colW * 0.2);
   for (const bx of [left + inset, left + colW - inset]) {
     scene.line(bx, top + 1.5, bx, top + colH - 1.5, { width: 0.5, gray: 0.05 });

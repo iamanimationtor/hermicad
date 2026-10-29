@@ -61,6 +61,20 @@ function layerOf(prim: Prim): string {
 
 /** نقش‌هایی که باید ضمن حفظ، پرشدگی هم بگیرند (قاب هاشور و خط دور). */
 function pushFill(writer: DxfWriter, prim: Prim): void {
+  // ناحیهٔ بافت: هاشور الگودار (بتن/بنایی) به‌جای پرشدگی توپر
+  if (prim.pattern && prim.kind === "rect") {
+    writer.patternHatch(
+      [
+        [prim.x / MM, prim.y / MM],
+        [(prim.x + prim.w) / MM, prim.y / MM],
+        [(prim.x + prim.w) / MM, (prim.y + prim.h) / MM],
+        [prim.x / MM, (prim.y + prim.h) / MM],
+      ],
+      "HATCH",
+      prim.pattern,
+    );
+    return;
+  }
   if (!("fill" in prim) || prim.fill == null) return;
   if (prim.kind === "rect") {
     writer.solidHatch(
@@ -96,6 +110,9 @@ export function sceneToDxf(scene: Scene, options: SceneDxfOptions): string {
   for (const prim of scene.prims) pushFill(writer, prim);
 
   for (const prim of scene.prims) {
+    // خطوط هاشور الگودار و کادر ناحیهٔ بافت در DXF نوشته نمی‌شوند:
+    // الگوی HATCH همان نقش را با موجودیت استاندارد بازی می‌کند.
+    if (prim.pattern || (prim.data ?? "").includes("data-hatch-line")) continue;
     const layer = layerOf(prim);
     switch (prim.kind) {
       case "line":

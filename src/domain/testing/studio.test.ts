@@ -1107,3 +1107,24 @@ test("studio/slab-rebar", "برگهٔ سقف در مقیاس‌های مختلف
   }
   return "A4 عمودی/افقی و A1 افقی بدون سرریز";
 });
+
+test("studio/exporters", "هاشور الگودار DXF: الگوی ANSI31 برای بتن و AR-B816 برای بنایی", () => {
+  const doc = sampleDesign();
+  const details = exportStudio(doc, "details-dxf").data.toString("utf8");
+  const arch = exportStudio(doc, "arch-details-dxf").data.toString("utf8");
+  // الگوی بتنی: نام + جهت ۴۵ + تعریف یک خط الگو با فاصلهٔ ۶ سانتی‌متر
+  assert(details.includes("\nANSI31\n"), "الگوی ANSI31 در جزئیات سازه نیست");
+  assert(details.includes("\n45\n"), "زاویهٔ الگوی بتن نوشته نشده");
+  assert(details.includes("\n78\n1\n"), "تعداد خطوط الگو (۷۸) درست نیست");
+  assert(details.includes("\n53\n45\n"), "زاویهٔ خط الگو (۵۳) درست نیست");
+  assert(details.includes("\n46\n0.06\n"), "فاصلهٔ خطوط الگو (۴۶) درست نیست");
+  // الگوی بنایی
+  assert(arch.includes("\nAR-B816\n"), "الگوی آجری AR-B816 در جزئیات معماری نیست");
+  assert(arch.includes("\n78\n2\n"), "الگوی بنایی باید دو خانواده خط داشته باشد");
+  // پرشدگی توپر نباید جای هاشور الگودار را گرفته باشد: هر دو نوع در فایل هست
+  assert(details.includes("AcDbHatch"), "موجودیت HATCH نوشته نشده");
+  const solid = (details.match(/\nSOLID\n/g) ?? []).length;
+  const ansi = (details.match(/\nANSI31\n/g) ?? []).length;
+  assert(solid > 20 && ansi >= 3, `ترکیب هاشور نامتوازن: SOLID=${solid} ANSI31=${ansi}`);
+  return `${ansi} هاشور ANSI31 · ${solid} توپر`;
+});

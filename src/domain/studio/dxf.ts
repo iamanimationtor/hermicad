@@ -33,6 +33,34 @@ export interface DxfLayer {
 type Pair = [number, string | number];
 
 /** نویسندهٔ ساده و قابل‌آزمون DXF R2000. */
+/** الگوهای هاشور داخلی؛ ابعاد بر حسب متر (واحد جزئیات/پلان). */
+export type DxfHatchPattern = "concrete" | "masonry";
+
+interface PatternLine {
+  angle: number;
+  base: [number, number];
+  offset: [number, number];
+  dashes: number[];
+}
+
+const PATTERN_DEFS: Record<DxfHatchPattern, { name: string; angle: number; lines: PatternLine[] }> = {
+  // بتن مسلح در مقطع: خطوط مورب ۴۵° با فاصلهٔ ۶ سانتی‌متر (هم‌ارز ANSI31)
+  concrete: {
+    name: "ANSI31",
+    angle: 45,
+    lines: [{ angle: 45, base: [0, 0], offset: [0, 0.06], dashes: [] }],
+  },
+  // بنایی/بلوک: ردیف‌های افقی با بندهای یک‌درمیان (هم‌ارز AR-B816)
+  masonry: {
+    name: "AR-B816",
+    angle: 0,
+    lines: [
+      { angle: 0, base: [0, 0], offset: [0, 0.1], dashes: [0.2, -0.2] },
+      { angle: 90, base: [0, 0], offset: [0.2, 0.05], dashes: [0.05, -0.05] },
+    ],
+  },
+};
+
 export class DxfWriter {
   private readonly out: Pair[] = [];
   private handleCounter = 0x20;
@@ -178,6 +206,54 @@ export class DxfWriter {
     this.push(51, 360);
     this.push(73, 1); // counter-clockwise
     this.hatchTail();
+  }
+
+  /**
+   * هاشور **الگودار** (نه توپر): بافت بتنی/آجری با تعریف الگو داخل خود موجودیت.
+   *
+   * چرا تعریف الگو را داخل HATCH می‌نویسیم: فایل `.pat` کاربر ممکن است ANSI31 یا
+   * الگوی آجری را نداشته باشد؛ DXF اجازه می‌دهد خطوط الگو (کدهای 53/43/44/45/46/79/49)
+   * همراه موجودیت ذخیره شوند و همان‌جا رندر شوند. `76=1` یعنی «الگوی از پیش تعریف‌شده».
+   */
+  patternHatch(points: [number, number][], layer: string, pattern: DxfHatchPattern, scale = 1): void {
+    if (points.length < 3) return;
+    const def = PATTERN_DEFS[pattern];
+    this.entityStart("HATCH", this.nextHandle(), layer, "AcDbHatch");
+    this.push(10, 0);
+    this.push(20, 0);
+    this.push(30, 0);
+    this.push(210, 0);
+    this.push(220, 0);
+    this.push(230, 1);
+    this.push(2, def.name);
+    this.push(70, 0); // pattern fill (نه solid)
+    this.push(71, 0);
+    this.push(91, 1);
+    this.push(92, 1);
+    this.push(72, 0);
+    this.push(73, 1);
+    this.push(93, points.length);
+    for (const [x, y] of points) {
+      this.push(10, f(x));
+      this.push(20, f(y));
+    }
+    this.push(75, 0);
+    this.push(76, 1);
+    this.push(52, def.angle);
+    this.push(41, f(scale));
+    this.push(77, 0);
+    this.push(78, def.lines.length);
+    for (const line of def.lines) {
+      this.push(53, line.angle);
+      this.push(43, f(line.base[0]));
+      this.push(44, f(line.base[1]));
+      this.push(45, f(line.offset[0]));
+      this.push(46, f(line.offset[1]));
+      this.push(79, line.dashes.length);
+      for (const dash of line.dashes) this.push(49, f(dash));
+    }
+    this.push(47, 0);
+    this.push(98, 0);
   }
 
   private hatchHead(): void {

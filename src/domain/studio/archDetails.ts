@@ -43,14 +43,14 @@ interface Band {
 function paintBand(scene: Scene, x: number, y: number, w: number, h: number, kind: BandKind): void {
   switch (kind) {
     case "concrete":
-      scene.hatch(x, y, w, h, 2.4, { gray: 0.62, width: 0.14 });
+      scene.hatch(x, y, w, h, 2.4, { gray: 0.62, width: 0.14, pattern: "concrete" });
       for (let index = 0; index < 3; index += 1) {
         const cy = y + h * (0.25 + index * 0.25);
         scene.circle(x + w * (0.2 + index * 0.28), cy, 0.5, { fill: 0.35, width: 0.1 });
       }
       break;
     case "gravel":
-      scene.hatch(x, y, w, h, 1.9, { gray: 0.7, width: 0.12 });
+      scene.hatch(x, y, w, h, 1.9, { gray: 0.7, width: 0.12, pattern: "masonry" });
       for (let index = 0; index < 6; index += 1) {
         const cx = x + w * (0.12 + (index % 3) * 0.3);
         const cy = y + h * (index < 3 ? 0.3 : 0.72);
@@ -321,7 +321,7 @@ function drawParapetDetail(scene: Scene, cellX: number, cellY: number, cellW: nu
 
   // دیوار جان‌پناه روی لبهٔ بام + پوشش
   scene.rect(secX, roofBottom - roofH - parapetH, parapetW, parapetH + roofH, { width: 0.3 });
-  scene.hatch(secX, roofBottom - roofH - parapetH, parapetW, parapetH + roofH, 2.6, { gray: 0.6, width: 0.14 });
+  scene.hatch(secX, roofBottom - roofH - parapetH, parapetW, parapetH + roofH, 2.6, { gray: 0.6, width: 0.14, pattern: "concrete" });
   marker(scene, secX + parapetW / 2, roofBottom - roofH - parapetH * 0.55, roof.length + 1);
   // ورق پوشش (کاپینگ) و آبگِرد فلزی
   scene.rect(secX - 1.6, roofBottom - roofH - parapetH - 2.2, parapetW + 3.2, 2.2, { width: 0.3, gray: 0.15 });

@@ -33,7 +33,15 @@ interface Base {
   opacity?: number;
   /** صفت‌های data-* برای قلاب آزمون/انتخاب در SVG */
   data?: string;
+  /**
+   * بافت مقطع برای خروجی DXF: بتن یا بنایی. در SVG همان خطوط هاشور دیده می‌شود،
+   * اما در اتوکد به‌جای پرشدگی توپر، HATCH الگودار (ANSI31 / AR-B816) نوشته می‌شود.
+   */
+  pattern?: HatchPattern;
 }
+
+/** بافت‌های مقطعی که به الگوی هاشور DXF نگاشت می‌شوند. */
+export type HatchPattern = "concrete" | "masonry";
 
 export type Prim =
   | ({ kind: "line"; x1: number; y1: number; x2: number; y2: number } & Base)
@@ -160,11 +168,32 @@ export class Scene {
     if (w <= 0 || h <= 0) return;
     const gray = options.gray ?? 0.65;
     const width = options.width ?? 0.15;
+    const pattern = options.pattern;
+    if (pattern) {
+      // ناحیهٔ بافت: در SVG بی‌رنگ است، در DXF به HATCH الگودار تبدیل می‌شود
+      this.prims.push({
+        kind: "rect",
+        x,
+        y,
+        w,
+        h,
+        fill: null,
+        width: 0,
+        gray: 1,
+        pattern,
+        data: `data-hatch-region="${pattern}"`,
+      });
+    }
     for (let offset = 0; offset <= w + h; offset += step) {
       const from = Math.max(0, offset - w);
       const to = Math.min(h, offset);
       if (to - from < 0.2) continue;
-      this.line(x + offset - from, y + from, x + offset - to, y + to, { gray, width });
+      // خطوط هاشور در DXF نوشته نمی‌شوند (الگوی HATCH جای آن‌ها را می‌گیرد)
+      this.line(x + offset - from, y + from, x + offset - to, y + to, {
+        gray,
+        width,
+        data: pattern ? 'data-hatch-line="1"' : undefined,
+      });
     }
   }
 }
