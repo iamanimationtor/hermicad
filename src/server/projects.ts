@@ -1,5 +1,6 @@
 import { createHash, randomUUID } from "node:crypto";
 import { currentWorkspace } from "./workspace";
+import { assertWorkspaceProjectQuota } from "./quota";
 import { AccessError } from "./accessError";
 import { and, desc, eq, inArray, lt, not, or, sql } from "drizzle-orm";
 import { getDb, type Db } from "@/db";
@@ -152,6 +153,7 @@ export async function createProject(input: {
 }): Promise<ProjectDocument> {
   await ensureCodeSet();
   const workspace = await currentWorkspace();
+  await assertWorkspaceProjectQuota(workspace);
   const id = randomUUID();
   const code = `HMC-P-${id}`; // وابسته به تعداد پروژه‌های موجود نیست و پس از حذف تکرار نمی‌شود.
   const site = normalizeSeismicSite(input.site ?? DEFAULT_PROJECT_SITE);

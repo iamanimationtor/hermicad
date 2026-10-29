@@ -7,7 +7,7 @@
  * خودِ کاربر را ببیند.
  */
 
-import { assertSameOrigin, PRIVATE_HEADERS } from "@/server/accessError";
+import { assertSameOrigin, PRIVATE_HEADERS, sessionCookieOptions } from "@/server/accessError";
 import { NextResponse, type NextRequest } from "next/server";
 import { WORKSPACE_COOKIE, WORKSPACE_HEADER, isValidWorkspace, newWorkspaceId } from "@/server/workspace";
 
@@ -38,11 +38,7 @@ export function proxy(request: NextRequest): NextResponse {
   response.cookies.set({
     name: WORKSPACE_COOKIE,
     value: workspace,
-    httpOnly: true,
-    secure: request.nextUrl.protocol === "https:" || request.headers.get("x-forwarded-proto") === "https",
-    sameSite: "lax",
-    path: "/",
-    maxAge: 60 * 60 * 24 * 365,
+    ...sessionCookieOptions(request, 60 * 60 * 24 * 365),
   });
   return privateResponse(response);
 }

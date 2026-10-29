@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { currentWorkspace, newWorkspaceId, workspaceCredential, WORKSPACE_COOKIE } from "@/server/workspace";
 import { accountStatus, loginAccount, logoutSession, recoverWorkspace, registerAccount, rotateRecovery } from "@/server/identity";
-import { AccessError, assertSameOrigin, PRIVATE_HEADERS } from "@/server/accessError";
+import { AccessError, assertSameOrigin, PRIVATE_HEADERS, sessionCookieOptions } from "@/server/accessError";
 import { errorResponse, readJson } from "@/server/http";
 export const dynamic = "force-dynamic";
 export async function GET() {
@@ -41,11 +41,7 @@ export async function POST(request: Request) {
       response.cookies.set({
         name: WORKSPACE_COOKIE,
         value: result.token,
-        httpOnly: true,
-        sameSite: "lax",
-        secure: new URL(request.url).protocol === "https:" || request.headers.get("x-forwarded-proto") === "https",
-        path: "/",
-        maxAge: 30 * 86400,
+        ...sessionCookieOptions(request, 30 * 86400),
       });
     return response;
   } catch (error) {

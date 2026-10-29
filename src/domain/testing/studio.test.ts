@@ -1,4 +1,4 @@
-import { Scene } from "@/domain/studio/draw";
+import { Scene, sceneSvg } from "@/domain/studio/draw";
 import { sceneToDxf } from "@/domain/studio/sceneDxf";
 import { slabConfig } from "@/domain/studio/slabConfig";
 import { assert, test } from "./harness";
@@ -1424,4 +1424,37 @@ test("studio/slab-rebar", "اثر انگشت برگه با فرض‌های می�
   assert(documentFingerprint(doc)===documentFingerprint({...doc,slabRebar:{...SLAB_REBAR_DEFAULTS}}),"پیش‌فرض صریح و ضمنی متفاوت‌اند");
   const svg=renderStudioSlabRebarSheet(doc,{diameterMm:16});
   assert(svg.includes(documentFingerprint({...doc,slabRebar:{...SLAB_REBAR_DEFAULTS,diameterMm:16}})),"بازنویسی موقت API در شناسهٔ برگه نیامده است");
+});
+
+/**
+ * قرارداد لنگر متن بين «نمایش» و «چاپ» بايد يکی باشد.
+ *
+ * چرا اين آزمون هست: در SVG مقدار text-anchor نسبت به direction تعبير می‌شود؛
+ * نسل پيشين کد برای متن راست‌به‌چپ آن را آينه می‌کرد. رندرگر PNG و نويسندهٔ PDF
+ * اين آينه‌سازی را انجام نمی‌دهند، پس نقشهٔ روی صفحه با فايل چاپی يکسان نبود و
+ * برچسب لِجند روی خط راهنمای خودش می‌افتاد.
+ */
+test("studio/text-anchor", "لنگر متن در SVG مطلق است و با جهت پايه آينه نمی‌شود", () => {
+  const scene = new Scene();
+  scene.text(100, 10, "دیوار و بازشو", 2.2, { anchor: "start" });
+  scene.text(100, 20, "دیوار و بازشو", 2.2, { anchor: "end" });
+  scene.text(100, 30, "دیوار و بازشو", 2.2, { anchor: "middle" });
+  const svg = sceneSvg(scene);
+
+  const anchors = [...svg.matchAll(/text-anchor="([a-z]+)"/g)].map((match) => match[1]);
+  assert(JSON.stringify(anchors) === JSON.stringify(["start", "end", "middle"]),
+    `لنگرها بايد بدون آينه‌سازی منتقل شوند؛ دريافت‌شده: ${anchors.join(",")}`);
+  assert(!/direction=/.test(svg),
+    "نبايد direction نوشته شود؛ مرورگر آن را با text-anchor تفسير دوباره می‌کند");
+  assert((svg.match(/unicode-bidi="plaintext"/g) ?? []).length === 3,
+    "ترتیب دوسویهٔ متن بايد صريح باشد");
+});
+
+test("studio/text-anchor", "متن راست‌به‌چپ مختلط (فارسی/لاتین) در SVG سالم است", () => {
+  const scene = new Scene();
+  scene.text(50, 10, "پلان معماری · NE-12", 2, { anchor: "middle" });
+  const svg = sceneSvg(scene);
+  assert(svg.includes("پلان معماری · NE-12"), "متن مختلط بايد بي‌کم‌وکاست بماند");
+  // نویسه‌های کنترلی جهت‌دهی (RLM/LRM/RLE…) نبايد تزریق شوند
+  assert(!/[\u200e\u200f\u202a-\u202e]/.test(svg), "نبايد نویسهٔ کنترلی جهت‌دهی تزریق شود");
 });

@@ -5,6 +5,7 @@ import { designDocuments } from "@/db/schema";
 import { CATALOG_BY_ID } from "@/domain/studio/catalog";
 import { createStudioDocument, documentFingerprint, type StudioDocument, type StudioItem } from "@/domain/studio/document";
 import { PUBLIC_WORKSPACE } from "@/server/workspace";
+import { assertWorkspaceDesignQuota } from "./quota";
 
 /**
  * Design Studio persistence.
@@ -76,6 +77,7 @@ export async function getDesign(id: string, workspace?: string): Promise<StudioD
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 export async function createDesign(input: Partial<StudioDocument> = {}, workspace: string = PUBLIC_WORKSPACE): Promise<StudioDocument> {
+  await assertWorkspaceDesignQuota(workspace);
   const base = createStudioDocument(input);
   // شناسهٔ دیتابیس باید UUID باشد؛ شناسهٔ داخلی سند با آن هم‌تراز می‌شود.
   const id = base.id && UUID.test(base.id) ? base.id : crypto.randomUUID();

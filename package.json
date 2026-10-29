@@ -10,7 +10,8 @@
     "test": "tsx scripts/quality.ts",
     "preview:design": "tsx scripts/preview.ts",
     "test:studio-http": "tsx scripts/qa-studio-http.ts",
-    "test:http": "tsx scripts/qa-http-suite.ts"
+    "test:http": "tsx scripts/qa-http-suite.ts",
+    "test:smoke": "node scripts/qa-smoke.mjs"
   },
   "dependencies": {
     "@electric-sql/pglite": "^0.5.13",

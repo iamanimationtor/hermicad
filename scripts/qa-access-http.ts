@@ -48,10 +48,21 @@ async function main() {
     ] as const) {
       assert.equal((await a.request(path, method, body, "https://attacker.invalid")).status, 403);
     }
-    // همان میزبان با طرحوارهٔ متفاوت، مبدأ یکسان نیست. برای یک proxy مورد اعتماد
-    // که طرحواره را صریح بازنویسی می‌کند نیز همین قرارداد برقرار است.
+    // همان میزبان با طرح‌وارهٔ https در حالی که اتصالِ ورودی http است:
+    // پشت پراکسیِ TLS-خاتمه‌ده این حالت کاملاً طبیعی است (مرورگر https، اتصال
+    // داخلی http) و برنامه نمی‌تواند طرح‌وارهٔ عمومی را اثبات کند. پس ملاکِ
+    // امنیتی «برابری میزبان» و «نشانهٔ مرورگر» است، نه طرح‌واره؛ وگرنه همهٔ
+    // درخواست‌های نوشتن روی استقرار https با ۴۰۳ شکست می‌خورند.
     const httpsOrigin = base.replace(/^http:/, "https:");
-    assert.equal((await a.request(`/api/projects/${project.id}`, "PATCH", { name: "مبدأ نامعتبر" }, httpsOrigin)).status, 403);
+    const sameHostOtherScheme = await a.request(`/api/projects/${project.id}`, "PATCH", { name: "هم‌میزبان با طرح‌وارهٔ دیگر" }, httpsOrigin);
+    assert.equal(sameHostOtherScheme.status, 200);
+    await sameHostOtherScheme.arrayBuffer();
+    // اما نشانهٔ مرورگر مبنی بر آمدنِ درخواست از سایت دیگر باید رد شود.
+    const crossSite = await fetch(base + `/api/projects/${project.id}`, { method: "PATCH",
+      headers: { cookie: a.cookie, origin: base, "sec-fetch-site": "cross-site", "content-type": "application/json" },
+      body: JSON.stringify({ name: "درخواست بین‌سایتی" }) });
+    assert.equal(crossSite.status, 403);
+    await crossSite.arrayBuffer();
     const behindProxy = await fetch(base + `/api/projects/${project.id}`, { method: "PATCH",
       headers: { cookie: a.cookie, origin: base, "x-forwarded-proto": "https", "content-type": "application/json" },
       body: JSON.stringify({ name: "مبدأ نامعتبر" }) });
