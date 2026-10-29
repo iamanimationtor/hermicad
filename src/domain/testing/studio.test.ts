@@ -580,6 +580,27 @@ test("studio/vertical", "PDF برش: اجزای بریده‌شده poché دا�
 
 /* ─────────────────────────── جزئیات سازه و میلگرد ─────────────────────────── */
 
+test("studio/details", "جدول برش میلگرد (BBS): طول برش، وزن و شکل خم برای هر ردیف", () => {
+  const doc = sampleDesign();
+  const schedule = rebarSchedule(doc);
+  const svg = renderStudioDetailSheet(doc);
+  assert(svg.includes("جدول برش میلگرد"), "جدول برش میلگرد روی برگه نیست");
+  assert(svg.includes("طول برش"), "ستون طول برش در BBS نیست");
+  assert(svg.includes("شکل"), "ستون شکل خم در BBS نیست");
+  // طول برش هر ردیف باید همان طول محاسبه‌شدهٔ موتور آرماتور باشد (قلاب/گیرش داخلش)
+  for (const row of schedule.rows.slice(0, 6)) {
+    assert(row.lengthM > 0.3, `طول برش نامعتبر: ${row.member}`);
+    const expected = row.count * row.lengthM * barWeightPerMetre(row.diameterMm);
+    assert(Math.abs(row.weightKg - expected) < 0.2, `وزن BBS نمی‌خواند: ${row.member}`);
+  }
+  // خاموت باید طول بستهٔ محیط + دو قلاب باشد، نه محیط خالص
+  const hoop = schedule.rows.find((row) => /خاموت/.test(row.note));
+  const member = hoop ? schedule.members.find((entry) => hoop.member.includes(entry.label.slice(0, 8))) : undefined;
+  if (hoop && member) {
+    assert(hoop.lengthM > 2 * (member.b + member.h) * 0.8, `طول خاموت کمتر از انتظار: ${hoop.lengthM}`);
+  }
+  return `${schedule.rows.length} ردیف BBS`;
+});
 test("studio/details", "ستون مدور و دیوار حائل در جدول میلگرد و جزئیات می‌آیند", () => {
   const doc = createStudioDocument({
     id: "dsn-round",

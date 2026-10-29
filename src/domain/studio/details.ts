@@ -659,6 +659,130 @@ function drawRebarTable(scene: Scene, schedule: RebarSchedule, x: number, y: num
   return totalY;
 }
 
+/**
+ * جدول برش میلگرد (Bar Bending Schedule).
+ *
+ * چرا لازم است: «جدول میلگرد» می‌گوید چه چیزی و چه مقدار، اما کارخانهٔ آرماتور
+ * و متره‌ور «طول برش» و «شکل خم» می‌خواهد. ستون «شکل» با یک نماد کوچک رسم
+ * می‌شود تا اپراتور بدون مراجعه به متن بداند میلگرد مستقیم است، خاموت بسته یا
+ * مارپیچ شمع. طول برش از همان `hoopLength`/`mainLength` می‌آید که قلاب‌های
+ * ۱۰db در آن لحاظ شده است.
+ */
+function drawBarShape(scene: Scene, cx: number, cy: number, shape: BarShape, size: number): void {
+  const h = size / 2;
+  if (shape === "stirrup") {
+    scene.poly([[cx - h, cy - h * 0.8], [cx + h, cy - h * 0.8], [cx + h, cy + h * 0.8], [cx - h, cy + h * 0.8]], {
+      width: 0.25,
+      gray: 0.15,
+    });
+    // دو قلاب ۱۳۵ درجه در گوشه
+    scene.line(cx - h, cy - h * 0.8, cx - h + h * 0.5, cy - h * 0.8 - h * 0.45, { width: 0.2, gray: 0.15 });
+    scene.line(cx + h, cy + h * 0.8, cx + h - h * 0.5, cy + h * 0.8 + h * 0.45, { width: 0.2, gray: 0.15 });
+    return;
+  }
+  if (shape === "spiral") {
+    const steps = 6;
+    const points: [number, number][] = [];
+    for (let index = 0; index <= steps; index += 1) {
+      points.push([cx - h + (index / steps) * size, cy + (index % 2 === 0 ? -h : h) * 0.7]);
+    }
+    scene.poly(points, { closed: false, width: 0.22, gray: 0.15 });
+    return;
+  }
+  if (shape === "mesh") {
+    for (const offset of [-h * 0.6, 0, h * 0.6]) {
+      scene.line(cx - h, cy + offset, cx + h, cy + offset, { width: 0.2, gray: 0.3 });
+    }
+    return;
+  }
+  // مستقیم با دو قلاب انتهایی (شکل ۱ رایج)
+  scene.line(cx - h, cy, cx + h, cy, { width: 0.25, gray: 0.15 });
+  scene.line(cx - h, cy, cx - h + h * 0.35, cy - h * 0.55, { width: 0.2, gray: 0.15 });
+  scene.line(cx + h, cy, cx + h - h * 0.35, cy - h * 0.55, { width: 0.2, gray: 0.15 });
+}
+
+type BarShape = "straight" | "stirrup" | "spiral" | "mesh";
+
+const SHAPE_LABELS: Record<BarShape, string> = {
+  straight: "مستقیم",
+  stirrup: "خاموت بسته",
+  spiral: "مارپیچ",
+  mesh: "شبکه",
+};
+
+function shapeOfRow(note: string): BarShape {
+  if (/مارپیچ/.test(note)) return "spiral";
+  if (/خاموت|تنگی/.test(note)) return "stirrup";
+  if (/شبکه/.test(note)) return "mesh";
+  return "straight";
+}
+
+function drawBendingTable(scene: Scene, schedule: RebarSchedule, x: number, y: number, w: number, maxH: number): number {
+  const rowH = 5;
+  const capacity = Math.floor((maxH - 12) / rowH) - 1;
+  if (capacity < 3) return y;
+  const rows = schedule.rows.slice(0, Math.min(capacity, schedule.rows.length));
+  if (rows.length === 0) return y;
+
+  scene.text(x + w, y + 5, "جدول برش میلگرد (BBS)", 3, { anchor: "end", bold: true });
+  const headers = ["ردیف", "عضو", "قطر", "تعداد", "طول برش (m)", "وزن (kg)", "شکل"];
+  const widths = [10, 44, 12, 12, 24, 18, 16];
+  const total = widths.reduce((sum, value) => sum + value, 0);
+  const factor = w / total;
+  const tableTop = y + 9;
+  const height = rowH * (rows.length + 1);
+  scene.rect(x, tableTop, w, height, { width: 0.35, gray: 0.3 });
+  scene.rect(x, tableTop, w, rowH, { fill: 0.9, width: 0.35, gray: 0.3 });
+  let cursor = x + w;
+  headers.forEach((header, index) => {
+    const cellW = widths[index] * factor;
+    if (index > 0) scene.line(cursor, tableTop, cursor, tableTop + height, { width: 0.15, gray: 0.55 });
+    scene.text(cursor - cellW / 2, tableTop + rowH - 1.8, header, 1.8, { anchor: "middle", gray: 0.15 });
+    cursor -= cellW;
+  });
+  scene.line(x, tableTop + rowH, x + w, tableTop + rowH, { width: 0.25, gray: 0.45 });
+
+  rows.forEach((row, index) => {
+    const rowY = tableTop + rowH * (index + 1);
+    if (index % 2 === 0) scene.rect(x, rowY, w, rowH, { fill: 0.97, width: 0, gray: 1 });
+    scene.line(x, rowY, x + w, rowY, { width: 0.12, gray: 0.7 });
+    const shape = shapeOfRow(row.note);
+    const cells = [
+      faNumber(index + 1, 0),
+      row.member,
+      faNumber(row.diameterMm, 0),
+      faNumber(row.count, 0),
+      faNumber(row.lengthM),
+      faNumber(row.weightKg, 1),
+      "",
+    ];
+    let cellCursor = x + w;
+    cells.forEach((cell, cellIndex) => {
+      const cellW = widths[cellIndex] * factor;
+      if (cellIndex === 6) {
+        drawBarShape(scene, cellCursor - cellW / 2, rowY + rowH / 2, shape, Math.min(cellW * 0.55, rowH * 0.75));
+      } else {
+        const isNumberText = cellIndex >= 2 && cellIndex <= 5;
+        scene.text(cellCursor - cellW / 2, rowY + rowH - 1.7, cell, cellIndex === 1 ? 1.55 : 1.8, {
+          anchor: "middle",
+          gray: 0.12,
+          direction: isNumberText ? "ltr" : "rtl",
+        });
+      }
+      if (cellIndex > 0) scene.line(cellCursor, rowY, cellCursor, rowY + rowH, { width: 0.1, gray: 0.75 });
+      cellCursor -= cellW;
+    });
+  });
+
+  const bottom = tableTop + height;
+  const hidden = schedule.rows.length - rows.length;
+  const note = hidden > 0 ? `و ${faNumber(hidden, 0)} ردیف دیگر در خروجی XLSX` : "طول برش شامل قلاب/گیرش ۱۰db است · پوشش ۳ سانتی‌متر";
+  scene.text(x + w, bottom + 4.2, note, 1.7, { anchor: "end", gray: 0.45 });
+  // این جدول فقط برای ردیف‌های اتصال است؛ شرح کامل شکل‌ها در یادداشت‌ها می‌آید.
+  void SHAPE_LABELS;
+  return bottom + 6;
+}
+
 /** جزئیات دیوار برشی/شمع: نمای آرماتوربندی ساده. */
 function drawWallDetail(scene: Scene, member: RebarMember, x: number, y: number, size: number, height: number): void {
   const title =
@@ -937,6 +1061,10 @@ export function detailSheetScene(doc: StudioDocument): { scene: Scene; schedule:
   schedule.notes.slice(0, 4).forEach((note, index) => {
     scene.text(area.x + area.w - 2, tableBottom + 26 + index * 4.4, `• ${note}`, 2.1, { anchor: "end", gray: 0.3 });
   });
+  // جدول برش میلگرد در فضای باقی‌ماندهٔ ستون راست (زیر یادداشت‌ها)
+  const bbsTop = tableBottom + 46;
+  const bbsSpace = area.y + area.h - bbsTop - 2;
+  if (bbsSpace > 40) drawBendingTable(scene, schedule, area.x + detailW + 4, bbsTop, tableW, bbsSpace);
   void sheet;
   return { scene, schedule };
 }
