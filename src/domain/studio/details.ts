@@ -600,11 +600,13 @@ function drawColumnDetail(scene: Scene, member: RebarMember, x: number, y: numbe
     }
     scene.text(left + w + 3, top + 3, `۱:${faNumber(Math.round(1000 / scale), 0)}`, 1.9, { gray: 0.5, direction: "ltr" });
     scene.text(left + w / 2, top + w + 8, `قطر ${faNumber(member.b)} متر`, 2.4, { anchor: "middle", gray: 0.3 });
-    scene.text(left + w / 2, top + w + 13, member.bars.note, 2.2, { anchor: "middle", gray: 0.35, direction: "ltr" });
+    scene.text(left + w / 2, top + w + 13, member.bars.note, 2.2, { anchor: "middle", gray: 0.35 });
     scene.text(left + w / 2, top - 4, `مقطع ${barLabel(member.bars.mainCount, member.bars.mainDia)}`, 2.2, { anchor: "middle", gray: 0.25 });
     return;
   }
   scene.rect(left, top, w, h, { width: 0.5 });
+  // پوشش بتن (poché): در SVG خطوط مورب، در DXF هاشور ANSI31
+  scene.hatch(left, top, w, h, 3.6, { gray: 0.78, width: 0.11, pattern: "concrete" });
   // خاموت با گوشهٔ گرد (تقریب با مستطیل داخلی)
   const inset = Math.min(w, h) * 0.08;
   scene.rect(left + inset, top + inset, w - inset * 2, h - inset * 2, { width: 0.35, gray: 0.2, dash: [2, 1] });
@@ -631,7 +633,7 @@ function drawColumnDetail(scene: Scene, member: RebarMember, x: number, y: numbe
   // برچسب مقیاس و شمارش
   scene.text(left + w + 3, top + 3, `۱:${faNumber(Math.round(1000 / scale), 0)}`, 1.9, { gray: 0.5, direction: "ltr" });
   scene.text(left + w / 2, top + h + 8, `${faNumber(member.b)}×${faNumber(member.h)} متر`, 2.4, { anchor: "middle", gray: 0.3 });
-  scene.text(left + w / 2, top + h + 13, member.bars.note, 2.2, { anchor: "middle", gray: 0.35, direction: "ltr" });
+  scene.text(left + w / 2, top + h + 13, member.bars.note, 2.2, { anchor: "middle", gray: 0.35 });
   scene.text(left + w / 2, top - 4, `مقطع ${barLabel(member.bars.mainCount, member.bars.mainDia)}`, 2.2, { anchor: "middle", gray: 0.25 });
 }
 
@@ -737,6 +739,7 @@ function drawBeamDetail(scene: Scene, member: RebarMember, x: number, y: number,
   const top = y + 8;
   scene.text(x + size, y + 5, "جزئیات تیر", 2.8, { anchor: "end", bold: true, gray: 0.15 });
   scene.rect(left, top, w, h, { width: 0.5 });
+  scene.hatch(left, top, w, h, 3.4, { gray: 0.78, width: 0.11, pattern: "concrete" });
   const inset = Math.min(w, h) * 0.14;
   scene.rect(left + inset, top + inset, w - inset * 2, h - inset * 2, { width: 0.3, gray: 0.2, dash: [1.6, 1] });
   const r = Math.max(0.6, (member.bars.mainDia / 1000) * scale * 0.5);
@@ -747,8 +750,8 @@ function drawBeamDetail(scene: Scene, member: RebarMember, x: number, y: number,
     scene.circle(cx, top + h - inset, r, { fill: 0.25, width: 0.2 });
   }
   scene.text(left + w / 2, top + h + 8, `دهانه ${faNumber(member.length)} متر`, 2.4, { anchor: "middle", gray: 0.3 });
-  scene.text(left + w / 2, top + h + 13, member.bars.note, 2.2, { anchor: "middle", gray: 0.35, direction: "ltr" });
-  scene.text(left + w / 2, top - 4, `مقطع ${faNumber(member.b)}×${faNumber(member.h)}`, 2.2, { anchor: "middle", gray: 0.25 });
+  scene.text(left + w / 2, top + h + 13, member.bars.note, 2.2, { anchor: "middle", gray: 0.35 });
+  scene.text(left + w / 2, top - 4, `مقطع ${faNumber(member.b)}×${faNumber(member.h)}`, 2.2, { anchor: "middle", gray: 0.25, direction: "ltr" });
 }
 
 /** جزئیات پی: مقطع با شبکهٔ آرماتور و هاشور بتن. */
@@ -1179,6 +1182,130 @@ function drawSlabDetail(
 }
 
 /** جزئیات اتصال تیر به ستون: ناحیهٔ اتصال، خاموت متراکم و طول وصله. */
+/**
+ * جزئیات سقف تیرچه‌بلوک (مقطع عمود بر تیرچه‌ها).
+ *
+ * چرا لازم است: سقف تیرچه‌بلوک پرکاربردترین سقف مسکونی ایران است و جزئیات آن —
+ * گام تیرچه، بتن رویه، شبکهٔ حرارتی و میلگرد تیرچه — روی برگهٔ سازه باید باشد.
+ * مقیاس ترسیمی ثابت است (نمونهٔ تیپ)، نه مقیاس واقعی؛ ابعاد عددی چاپ می‌شود.
+ */
+function drawJoistSlabDetail(scene: Scene, x: number, y: number, size: number, available = 0): void {
+  scene.text(x + size, y + 5, "جزئیات سقف تیرچه‌بلوک", 2.8, { anchor: "end", bold: true, gray: 0.15 });
+
+  const pitch = Math.min(15, size / 6.2); // گام تیرچه روی کاغذ
+  const joistW = pitch * 0.28;
+  const blockW = pitch - joistW - 1.2;
+  const topH = 6; // بتن رویه
+  const joistH = Math.min(20, Math.max(14, (available > 0 ? available : 60) * 0.3));
+  const bays = 4;
+  const totalW = pitch * bays + joistW;
+  const left = x + Math.max(6, (size - totalW) / 2);
+  const top = y + 16;
+
+  // بتن رویه
+  scene.rect(left, top, totalW, topH, { width: 0.45 });
+  scene.hatch(left, top, totalW, topH, 2.2, { gray: 0.62, width: 0.13, pattern: "concrete" });
+  // شبکهٔ حرارتی (میلگرد ۶ هر ۲۰) در بتن رویه
+  for (let gx = left + 3; gx <= left + totalW - 2; gx += 4.6) {
+    scene.circle(gx, top + topH / 2, 0.55, { fill: 0.25, width: 0.1 });
+  }
+  scene.text(left + totalW + 2, top + topH - 0.6, "بتن رویه ۶", 1.8, { anchor: "start", gray: 0.4 });
+
+  // تیرچه‌ها و بلوک‌ها
+  for (let index = 0; index <= bays; index += 1) {
+    const jx = left + index * pitch;
+    scene.rect(jx, top + topH, joistW, joistH, { width: 0.45 });
+    scene.hatch(jx, top + topH, joistW, joistH, 2.6, { gray: 0.64, width: 0.14, pattern: "concrete" });
+    // میلگرد پایین ۱۲ و بالای ۸ تیرچه
+    scene.circle(jx + joistW / 2, top + topH + joistH - 1.8, Math.max(0.7, joistW * 0.22), { fill: 0.12, width: 0.1 });
+    scene.circle(jx + joistW / 2, top + topH + 1.8, Math.max(0.45, joistW * 0.15), { fill: 0.3, width: 0.1 });
+    if (index === bays) continue;
+    const bx = jx + joistW + 0.6;
+    scene.rect(bx, top + topH, blockW, joistH, { width: 0.35, gray: 0.3 });
+    // بلوک سفالی: دو جداره + تیغهٔ میانی و بافت بنایی
+    scene.hatch(bx, top + topH, blockW, joistH, 2.8, { gray: 0.78, width: 0.1, pattern: "masonry" });
+    scene.line(bx + blockW * 0.28, top + topH + 1, bx + blockW * 0.28, top + topH + joistH - 1, { width: 0.16, gray: 0.45 });
+    scene.line(bx + blockW * 0.72, top + topH + 1, bx + blockW * 0.72, top + topH + joistH - 1, { width: 0.16, gray: 0.45 });
+  }
+
+  // اندازه‌گذاری گام تیرچه (پایین)
+  const dimY = top + topH + joistH + 4;
+  scene.line(left, dimY, left + totalW, dimY, { width: 0.2, gray: 0.4 });
+  for (let index = 0; index <= bays; index += 1) {
+    const dx = left + index * pitch + joistW / 2;
+    scene.line(dx, dimY - 1.2, dx, dimY + 1.2, { width: 0.2, gray: 0.4 });
+  }
+  scene.text(left + totalW / 2, dimY + 4.4, "گام تیرچه ۵۰ سانتی‌متر", 1.9, { anchor: "middle", gray: 0.35 });
+  scene.text(
+    left + totalW / 2,
+    dimY + 9,
+    "میلگرد تیرچه: ۱ شاخهٔ ۱۲ پایین + ۱ شاخهٔ ۸ بالا · خاموت ۶ هر ۲۰ · شبکهٔ ۶ هر ۲۰",
+    1.75,
+    { anchor: "middle", gray: 0.4 },
+  );
+}
+
+/**
+ * جزئیات تقویت بازشوی دال.
+ *
+ * بازشوی دال (چاهک آسانسور، داکت، نورگیر) بدون میلگرد تقویتی اجرا نمی‌شود.
+ * قاعدهٔ عرف: ۲ شاخهٔ ۱۶ در هر لبه به امتداد ۱۰۰ سانتی‌متر + ۲ شاخهٔ ۱۲ قطری در گوشه‌ها.
+ */
+function drawSlabOpeningDetail(scene: Scene, x: number, y: number, size: number, available = 0): void {
+  scene.text(x + size, y + 5, "جزئیات بازشوی دال", 2.8, { anchor: "end", bold: true, gray: 0.15 });
+
+  const planW = Math.min(size - 16, 78);
+  const planH = Math.min(Math.max(28, (available > 0 ? available : 60) * 0.5), 46);
+  const left = x + (size - planW) / 2;
+  const top = y + 14;
+  const opening = Math.min(planW, planH) * 0.34;
+  const ox = left + (planW - opening) / 2;
+  const oy = top + (planH - opening) / 2;
+  // امتداد میلگرد تقویتی روی کاغذ؛ هرگز از لبهٔ دال بیرون نمی‌زند
+  const ext = Math.max(5, Math.min(14, opening * 0.85, (planH - opening) / 2 - 2, (planW - opening) / 2 - 2));
+
+  // دال، سپس بازشو با پس‌زمینهٔ سفید تا هاشور دال داخل بازشو دیده نشود
+  scene.rect(left, top, planW, planH, { width: 0.45 });
+  scene.hatch(left, top, planW, planH, 6, { gray: 0.86, width: 0.1 });
+  scene.rect(ox, oy, opening, opening, { fill: 1, width: 0.55, gray: 0.1, dash: [2.4, 1.4] });
+  scene.text(ox + opening / 2, oy + opening / 2 - 0.5, "بازشو", 1.9, { anchor: "middle", gray: 0.3 });
+  scene.text(ox + opening / 2, oy + opening / 2 + 3.4, "۶۰×۶۰", 1.8, { anchor: "middle", gray: 0.4, direction: "ltr" });
+
+  // میلگرد تقویتی ۲ شاخهٔ ۱۶ در هر لبه — بیرون از دهانهٔ بازشو، با امتداد دو طرف
+  const pair = (x1: number, y1: number, x2: number, y2: number, offsetX: number, offsetY: number) => {
+    scene.line(x1, y1, x2, y2, { width: 0.55, gray: 0.15 });
+    scene.line(x1 + offsetX, y1 + offsetY, x2 + offsetX, y2 + offsetY, { width: 0.55, gray: 0.15 });
+  };
+  const gap = Math.max(1.1, opening * 0.06); // فاصلهٔ دو شاخه
+  pair(ox - ext, oy - gap, ox + opening + ext, oy - gap, 0, -gap); // لبهٔ بالا
+  pair(ox - ext, oy + opening + gap, ox + opening + ext, oy + opening + gap, 0, gap); // لبهٔ پایین
+  pair(ox - gap, oy - ext, ox - gap, oy + opening + ext, -gap, 0); // لبهٔ چپ
+  pair(ox + opening + gap, oy - ext, ox + opening + gap, oy + opening + ext, gap, 0); // لبهٔ راست
+
+  // میلگرد قطری گوشه‌ها (۲ شاخهٔ ۱۲) در ناحیهٔ گوشه، بیرون از بازشو
+  const diag = Math.max(4, opening * 0.32);
+  for (const [cx, cy, sx, sy] of [
+    [ox, oy, -1, -1],
+    [ox + opening, oy, 1, -1],
+    [ox, oy + opening, -1, 1],
+    [ox + opening, oy + opening, 1, 1],
+  ] as const) {
+    for (const shift of [0, 1.1]) {
+      scene.line(cx + sx * shift, cy + sy * shift, cx + sx * (diag + shift), cy + sy * (diag + shift), { width: 0.4, gray: 0.35 });
+    }
+  }
+
+  // برچسب‌ها
+  scene.text(left, top + planH + 5, "میلگرد تقویتی: ۲ شاخهٔ ۱۶ در هر لبه، امتداد ۱۰۰ سانتی‌متر از لبهٔ بازشو", 1.85, {
+    anchor: "start",
+    gray: 0.35,
+  });
+  scene.text(left, top + planH + 9.4, "گوشه‌ها: ۲ شاخهٔ ۱۲ قطری · بازشوی بزرگ‌تر از ۳۰ سانتی‌متر نیازمند محاسبه", 1.8, {
+    anchor: "start",
+    gray: 0.4,
+  });
+}
+
 function drawConnectionDetail(scene: Scene, column: RebarMember, beam: RebarMember, x: number, y: number, size: number): void {
   const beamDrawLen = Math.min(beam.length, 4);
   const scale = Math.min(70, (size - 40) / (column.b + beamDrawLen));
@@ -1271,6 +1398,8 @@ export function detailSheetScene(doc: StudioDocument): { scene: Scene; schedule:
   type DetailEntry =
     | { type: "member"; member: RebarMember }
     | { type: "slab"; thickness: number; span: number }
+    | { type: "joist" }
+    | { type: "opening" }
     | { type: "connection"; column: RebarMember; beam: RebarMember };
   const entries: DetailEntry[] = [];
   // یک جزئیات برای هر «تیپ» ستون (مستطیل، مدور، L، T) — نه فقط اولین ستون؛
@@ -1290,6 +1419,9 @@ export function detailSheetScene(doc: StudioDocument): { scene: Scene; schedule:
   const slabThickness = round(schedule.members.find((member) => member.kind === "raft")?.length ?? 0.3, 2);
   const slabSpan = round(Math.min(6, beams[0]?.length ?? 5), 1);
   entries.push({ type: "slab", thickness: slabThickness, span: slabSpan });
+  // دو تیپ همیشه‌حاضر در برگهٔ سازهٔ ایران: سقف تیرچه‌بلوک و تقویت بازشوی دال.
+  entries.push({ type: "joist" });
+  entries.push({ type: "opening" });
 
   if (entries.length === 0) {
     scene.rect(area.x + 2, area.y + 2, detailW - 4, area.h - 8, { width: 0.2, gray: 0.75, dash: [3, 2] });
@@ -1323,6 +1455,14 @@ export function detailSheetScene(doc: StudioDocument): { scene: Scene; schedule:
           y,
           width,
         );
+        return;
+      }
+      if (entry.type === "joist") {
+        drawJoistSlabDetail(scene, x, y, width, cellH);
+        return;
+      }
+      if (entry.type === "opening") {
+        drawSlabOpeningDetail(scene, x, y, width, cellH);
         return;
       }
       if (entry.type === "connection") {

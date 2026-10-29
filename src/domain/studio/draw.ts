@@ -237,7 +237,17 @@ export function sceneSvg(scene: Scene): string {
           return `<circle cx="${num(prim.cx)}" cy="${num(prim.cy)}" r="${num(prim.r)}" fill="${fill}" stroke="${stroke}"${width}${opacity}${data}/>`;
         }
         case "text": {
-          const anchor = prim.anchor && prim.anchor !== "start" ? ` text-anchor="${prim.anchor}"` : "";
+          /*
+           * لنگر متن در SVG به «جهت پایه» وابسته است: با direction="rtl" مقدار
+           * start یعنی «لبهٔ راست» و end یعنی «لبهٔ چپ». لنگرهای صحنه دیداری‌اند
+           * (start = متن از x به راست، end = متن به چپِ x)، پس برای متن راست‌به‌چپ
+           * باید start/end جابه‌جا نوشته شوند؛ وگرنه در مرورگر همهٔ برچسب‌ها به
+           * اندازهٔ عرض خودشان جابه‌جا می‌شوند.
+           */
+          const visual = prim.anchor ?? "start";
+          const rtl = (prim.direction ?? "rtl") === "rtl";
+          const anchorValue = rtl && visual !== "middle" ? (visual === "start" ? "end" : "start") : visual;
+          const anchor = ` text-anchor="${anchorValue}"`;
           const weight = prim.bold ? ' font-weight="700"' : "";
           const direction = ` direction="${prim.direction ?? "rtl"}"`;
           const rotate = prim.rotate ? ` transform="rotate(${num(prim.rotate)} ${num(prim.x)} ${num(prim.y)})"` : "";
