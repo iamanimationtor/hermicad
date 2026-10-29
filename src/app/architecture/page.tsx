@@ -366,24 +366,27 @@ const DRAWING_OUTPUTS: { format: string; status: "complete" | "limited"; content
 
 export default function ArchitecturePage() {
   return (
-    <main className="mx-auto max-w-[1400px] px-5 py-10">
-      <header className="mb-6">
-        <div className="flex flex-wrap items-center gap-2 text-[10px]">
-          <span className="chip">{ENGINE_VERSION}</span>
-          <span className="chip">{CODE_SET.code}@{CODE_SET.edition}</span>
+    <main className="shell py-10 sm:py-14">
+      <header className="border-b border-white/8 pb-8">
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="eyebrow">زیر پوستِ موتور</span>
+          <span className="mono chip">{ENGINE_VERSION}</span>
+          <span className="mono chip">{CODE_SET.code}@{CODE_SET.edition}</span>
           <span className="chip">Canonical Model v1</span>
-          <span className="chip">Deterministic · seed-based</span>
+          <span className="chip">قطعی · مبتنی بر seed</span>
         </div>
-        <h1 className="mt-3 text-2xl font-extrabold text-white">معماری HERMICAD</h1>
-        <p className="mt-2 max-w-4xl text-sm leading-7 text-slate-300">
-          معماری ابتدا نوشته شد و سپس کد از آن تبعیت کرد: مدل داده مرکزی، مرز ماژول‌ها، جهت وابستگی یک‌طرفه و قرارداد
-          صریح برای ضوابط، تحلیل و خروجی. منطق مهندسی در لایه <span className="mono text-teal-200">domain</span> است و
-          هیچ ارجاعی به React، Next یا Drizzle ندارد؛ بنابراین قابل تست واحد و قابل جایگزینی است.
+        <h1 className="mt-4 text-[clamp(1.6rem,3.6vw,2.35rem)] font-extrabold leading-[1.4] text-white">معماری HERMICAD</h1>
+        <p className="lede mt-3">
+          اول معماری نوشته شد و بعد کد از آن تبعیت کرد: مدل دادهٔ مرکزی، مرز ماژول‌ها، وابستگی یک‌طرفه و قرارداد صریح
+          برای ضوابط، تحلیل و خروجی. منطق مهندسی در لایهٔ <span className="mono text-teal-200">domain</span> است و هیچ
+          ارجاعی به React، Next یا Drizzle ندارد؛ پس مستقل قابل آزمون و قابل جایگزینی است.
         </p>
-        <div className="mt-3 rounded-lg border border-amber-400/40 bg-amber-400/10 px-3 py-2 text-[11px] leading-6 text-amber-100">
-          <span className="font-bold">وضعیت اعتبار منابع: {CODE_SET.status}</span> — این مجموعه ضوابط رسمی نیست.
-          شناسه قواعد شماره بند قانونی نیست و همه آستانه‌ها «داخلی و تأییدنشده» اعلام می‌شوند. دسترسی به سند رسمی:
-          {CODE_SET.officialSourceAvailable ? " موجود" : " در سیستم ثبت نشده"}.
+        <div className="callout callout-warn mt-6 flex-col gap-1">
+          <strong className="text-sm">وضعیت اعتبار منابع: {CODE_SET.status}</strong>
+          <span>
+            این مجموعه ضوابط رسمی نیست. شناسهٔ قواعد شمارهٔ بند قانونی نیست و همهٔ آستانه‌ها «داخلی و تأییدنشده» اعلام
+            می‌شوند. دسترسی به سند رسمی: {CODE_SET.officialSourceAvailable ? "موجود" : "در سیستم ثبت نشده"}.
+          </span>
         </div>
       </header>
 
@@ -406,10 +409,10 @@ export default function ArchitecturePage() {
             <tbody>
               {AUDIT_FINDINGS.map((f) => (
                 <tr key={f.id}>
-                  <td className="mono text-[10px] text-teal-200">{f.id}</td>
+                  <td className="mono text-xs text-teal-200">{f.id}</td>
                   <td className="text-slate-100">{f.finding}</td>
-                  <td className="text-[11px] leading-5 text-slate-300">{f.impact}</td>
-                  <td className="text-[11px] leading-5 text-slate-300">{f.fix}</td>
+                  <td className="text-[0.8125rem] leading-5 text-slate-300">{f.impact}</td>
+                  <td className="text-[0.8125rem] leading-5 text-slate-300">{f.fix}</td>
                   <td><span className={`chip ${f.status === "fixed" ? "border-teal-400/40 bg-teal-400/10 text-teal-200" : "border-amber-400/40 bg-amber-400/10 text-amber-200"}`}>{f.status === "fixed" ? "اصلاح شد" : "محدودیت اعلام‌شده"}</span></td>
                 </tr>
               ))}
@@ -432,10 +435,10 @@ export default function ArchitecturePage() {
               {ROADMAP.map((row) => (
                 <tr key={row.stage}>
                   <td className="text-slate-100">{row.stage}</td>
-                  <td className="text-[11px] leading-5 text-slate-300">{row.outcome}</td>
-                  <td className="text-[11px] leading-5 text-slate-400">{row.reuse}</td>
-                  <td className="text-[11px] leading-5 text-slate-300">{row.work}</td>
-                  <td className="text-[10px] leading-5 text-teal-200">{row.acceptance}</td>
+                  <td className="text-[0.8125rem] leading-5 text-slate-300">{row.outcome}</td>
+                  <td className="text-[0.8125rem] leading-5 text-slate-400">{row.reuse}</td>
+                  <td className="text-[0.8125rem] leading-5 text-slate-300">{row.work}</td>
+                  <td className="text-xs leading-5 text-teal-200">{row.acceptance}</td>
                   <td>
                     <span className={`chip ${row.status === "done" ? "border-teal-400/40 bg-teal-400/10 text-teal-200" : row.status === "partial" ? "border-amber-400/40 bg-amber-400/10 text-amber-200" : row.status === "next" ? "border-sky-400/40 bg-sky-400/10 text-sky-200" : "border-slate-500/30 bg-slate-500/10 text-slate-300"}`}>
                       {row.status === "done" ? "انجام‌شده" : row.status === "partial" ? "ناقص/محدود" : row.status === "next" ? "مرحله بعد" : "برنامه‌ریزی"}
@@ -446,7 +449,7 @@ export default function ArchitecturePage() {
             </tbody>
           </table>
         </div>
-        <div className="mt-3 rounded-lg border border-teal-400/30 bg-teal-400/10 p-2 text-[10px] leading-5 text-teal-100">
+        <div className="mt-3 rounded-lg border border-teal-400/30 bg-teal-400/10 p-2 text-xs leading-5 text-teal-100">
           <span className="font-bold">مرحله A (اجراشده در این تغییر):</span> مسیر کامل «ورودی هدایت‌شده → تولید پلان با دیوار/در/پنجره/پله/اندازه → کنترل لایه پلان → اعتبارسنجی و اصلاح → خروجی» با ۱۴ آزمون جدید (plan + intake) و بدون تغییر شناسه قواعد یا اثر انگشت بسته ضوابط.
           از آن مرحله تا امروز، این موارد هم اضافه شده‌اند: نمای و برش (SVG/PDF/DXF)، جدول‌ها و فهرست مقادیر، برگهٔ جزئیات سازه با جدول میلگرد و BBS، دیتیل‌های معماری، IFC نوع‌دار، و ویرایشگر گرافیکی Studio با بلوک‌های DXF. محدودیت‌های باقی‌مانده در بخش «وضعیت و محدودیت‌ها» فهرست شده است.
         </div>
@@ -459,19 +462,19 @@ export default function ArchitecturePage() {
       >
         <div className="grid gap-3 lg:grid-cols-[1.1fr_0.9fr]">
           <div className="panel-soft p-3">
-            <p className="text-[11px] leading-6 text-slate-200">{SOURCE_AUDIT.method}</p>
-            <p className="mt-2 text-[11px] leading-6 text-amber-200">{SOURCE_AUDIT.consequence}</p>
-            <p className="mt-2 text-[10px] leading-5 text-slate-400">تاریخ ممیزی: {SOURCE_AUDIT.auditedAt} · متن رسمی به‌دست آمده: {SOURCE_AUDIT.officialTextObtained ? "بله" : "خیر"}</p>
+            <p className="text-[0.8125rem] leading-6 text-slate-200">{SOURCE_AUDIT.method}</p>
+            <p className="mt-2 text-[0.8125rem] leading-6 text-amber-200">{SOURCE_AUDIT.consequence}</p>
+            <p className="mt-2 text-xs leading-5 text-slate-400">تاریخ ممیزی: {SOURCE_AUDIT.auditedAt} · متن رسمی به‌دست آمده: {SOURCE_AUDIT.officialTextObtained ? "بله" : "خیر"}</p>
           </div>
           <div className="space-y-2">
             {SOURCE_AUDIT.consultedSources.map((source) => (
               <div key={source.label} className="panel-soft p-2.5">
                 <div className="flex flex-wrap items-center justify-between gap-1">
-                  <span className="text-[11px] text-slate-200">{source.label}</span>
+                  <span className="text-[0.8125rem] text-slate-200">{source.label}</span>
                   <span className="chip">{source.reachable ? "دسترس‌پذیر" : "دسترس‌ناپذیر"}</span>
                 </div>
-                <div className="mt-1 text-[10px] leading-5 text-slate-400">{source.note}</div>
-                <div className="mt-1 text-[10px] text-rose-200">استفاده برای مقدار قانونی: خیر</div>
+                <div className="mt-1 text-xs leading-5 text-slate-400">{source.note}</div>
+                <div className="mt-1 text-xs text-rose-200">استفاده برای مقدار قانونی: خیر</div>
               </div>
             ))}
           </div>
@@ -489,10 +492,10 @@ export default function ArchitecturePage() {
             <tbody>
               {DRAWING_OUTPUTS.map((row) => (
                 <tr key={row.format}>
-                  <td className="mono text-[11px] text-teal-200">{row.format}</td>
+                  <td className="mono text-[0.8125rem] text-teal-200">{row.format}</td>
                   <td><span className={`chip ${row.status === "complete" ? "border-teal-400/40 bg-teal-400/10 text-teal-200" : "border-amber-400/40 bg-amber-400/10 text-amber-200"}`}>{row.status === "complete" ? "تکمیل‌شده" : "محدود"}</span></td>
-                  <td className="text-[11px] leading-5 text-slate-300">{row.content}</td>
-                  <td className="text-[11px] leading-5 text-amber-200/90">{row.limitation}</td>
+                  <td className="text-[0.8125rem] leading-5 text-slate-300">{row.content}</td>
+                  <td className="text-[0.8125rem] leading-5 text-amber-200/90">{row.limitation}</td>
                 </tr>
               ))}
             </tbody>
@@ -507,8 +510,8 @@ export default function ArchitecturePage() {
       >
         <div className="grid gap-3 lg:grid-cols-2">
           <div className="panel-soft p-3">
-            <h3 className="text-[11px] font-bold text-teal-200">یافته‌های اصلاح‌شده در این مرحله</h3>
-            <ul className="mt-1 space-y-1 text-[10px] leading-5 text-slate-300">
+            <h3 className="text-[0.8125rem] font-bold text-teal-200">یافته‌های اصلاح‌شده در این مرحله</h3>
+            <ul className="mt-1 space-y-1 text-xs leading-5 text-slate-300">
               {STAGE4_FIXES.map((fix) => (
                 <li key={fix.title}>
                   <span className="font-semibold text-slate-100">{fix.title}:</span> {fix.body}
@@ -518,14 +521,14 @@ export default function ArchitecturePage() {
             </ul>
           </div>
           <div className="panel-soft p-3">
-            <h3 className="text-[11px] font-bold text-amber-200">ممیزی منابع (دور دوم، مرحله ۴)</h3>
-            <ul className="mt-1 space-y-1 text-[10px] leading-5 text-slate-300">
+            <h3 className="text-[0.8125rem] font-bold text-amber-200">ممیزی منابع (دور دوم، مرحله ۴)</h3>
+            <ul className="mt-1 space-y-1 text-xs leading-5 text-slate-300">
               <li>• ناشر رسمی (bhrc.ac.ir/nbri) <span className="text-teal-200">دسترس‌پذیر</span> است و فهرست ویرایش مباحث را منتشر می‌کند، اما متن کامل/بندها به‌صورت رسمی در دسترس سیستم قرار نگرفت.</li>
               <li>• هیچ مقدار آستانه از منابع ثالث استخراج نشد؛ <span className="mono">document.clause</span> برای همه قواعد <span className="mono">null</span> است.</li>
               <li>• تنها ارجاع بیرونی تأییدشده، <span className="mono">IFC4 specification</span> از buildingSMART است که فقط برای معناشناسی اسکیمای IFC استفاده شد، نه برای ضوابط ساختمانی.</li>
               <li>• جمع‌بندی: تمام ۲۱ قاعده <span className="text-amber-200">تأییدنشده</span> باقی می‌مانند؛ اثر انگشت بسته <span className="mono">{rulesetFingerprint()}</span> بدون تغییر حفظ شد.</li>
             </ul>
-            <div className="mt-2 space-y-1 text-[10px] leading-5 text-slate-400">
+            <div className="mt-2 space-y-1 text-xs leading-5 text-slate-400">
               {EXTERNAL_SPEC_REFERENCES.map((ref) => (
                 <div key={ref.id} className="rounded border border-teal-400/20 bg-teal-400/5 p-1.5">
                   <span className="mono text-[9px] text-teal-200">{ref.id}</span>
@@ -545,22 +548,22 @@ export default function ArchitecturePage() {
               {FORMULA_LIST.map((f) => (
                 <tr key={f.id}>
                   <td>
-                    <div className="mono text-[10px] text-teal-200">{f.id}</div>
-                    <div className="text-[10px] text-slate-200">{f.label}</div>
+                    <div className="mono text-xs text-teal-200">{f.id}</div>
+                    <div className="text-xs text-slate-200">{f.label}</div>
                   </td>
-                  <td className="mono text-[10px] leading-5 text-sky-200">{f.expression}</td>
-                  <td className="mono text-[10px] text-slate-300">{f.resultUnit}</td>
+                  <td className="mono text-xs leading-5 text-sky-200">{f.expression}</td>
+                  <td className="mono text-xs text-slate-300">{f.resultUnit}</td>
                   <td>
                     <span className={`chip ${f.classification === "closed-form-geometry" ? "border-teal-400/40 bg-teal-400/10 text-teal-200" : f.classification === "arbitrary-index" ? "border-rose-400/40 bg-rose-500/10 text-rose-200" : f.classification === "unverified-code-derived" ? "border-amber-400/40 bg-amber-400/10 text-amber-200" : "border-sky-400/30 bg-sky-400/10 text-sky-200"}`}>
                       {f.classification}
                     </span>
                     <div className="mt-1 text-[9px] text-slate-500">{f.verification}</div>
                   </td>
-                  <td className="text-[10px] leading-5 text-slate-300">
+                  <td className="text-xs leading-5 text-slate-300">
                     {f.validity.domain}
                     <div className="mono mt-0.5 text-[9px] text-slate-500">{f.validity.limits.map((l) => `${l.parameter}: ${l.min ?? "−∞"}…${l.max ?? "+∞"} ${l.unit}`).join(" · ")}</div>
                   </td>
-                  <td className="text-[10px] leading-5 text-amber-200/90">{f.validity.failureMode}</td>
+                  <td className="text-xs leading-5 text-amber-200/90">{f.validity.failureMode}</td>
                 </tr>
               ))}
             </tbody>
@@ -584,10 +587,10 @@ export default function ArchitecturePage() {
                 <tbody>
                   {modules.map((m) => (
                     <tr key={m.name}>
-                      <td className="mono whitespace-nowrap text-[11px] text-teal-200">{m.name}</td>
+                      <td className="mono whitespace-nowrap text-[0.8125rem] text-teal-200">{m.name}</td>
                       <td className="font-semibold text-slate-100">{m.role}</td>
-                      <td className="mono text-[10px] text-slate-400">{m.deps}</td>
-                      <td className="text-[11px] leading-5 text-slate-300">{m.detail}</td>
+                      <td className="mono text-xs text-slate-400">{m.deps}</td>
+                      <td className="text-[0.8125rem] leading-5 text-slate-300">{m.detail}</td>
                     </tr>
                   ))}
                 </tbody>
@@ -596,7 +599,7 @@ export default function ArchitecturePage() {
           </Panel>
 
           <Panel title="قرارداد موتور ضوابط" subtitle="قاعده = داده + تابع خالص. هیچ قاعده‌ای به UI، شبکه یا مدل آماری وابسته نیست.">
-            <pre className="scroll-thin overflow-x-auto rounded-lg border border-white/10 bg-black/40 p-3 text-[11px] leading-6 text-slate-300">
+            <pre className="scroll-thin overflow-x-auto rounded-lg border border-white/10 bg-black/40 p-3 text-[0.8125rem] leading-6 text-slate-300">
 {`interface RuleDefinition {
   id: string;            // CODE-04-FAR
   title: string;
@@ -612,7 +615,7 @@ export default function ArchitecturePage() {
   }
 }`}
             </pre>
-            <div className="mb-2 flex flex-wrap items-center gap-2 text-[10px]">
+            <div className="mb-2 flex flex-wrap items-center gap-2 text-xs">
               <span className="chip">اثر انگشت بسته: <span className="mono">{rulesetFingerprint()}</span></span>
               <span className="chip">ممیزی منابع: {SOURCE_AUDIT.auditedAt}</span>
               <span className="chip border-amber-400/40 bg-amber-400/10 text-amber-200">متن رسمی به‌دست نیامده</span>
@@ -635,39 +638,39 @@ export default function ArchitecturePage() {
                   {RULE_DOC_LIST.map((doc) => (
                     <tr key={doc.id}>
                       <td>
-                        <div className="mono text-[10px] text-teal-200">{doc.id}</div>
-                        <div className="mt-0.5 text-[10px] text-slate-200">{doc.titleFa}</div>
+                        <div className="mono text-xs text-teal-200">{doc.id}</div>
+                        <div className="mt-0.5 text-xs text-slate-200">{doc.titleFa}</div>
                         <div className="mt-1"><StatusBadge status={doc.thresholdBasis === "project-input" ? "info" : "minor"} /></div>
                       </td>
-                      <td className="text-[10px] leading-5 text-slate-300">
+                      <td className="text-xs leading-5 text-slate-300">
                         {doc.inputsDetailed.map((i) => (
                           <div key={i.name}>
                             <span className="mono">{i.name}</span> <span className="text-slate-500">[{i.unit}]</span>
                           </div>
                         ))}
                       </td>
-                      <td className="text-[10px] leading-5 text-slate-300">
+                      <td className="text-xs leading-5 text-slate-300">
                         <div>{doc.method}</div>
-                        <div className="mono mt-1 text-[10px] text-sky-200">{doc.formula}</div>
+                        <div className="mono mt-1 text-xs text-sky-200">{doc.formula}</div>
                       </td>
-                      <td className="text-[10px] leading-5 text-slate-300">
+                      <td className="text-xs leading-5 text-slate-300">
                         {doc.threshold}
-                        <div className="mono mt-0.5 text-[10px] text-slate-500">{doc.thresholdBasis}</div>
+                        <div className="mono mt-0.5 text-xs text-slate-500">{doc.thresholdBasis}</div>
                       </td>
-                      <td className="text-[10px] leading-5 text-slate-300">
+                      <td className="text-xs leading-5 text-slate-300">
                         <div> عنوان: {doc.document.title ?? "—"}</div>
                         <div> نسخه: {doc.document.version ?? "—"}</div>
                         <div> بند: {doc.document.clause ?? "—"}</div>
                         <div className="mono mt-0.5 text-[9px] text-slate-500">{doc.document.availability}</div>
                       </td>
-                      <td className="text-[10px] leading-5 text-slate-300">
-                        <div className="mono text-[10px] text-amber-200">{doc.sourceStatus}</div>
-                        <div className="mono text-[10px] text-slate-400">{doc.evidence}</div>
+                      <td className="text-xs leading-5 text-slate-300">
+                        <div className="mono text-xs text-amber-200">{doc.sourceStatus}</div>
+                        <div className="mono text-xs text-slate-400">{doc.evidence}</div>
                         <div className="mt-1 chip border-amber-400/40 bg-amber-400/10 text-amber-200">{doc.verification}</div>
                         <div className="mt-1 text-[9px] text-slate-500">تأیید متن رسمی: خیر</div>
                         <div className="mt-1 text-[9px] leading-4 text-slate-400">محدودیت: {doc.limitations}</div>
                       </td>
-                      <td className="text-[10px] leading-4 text-slate-400">
+                      <td className="text-xs leading-4 text-slate-400">
                         <div className="text-teal-200">مثبت: {doc.tests.positive}</div>
                         <div className="mt-1 text-rose-200">منفی: {doc.tests.negative}</div>
                         <div className="mt-1 text-amber-200">مرزی: {doc.tests.boundary}</div>
@@ -680,7 +683,7 @@ export default function ArchitecturePage() {
           </Panel>
 
           <Panel title="محدودیت‌های اعلام‌شده و علت آن‌ها" subtitle="این‌ها باگ نیستند؛ تصمیم‌های دامنه‌ای مستندشده‌اند.">
-            <ul className="space-y-2 text-[11px] leading-6 text-slate-300">
+            <ul className="space-y-2 text-[0.8125rem] leading-6 text-slate-300">
               {REMAINING_LIMITATIONS.map((limitation) => (
                 <li key={limitation.title}>
                   <span className="font-semibold text-amber-200">{limitation.title}:</span> {limitation.body}
@@ -703,7 +706,7 @@ export default function ArchitecturePage() {
                 <div key={title} className="panel-soft flex flex-col gap-1 p-3 sm:flex-row sm:items-center sm:justify-between">
                   <div>
                     <div className="text-xs font-bold text-slate-100">{title}</div>
-                    <div className="mt-0.5 text-[11px] text-slate-400">{body}</div>
+                    <div className="mt-0.5 text-[0.8125rem] text-slate-400">{body}</div>
                   </div>
                   <span className={`chip ${status === "done" ? "border-teal-400/40 bg-teal-400/10 text-teal-200" : status === "next" ? "border-amber-400/40 bg-amber-400/10 text-amber-200" : "border-slate-500/30 bg-slate-500/10 text-slate-300"}`}>
                     {status === "done" ? "انجام‌شده" : status === "next" ? "در نوبت" : "برنامه‌ریزی‌شده"}
@@ -716,7 +719,7 @@ export default function ArchitecturePage() {
 
         <div className="space-y-6">
           <Panel title="امنیت و ماندگاری" subtitle="مدل تهدید پایه برای نسخه فعلی">
-            <ul className="space-y-2 text-[11px] leading-6 text-slate-300">
+            <ul className="space-y-2 text-[0.8125rem] leading-6 text-slate-300">
               <li>اعتبارسنجی سمت سرور برای زمین و نیازمندی پیش از هر نوشتن در دیتابیس.</li>
               <li>هیچ کلید/سرویس خارجی استفاده نمی‌شود؛ سطح حمله بیرونی حداقل است.</li>
               <li>تمام ورودی‌های خروجی از یک مدل معتبر بازسازی می‌شوند (allow-list قالب‌ها).</li>
@@ -730,20 +733,20 @@ export default function ArchitecturePage() {
             </ul>
           </Panel>
           <Panel title="داده‌های ضابطه‌ای و لرزه‌ای" subtitle="جدول‌های قابل حسابرسی">
-            <div className="space-y-1.5 text-[11px]">
+            <div className="space-y-1.5 text-[0.8125rem]">
               {Object.entries(SEISMIC_PARAMS).map(([zone, p]) => (
                 <div key={zone} className="flex items-center justify-between border-b border-white/5 pb-1">
                   <span className="text-slate-300">پهنه {p.label}</span>
                   <span className="mono text-teal-200">A={p.A} B={p.B} R={p.R}</span>
                 </div>
               ))}
-              <p className="pt-1 text-[10px] leading-5 text-slate-400">
+              <p className="pt-1 text-xs leading-5 text-slate-400">
                 C = A·B·I/R و V = C·W. مقادیر باید با استاندارد ۲۸۰۰ حوزه پروژه و تأیید مهندس سازه تطبیق داده شود.
               </p>
             </div>
           </Panel>
           <Panel title="آزمون و دروازه کیفیت" subtitle="Unit / Integration / Regression">
-            <ul className="space-y-1.5 text-[11px] leading-5 text-slate-300">
+            <ul className="space-y-1.5 text-[0.8125rem] leading-5 text-slate-300">
               <li>• هندسه: مقادیر شولیس مستقل، عقب‌نشینی متقارن/نامتقارن با عدد دستی، زمین باریک ۸×۴۰، زمین مقعر (۲×۲)، رد شدن عقب‌نشینی بیش‌ازحد.</li>
               <li>• ضوابط: مستندات کامل ۲۱ قاعده، آزمون منفی قاعده‌به‌قاعده، توجیه عددی هر نقض، مرزهای دقیق (راهرو ۱.۴۹/۱.۵۰).</li>
               <li>• مهندسی: بازمحاسبه مستقل Pu، C، W، V، پی، مخزن/لوله، ترانس، پارکینگ، فاصله حرکت.</li>

@@ -29,38 +29,65 @@ export function JourneyStart() {
         }
       }}
     >
-      <h2 className="font-bold">شروع پروندهٔ جدید</h2>
+      <header className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <h2 className="text-base font-bold text-white">پروندهٔ تازه</h2>
+          <p className="mt-1 text-sm leading-7 text-slate-400">
+            یک نام بدهید و بگویید از کجا شروع می‌کنیم. بقیهٔ گام‌ها را سیستم یکی‌یکی می‌پرسد.
+          </p>
+        </div>
+        <span className="chip border-teal-400/30 bg-teal-400/10 text-teal-100">گام ۱ از چند گام</span>
+      </header>
+
       <div className="grid gap-4 md:grid-cols-2">
-        <label>
-          نام پروژه
+        <div>
+          <label className="label" htmlFor="journey-name">
+            نام پروژه
+          </label>
           <input
-            className="field mt-2"
+            id="journey-name"
+            className="field"
             value={name}
             onChange={(e) => setName(e.target.value)}
             required
             maxLength={150}
             placeholder="مثلاً ساختمان نیلوفر"
+            autoComplete="off"
           />
-        </label>
-        <label>
-          از کجا شروع کنیم؟
-          <select aria-label="از کجا شروع کنیم؟" className="field mt-2" value={template} onChange={(e) => setTemplate(e.target.value)}>
-            <option value="empty">سند خالی؛ بدون فرض هندسی</option>
+        </div>
+        <div>
+          <label className="label" htmlFor="journey-template">
+            نقطهٔ شروع
+          </label>
+          <select
+            id="journey-template"
+            className="field"
+            value={template}
+            onChange={(e) => setTemplate(e.target.value)}
+          >
+            <option value="empty">سند خالی، بدون فرض هندسی</option>
             <option value="sample">نمونهٔ مسکونی ۱۲×۱۰</option>
             <option value="office">الگوی اداری ۱۸×۱۲</option>
             <option value="school">الگوی آموزشی ۱۸×۱۲</option>
             <option value="clinic">الگوی سرپایی ۱۸×۱۲</option>
           </select>
-        </label>
+        </div>
       </div>
-      <p className="text-xs leading-6 text-slate-400">
-        نمونه‌ها برای آشنایی و شروع ویرایش‌اند؛ با زمین و برنامهٔ شما خودکار تطبیق نمی‌یابند. برای پروژه‌های دیگر سند خالی انتخاب کنید.
+
+      <p className="rounded-xl border border-white/8 bg-white/[0.03] px-4 py-3 text-xs leading-6 text-slate-400">
+        نمونه‌ها برای آشنایی و شروع ویرایش‌اند و خودکار با زمین و برنامهٔ شما تطبیق نمی‌یابند. برای پروژهٔ واقعی،
+        «سند خالی» را انتخاب کنید.
       </p>
-      <button type="submit" disabled={busy || !name.trim()} className="btn btn-primary">
-        {busy ? "در حال ساخت…" : "شروع مسیر راهنما"}
-      </button>
+
+      <div className="flex flex-wrap items-center gap-3">
+        <button type="submit" disabled={busy || !name.trim()} className="btn btn-primary btn-lg">
+          {busy ? "در حال ساخت…" : "شروع مسیر"}
+        </button>
+        <span className="text-xs text-slate-500">رایگان · بدون ثبت‌نام · ذخیره روی فضای کار شما</span>
+      </div>
+
       {error && (
-        <p role="alert" className="text-rose-200">
+        <p role="alert" className="rounded-xl border border-rose-400/40 bg-rose-500/10 px-3.5 py-2.5 text-sm text-rose-100">
           {error}
         </p>
       )}

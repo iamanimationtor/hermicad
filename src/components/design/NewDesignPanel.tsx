@@ -46,9 +46,9 @@ export function NewDesignPanel() {
   };
 
   return (
-    <section className="panel p-4">
+    <section className="panel p-5">
       <h2 className="text-sm font-bold text-slate-100">سند طراحی جدید</h2>
-      <p className="mt-1 text-[11px] leading-5 text-slate-400">
+      <p className="mt-1 text-[0.8125rem] leading-5 text-slate-400">
         کار مهمان رایگان است. سند خصوصی ذخیره می‌شود؛ برای اشتراک، لینک فقط‌خواندنی بسازید.
       </p>
       <label className="mt-3 block">
@@ -113,13 +113,13 @@ export function NewDesignPanel() {
           ))}
         </select>
       </label>
-      <p className="mt-2 text-[11px] leading-5 text-slate-400">
+      <p className="mt-2 text-[0.8125rem] leading-5 text-slate-400">
         {DESIGN_TEMPLATES.find((t) => t.id === templateId)?.description}؛ الگوی شروع، نیازمند طراحی و کنترل ضوابط.
       </p>
       <button type="button" className="btn mt-2 w-full justify-center" disabled={busy} onClick={() => create(templateId)}>
         ایجاد الگوی کاربری
       </button>
-      {error && <p className="mt-2 text-[11px] text-rose-300">{error}</p>}
+      {error && <p className="mt-2 text-[0.8125rem] text-rose-300">{error}</p>}
     </section>
   );
 }

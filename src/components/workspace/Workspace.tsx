@@ -197,20 +197,19 @@ export function Workspace({ initialBundle }: { initialBundle: ProjectBundle }) {
   const project = bundle.project;
 
   return (
-    <main className="mx-auto max-w-[1500px] px-4 py-6">
-      <div className="panel mb-4 p-4">
-        <div className="flex flex-wrap items-start justify-between gap-3">
-          <div>
-            <div className="flex flex-wrap items-center gap-2 text-[10px]">
+    <main className="shell-wide py-6 sm:py-8">
+      <div className="panel mb-5 p-5 sm:p-6">
+        <div className="flex flex-wrap items-start justify-between gap-4">
+          <div className="min-w-0">
+            <div className="flex flex-wrap items-center gap-1.5">
               <Link href="/projects" className="chip hover:border-teal-400/50">← پروژه‌ها</Link>
               <span className="mono chip text-teal-200">{project.code}</span>
-              <span className="chip">{project.status}</span>
               <span className="chip">زمین v{project.siteRevision}</span>
               <span className="chip">نیازمندی v{project.requirementRevision}</span>
-              <span className="chip mono">{project.jurisdiction}</span>
+              <span className="mono chip">{project.jurisdiction}</span>
             </div>
-            <h1 className="mt-2 text-xl font-extrabold text-white">{project.name}</h1>
-            {project.client && <p className="mt-0.5 text-[11px] text-slate-400">کارفرما: {project.client}</p>}
+            <h1 className="mt-3 text-[clamp(1.35rem,2.6vw,1.9rem)] font-extrabold leading-snug text-white">{project.name}</h1>
+            {project.client && <p className="mt-1 text-sm text-slate-400">کارفرما: {project.client}</p>}
           </div>
           <div className="flex flex-wrap items-center gap-2">
             <button className="btn" onClick={refresh} disabled={busy !== null} type="button">بازخوانی پروژه</button>
@@ -227,7 +226,7 @@ export function Workspace({ initialBundle }: { initialBundle: ProjectBundle }) {
             )}
           </div>
         </div>
-        <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-6">
+        <div className="mt-5 grid grid-cols-2 gap-2.5 sm:grid-cols-3 lg:grid-cols-6">
           <Stat label="طرح‌ها" value={bundle.schemes.length} hint={best ? `برتر: ${best.schemeCode}` : comparisonIncomplete ? "مقایسه ناقص است" : "هنوز تولید نشده"} />
           <Stat
             label="طرح برتر (مشورتی)"
@@ -254,25 +253,25 @@ export function Workspace({ initialBundle }: { initialBundle: ProjectBundle }) {
 
       {notice && <div className="mb-4"><NoticeBar ctx={ctx} /></div>}
       {bundle.dataIssues.length > 0 && (
-        <section role="alert" className="mb-4 rounded-lg border border-rose-400/50 bg-rose-500/10 p-3 text-xs leading-6 text-rose-100">
-          <strong>بخشی از دادهٔ ثبت‌شده قابل استفاده نیست</strong>
+        <section role="alert" className="callout callout-danger mb-4 flex-col gap-1">
+          <strong className="text-sm">بخشی از دادهٔ ثبت‌شده قابل استفاده نیست</strong>
           <ul className="list-inside list-disc">{bundle.dataIssues.map((issue, index) => <li key={`${index}-${issue}`}>{issue}</li>)}</ul>
           <p>هیچ گزارش جایگزین ساخته نشده است. در صورت سالم‌بودن ورودی‌ها، تولید مجدد یا بررسی آرشیو امکان‌پذیر است.</p>
         </section>
       )}
       {unsafeOutputs.length > 0 && (
-        <section role="alert" aria-label="روش خارج از دامنه" className="mb-4 rounded-lg border border-rose-400/50 bg-rose-500/10 p-3 text-xs leading-6 text-rose-100">
-          <strong>روش خارج از دامنه است؛ اعداد مربوط غیرقابل استفاده‌اند و صدور فایل مسدود است.</strong>
+        <section role="alert" aria-label="روش خارج از دامنه" className="callout callout-danger mb-4 flex-col gap-1">
+          <strong className="text-sm">روش خارج از دامنه است؛ اعداد مربوط غیرقابل استفاده‌اند و صدور فایل مسدود است.</strong>
           <ul className="list-inside list-disc">{unsafeOutputs.map((issue, index) => <li key={`${issue.formulaId}-${index}`}>{issue.message}</li>)}</ul>
           <p>این تشخیص فقط حدود عددی پیاده‌سازی‌شده را پوشش می‌دهد و جایگزین انتخاب و بازبینی روش تخصصی نیست.</p>
         </section>
       )}
       {active && (
-        <section aria-label="وضعیت تازگی طرح" role="status" className={`mb-4 rounded-lg border p-3 text-xs leading-6 ${active.freshness.state === "current" ? "border-teal-400/40 bg-teal-400/10 text-teal-100" : "border-amber-400/50 bg-amber-400/10 text-amber-100"}`}>
-          <strong>{active.freshness.state === "current" ? "در آخرین بازخوانی، مبنای طرح با ورودی هم‌خوان بود" : active.freshness.state === "stale" ? "این طرح نسبت به پروژه قدیمی است" : "تازگی این طرح احراز نشده است"}</strong>
+        <section aria-label="وضعیت تازگی طرح" role="status" className={`callout mb-4 flex-col gap-1 ${active.freshness.state === "current" ? "callout-ok" : "callout-warn"}`}>
+          <strong className="text-sm">{active.freshness.state === "current" ? "در آخرین بازخوانی، مبنای طرح با ورودی هم‌خوان بود" : active.freshness.state === "stale" ? "این طرح نسبت به پروژه قدیمی است" : "تازگی این طرح احراز نشده است"}</strong>
           <p>{active.freshness.state === "current" ? "پس از بازخوانی ممکن است داده تغییر کرده باشد؛ سرور پیش از دریافت و اصلاح دوباره بررسی می‌کند. تطابق شناسه‌ها صحت مهندسی یا انطباق مقررات را اثبات نمی‌کند." : "نمایش فقط برای بازبینی است؛ اصلاح و دریافت خروجی تا تولید مجدد در سرور مسدود است."}</p>
           {active.freshness.reasons.length > 0 && <ul className="list-inside list-disc">{active.freshness.reasons.map((reason) => <li key={reason}>{reason}</li>)}</ul>}
-          <p className="text-[10px]">مبنای طرح: زمین v{active.freshness.generatedFrom?.siteRevision ?? "نامعلوم"}، نیازمندی v{active.freshness.generatedFrom?.requirementRevision ?? "نامعلوم"}، موتور {active.freshness.generatedFrom?.engineVersion ?? "نامعلوم"}؛ نسخهٔ طرح {active.revision}.</p>
+          <p className="text-xs opacity-75">مبنای طرح: زمین v{active.freshness.generatedFrom?.siteRevision ?? "نامعلوم"}، نیازمندی v{active.freshness.generatedFrom?.requirementRevision ?? "نامعلوم"}، موتور {active.freshness.generatedFrom?.engineVersion ?? "نامعلوم"}؛ نسخهٔ طرح {active.revision}.</p>
         </section>
       )}
       {bundle.runs.length > 0 && (
@@ -288,11 +287,21 @@ export function Workspace({ initialBundle }: { initialBundle: ProjectBundle }) {
         </details>
       )}
 
-      <nav className="mb-4 flex flex-wrap gap-x-5 overflow-x-auto border-b border-white/10 px-1">
+      <nav
+        aria-label="بخش‌های کارگاه"
+        className="no-scrollbar -mx-1 mb-5 flex gap-1 overflow-x-auto border-b border-white/10 px-1"
+      >
         {TABS.map((item) => (
-          <button key={item.id} className="tab" data-active={tab === item.id} onClick={() => setTab(item.id)} type="button">
+          <button
+            key={item.id}
+            className="tab"
+            data-active={tab === item.id}
+            aria-current={tab === item.id ? "true" : undefined}
+            onClick={() => setTab(item.id)}
+            type="button"
+          >
             <span className="font-semibold">{item.label}</span>
-            <span className="mr-1 text-[10px] text-slate-500">{item.hint}</span>
+            <span className="hidden text-xs text-slate-500 md:inline">{item.hint}</span>
           </button>
         ))}
       </nav>

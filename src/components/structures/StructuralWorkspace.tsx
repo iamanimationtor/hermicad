@@ -124,7 +124,7 @@ export function StructuralWorkspace({ initial }: { initial: StudioDocument }) {
     }
   };
   return (
-    <main className="mx-auto max-w-6xl px-4 py-8">
+    <main className="mx-auto w-full max-w-6xl px-4 py-8 sm:px-6">
       <header className="mb-6 flex flex-wrap justify-between gap-4">
         <div>
           <Link
@@ -171,7 +171,7 @@ export function StructuralWorkspace({ initial }: { initial: StudioDocument }) {
         </div>
       )}
       <div className="grid items-start gap-5 lg:grid-cols-[250px_minmax(0,1fr)]">
-        <aside className="panel p-4">
+        <aside className="panel p-5">
           <h2 className="font-bold">مسیر تخصصی</h2>
           <select
             aria-label="مرحلهٔ تخصصی"

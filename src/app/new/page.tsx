@@ -1,26 +1,31 @@
 import Link from "next/link";
 import { IntakeWizard } from "@/components/IntakeWizard";
+import { PageHeader } from "@/components/site/PageHeader";
 
-export const metadata = { title: "تعریف هوشمند پروژه | HERMICAD" };
+export const metadata = { title: "تعریف پروژه از زمین" };
 
 export default function NewProjectPage() {
   return (
-    <main className="mx-auto max-w-[1400px] px-5 py-8">
-      <header className="mb-5 flex flex-wrap items-end justify-between gap-3">
-        <div>
-          <div className="flex flex-wrap items-center gap-2 text-[10px]">
-            <Link href="/projects" className="chip hover:border-teal-400/50">← پروژه‌ها</Link>
-            <span className="chip border-teal-400/40 bg-teal-400/10 text-teal-200">ورودی هدایت‌شده</span>
-            <span className="chip">بدون نیاز به دانش CAD</span>
-          </div>
-          <h1 className="mt-2 text-2xl font-extrabold text-white">تعریف هوشمند پروژه</h1>
-          <p className="mt-2 max-w-3xl text-sm leading-7 text-slate-300">
-            ابعاد زمین، تعداد واحدها و محدودیت‌ها را انتخاب کنید. HERMICAD اطلاعات ناقص را فهرست می‌کند، فرضیات را
-            صریح ثبت می‌کند، سپس ۵ طرح با دیوار، بازشو، پله و اندازه‌گذاری تولید و اعتبارسنجی می‌کند.
-          </p>
-        </div>
-      </header>
-      <IntakeWizard />
+    <main className="shell py-10 sm:py-14">
+      <PageHeader
+        back={{ href: "/projects", label: "پروژه‌ها" }}
+        eyebrow="ورودی هدایت‌شده · بدون نیاز به نرم‌افزار نقشه‌کشی"
+        title="زمین را توصیف کنید، بقیه را ما می‌سازیم"
+        lede="ابعاد زمین، تعداد واحدها و محدودیت‌ها را انتخاب می‌کنید. HERMICAD اطلاعات ناقص را فهرست می‌کند، فرض‌ها را صریح ثبت می‌کند و پنج طرح با دیوار، بازشو، پله و اندازه‌گذاری تولید و کنترل می‌کند."
+        actions={
+          <>
+            <Link href="/design" className="btn">
+              ترجیح می‌دهم خودم بکشم
+            </Link>
+            <Link href="/projects" className="btn btn-ghost">
+              دیدن نمونهٔ آماده
+            </Link>
+          </>
+        }
+      />
+      <div className="mt-8">
+        <IntakeWizard />
+      </div>
     </main>
   );
 }

@@ -7,31 +7,32 @@ export const metadata = { title: "دامنه و وضعیت قابلیت‌ها |
 export default function ScopePage() {
   const register = scopeRegister();
   return (
-    <main className="mx-auto max-w-6xl px-5 py-10 sm:py-14">
-      <header className="rounded-2xl border border-white/10 bg-gradient-to-bl from-teal-400/[0.07] to-transparent p-6 sm:p-9">
-        <div className="flex flex-wrap gap-2">
+    <main className="shell py-10 sm:py-14">
+      <header className="relative overflow-hidden rounded-3xl border border-white/10 bg-gradient-to-bl from-teal-400/[0.08] via-white/[0.02] to-transparent p-6 sm:p-10">
+        <div className="pointer-events-none absolute -start-16 -top-20 h-48 w-48 rounded-full bg-teal-400/10 blur-3xl" />
+        <div className="relative flex flex-wrap gap-2">
           <span className="chip border-amber-400/40 bg-amber-400/10 text-amber-100">ک۰۱ · پیش‌نویس، نیازمند تصویب</span>
           <span className="chip">مبنای بررسی کد: <bdi dir="ltr">{register.baseline.slice(0, 7)}</bdi></span>
           <span className="chip">تاریخ بررسی مبنا: <bdi dir="ltr">{register.reviewedAt}</bdi></span>
         </div>
-        <h1 className="mt-5 text-3xl font-extrabold leading-tight text-white sm:text-4xl">دامنه، محدودیت و شواهد</h1>
-        <p className="mt-4 max-w-3xl text-sm leading-8 text-slate-300">
+        <h1 className="relative mt-5 text-[clamp(1.9rem,4.4vw,2.9rem)] font-extrabold leading-[1.35] text-white">دامنه، محدودیت و شواهد</h1>
+        <p className="relative lede mt-4">
           آنچه نرم‌افزار اکنون ثبت، محاسبه یا ترسیم می‌کند را از طراحی معتبر و انتشار عمومی جدا ببینید. این دفتر، فهرستی برای آغاز
           تصمیم‌گیری است؛ دامنهٔ نهایی، منابع رسمی و پذیرش متخصص هنوز تصویب نشده‌اند.
         </p>
-        <div className="mt-5 flex flex-wrap gap-3">
+        <div className="relative mt-6 flex flex-wrap gap-3">
           <a href="/api/scope" className="btn btn-primary">دریافت دفتر به شکل JSON</a>
           <Link href="/structures" className="btn">مسیرهای تخصصی سازه</Link>
           <Link href="/guide" className="btn">شروع پروندهٔ مقدماتی</Link>
         </div>
       </header>
 
-      <div role="note" className="mt-6 rounded-xl border border-amber-400/30 bg-amber-400/5 p-4 text-sm leading-7 text-amber-100">
-        <strong>هیچ ردیفی مجوز اجرا یا گواهی انطباق نیست.</strong> ثبت یک منبع، موفقیت آزمون نرم‌افزار، رسم نقشه یا نبود خطای بحرانی
+      <div role="note" className="callout callout-warn mt-6 flex-col gap-1">
+        <strong className="text-sm">هیچ ردیفی مجوز اجرا یا گواهی انطباق نیست.</strong> ثبت یک منبع، موفقیت آزمون نرم‌افزار، رسم نقشه یا نبود خطای بحرانی
         به‌تنهایی آن را تأیید نمی‌کند. این صفحه خودْ سامانهٔ تأیید و صدور نیست؛ کنترل‌های موجودِ تحویل مقدماتی همچنان جداگانه اعمال می‌شوند.
       </div>
 
-      <section aria-labelledby="gates-title" className="mt-12">
+      <section aria-labelledby="gates-title" className="mt-14">
         <p className="text-xs font-semibold text-teal-200">سه دروازهٔ مستقل</p>
         <h2 id="gates-title" className="mt-2 text-xl font-extrabold text-white sm:text-2xl">چه چیزی برای اعلام آمادگی لازم است؟</h2>
         <div className="mt-5 grid gap-3 md:grid-cols-3">

@@ -27,7 +27,7 @@ export function NoticeBar({ ctx }: { ctx: Ctx }) {
         ? "border-rose-400/40 bg-rose-500/10 text-rose-100"
         : "border-sky-400/40 bg-sky-400/10 text-sky-100";
   return (
-    <div role={ctx.notice.kind === "error" ? "alert" : "status"} className={`rounded-lg border px-3 py-2 text-[11px] leading-5 ${tone}`}>
+    <div role={ctx.notice.kind === "error" ? "alert" : "status"} className={`rounded-lg border px-3 py-2 text-[0.8125rem] leading-5 ${tone}`}>
       {ctx.notice.text}
       {ctx.notice.detail && ctx.notice.detail.length > 0 && (
         <ul className="mt-1 list-inside list-disc">
@@ -48,21 +48,21 @@ function PlanFigure({ ctx }: { ctx: Ctx }) {
   }, [scheme, ctx.planMode, ctx.levelIndex]);
 
   if (!scheme) {
-    return <p className="panel-soft p-8 text-center text-[11px] text-slate-400">طرحی برای نمایش وجود ندارد.</p>;
+    return <p className="panel-soft p-8 text-center text-[0.8125rem] text-slate-400">طرحی برای نمایش وجود ندارد.</p>;
   }
   return (
     <div>
       <div className="mb-2 flex flex-wrap items-center gap-2">
         <div className="flex overflow-hidden rounded-lg border border-white/15">
-          <button className={`px-3 py-1.5 text-[11px] ${ctx.planMode === "site" ? "bg-teal-400/20 text-teal-100" : "text-slate-300"}`} onClick={() => ctx.setPlanMode("site")} type="button">
+          <button className={`px-3 py-1.5 text-[0.8125rem] ${ctx.planMode === "site" ? "bg-teal-400/20 text-teal-100" : "text-slate-300"}`} onClick={() => ctx.setPlanMode("site")} type="button">
             پلان زمین
           </button>
-          <button className={`px-3 py-1.5 text-[11px] ${ctx.planMode === "floor" ? "bg-teal-400/20 text-teal-100" : "text-slate-300"}`} onClick={() => ctx.setPlanMode("floor")} type="button">
+          <button className={`px-3 py-1.5 text-[0.8125rem] ${ctx.planMode === "floor" ? "bg-teal-400/20 text-teal-100" : "text-slate-300"}`} onClick={() => ctx.setPlanMode("floor")} type="button">
             پلان طبقه نمونه
           </button>
         </div>
         {ctx.planMode === "floor" && (
-          <select className="field w-auto py-1 text-[11px]" value={ctx.levelIndex} onChange={(e) => ctx.setLevelIndex(Number(e.target.value))}>
+          <select className="field w-auto py-1 text-[0.8125rem]" value={ctx.levelIndex} onChange={(e) => ctx.setLevelIndex(Number(e.target.value))}>
             {scheme.levels.map((level) => (
               <option key={level.index} value={level.index}>{level.name}</option>
             ))}
@@ -72,7 +72,7 @@ function PlanFigure({ ctx }: { ctx: Ctx }) {
         <span className="chip">{scheme.levels[ctx.levelIndex]?.rooms.length} فضا</span>
       </div>
       <div className="plan-frame overflow-hidden border border-white/10" dangerouslySetInnerHTML={{ __html: svg }} />
-      <p className="mt-2 text-[10px] leading-5 text-slate-400">
+      <p className="mt-2 text-xs leading-5 text-slate-400">
         پلان شماتیک است: ضخامت دیوار، بازشو، مبلمان و مسیر تأسیسات مدل هندسی ندارند. مساحت خالص هر واحد ۸۸٪ ناخالص است.
       </p>
     </div>
@@ -96,7 +96,7 @@ const WALL_LABEL: Record<string, string> = {
 export function PlanView(ctx: Ctx) {
   const scheme = ctx.active?.model;
   const [highlight, setHighlight] = useState<string[]>([]);
-  if (!scheme) return <p className="panel-soft p-8 text-center text-[11px] text-slate-400">ابتدا طرح تولید کنید.</p>;
+  if (!scheme) return <p className="panel-soft p-8 text-center text-[0.8125rem] text-slate-400">ابتدا طرح تولید کنید.</p>;
   const level = scheme.levels[Math.min(ctx.levelIndex, scheme.levels.length - 1)];
   const totals = planTotals(level);
   const schedule = openingSchedule(level);
@@ -113,18 +113,18 @@ export function PlanView(ctx: Ctx) {
         subtitle={`${totals.walls} دیوار (${totals.wallLengthM} m) · ${totals.windows} پنجره · ${totals.doors} در · شیشه ${totals.glazedAreaM2} m² · سطح طبقه ${totals.floorAreaM2} m²`}
         action={
           <div className="flex flex-wrap items-center gap-2">
-            <select className="field w-auto py-1 text-[11px]" value={ctx.levelIndex} onChange={(e) => ctx.setLevelIndex(Number(e.target.value))}>
+            <select className="field w-auto py-1 text-[0.8125rem]" value={ctx.levelIndex} onChange={(e) => ctx.setLevelIndex(Number(e.target.value))}>
               {scheme.levels.map((item) => <option key={item.index} value={item.index}>{item.name}</option>)}
             </select>
             {failed.length === 0 ? <StatusBadge status="pass" /> : <span className="chip border-amber-400/40 bg-amber-400/10 text-amber-200">{failed.length} کنترل ناموفق</span>}
           </div>
         }
       >
-        <div className="mb-2 flex flex-wrap items-center gap-2 text-[10px]">
+        <div className="mb-2 flex flex-wrap items-center gap-2 text-xs">
           <span className="chip">الگوی چیدمان: {level.unitLayouts?.[0]?.patternLabel ?? "—"}</span>
           <span className="chip">{level.unitLayouts?.filter((u) => u.feasible).length ?? 0}/{level.unitLayouts?.length ?? 0} واحد با ابعاد قابل قبول</span>
           {highlight.length > 0 && (
-            <button className="btn px-2 py-1 text-[10px]" onClick={() => setHighlight([])} type="button">پاک‌کردن نمایش مشکل</button>
+            <button className="btn px-2 py-1 text-xs" onClick={() => setHighlight([])} type="button">پاک‌کردن نمایش مشکل</button>
           )}
         </div>
         <DrawingBoard
@@ -137,7 +137,7 @@ export function PlanView(ctx: Ctx) {
           levelIndex={ctx.levelIndex}
           onLevelChange={ctx.setLevelIndex}
         />
-        <p className="mt-2 text-[10px] leading-5 text-slate-400">
+        <p className="mt-2 text-xs leading-5 text-slate-400">
           دیوارها با ضخامت مدل‌شده (نما ۰٫۲۵، مشترک ۰٫۲۰، تیغه ۰٫۱۰ m)، درها با کمان بازشدن، پنجره‌ها با سه خط، پله/آسانسور و اندازه‌گذاری مرجع ترسیم شده‌اند.
           این پلان «شواره طراحی» است: دیتیل اجرایی، مقاطع، آکس‌بندی و نقشه سازه/تأسیسات تأییدشده در آن نیست.
         </p>
@@ -145,36 +145,38 @@ export function PlanView(ctx: Ctx) {
 
       <div className="grid gap-4 lg:grid-cols-2">
         <Panel title="کنترل‌های لایه پلان" subtitle="هر کنترل مستقل از ترسیم و از مدل مشتق شده است">
-          <table className="table-eng">
-            <thead><tr><th>کنترل</th><th>نتیجه</th><th>مقدار</th><th>الزام</th></tr></thead>
-            <tbody>
-              {checks.map((check) => (
-                <tr key={check.id}>
-                  <td>
-                    <div className="text-slate-100">{check.title}</div>
-                    {check.reason && <div className="mt-0.5 text-[10px] leading-5 text-amber-200">{check.reason}</div>}
-                  </td>
-                  <td>
-                    <StatusBadge status={check.passed ? "pass" : check.severity === "integrity" ? "fail" : "warn"} />
-                    <div className="mt-1 text-[9px] text-slate-500">{check.severity === "integrity" ? "سلامت مدل" : "کیفیت طراحی (معیار داخلی)"}</div>
-                  </td>
-                  <td className="mono text-[10px] text-slate-300">{check.value}</td>
-                  <td className="text-[10px] text-slate-400">
-                    {check.requirement}
-                    {(check.roomIds?.length ?? 0) > 0 && (
-                      <button
-                        className="mt-1 block text-[10px] text-teal-300 underline"
-                        onClick={() => setHighlight(check.roomIds ?? [])}
-                        type="button"
-                      >
-                        نمایش {check.roomIds!.length} فضای مرتبط در پلان
-                      </button>
-                    )}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+          <div className="overflow-x-auto scroll-thin -mx-1 px-1">
+            <table className="table-eng">
+              <thead><tr><th>کنترل</th><th>نتیجه</th><th>مقدار</th><th>الزام</th></tr></thead>
+              <tbody>
+                {checks.map((check) => (
+                  <tr key={check.id}>
+                    <td>
+                      <div className="text-slate-100">{check.title}</div>
+                      {check.reason && <div className="mt-0.5 text-xs leading-5 text-amber-200">{check.reason}</div>}
+                    </td>
+                    <td>
+                      <StatusBadge status={check.passed ? "pass" : check.severity === "integrity" ? "fail" : "warn"} />
+                      <div className="mt-1 text-[9px] text-slate-500">{check.severity === "integrity" ? "سلامت مدل" : "کیفیت طراحی (معیار داخلی)"}</div>
+                    </td>
+                    <td className="mono text-xs text-slate-300">{check.value}</td>
+                    <td className="text-xs text-slate-400">
+                      {check.requirement}
+                      {(check.roomIds?.length ?? 0) > 0 && (
+                        <button
+                          className="mt-1 block text-xs text-teal-300 underline"
+                          onClick={() => setHighlight(check.roomIds ?? [])}
+                          type="button"
+                        >
+                          نمایش {check.roomIds!.length} فضای مرتبط در پلان
+                        </button>
+                      )}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         </Panel>
 
         <Panel title="پله و آسانسور" subtitle="محاسبه ارتفاع/کف‌پله از ارتفاع طبقه و ابعاد واقعی هسته">
@@ -193,12 +195,12 @@ export function PlanView(ctx: Ctx) {
                 ]}
               />
               <p className="mt-2"><StatusBadge status={stair.fits ? "pass" : "fail"} /></p>
-              <ul className="mt-1 space-y-1 text-[10px] leading-5 text-slate-400">
+              <ul className="mt-1 space-y-1 text-xs leading-5 text-slate-400">
                 {stair.notes.map((note) => <li key={note}>• {note}</li>)}
               </ul>
             </>
           ) : (
-            <p className="text-[11px] text-slate-400">برای این طبقه پله محاسبه نشده است.</p>
+            <p className="text-[0.8125rem] text-slate-400">برای این طبقه پله محاسبه نشده است.</p>
           )}
         </Panel>
       </div>
@@ -208,7 +210,7 @@ export function PlanView(ctx: Ctx) {
         subtitle={`${audit.passed} در محدودهٔ کنترل · ${audit.warnings} هشدار · ${audit.failed} خارج از معیار · ${audit.insufficient} ارزیابی‌نشده — مرجع عقب‌نشینی: ${audit.setbackReference}`}
         action={<StatusBadge status={audit.planValid ? "pass" : "fail"} />}
       >
-        <p className="mb-2 rounded border border-white/10 bg-white/5 p-2 text-[10px] leading-5 text-slate-300">
+        <p className="mb-2 rounded border border-white/10 bg-white/5 p-2 text-xs leading-5 text-slate-300">
           {audit.setbackReferenceNote}
         </p>
         <div className="overflow-x-auto scroll-thin">
@@ -219,8 +221,8 @@ export function PlanView(ctx: Ctx) {
                 <tr key={finding.id}>
                   <td className="text-slate-100">{finding.title}<div className="mono mt-0.5 text-[9px] text-slate-500">{finding.id}</div></td>
                   <td><StatusBadge status={finding.status === "warning" ? "warn" : finding.status === "fail" ? "fail" : finding.status === "insufficient" ? "insufficient" : "pass"} /></td>
-                  <td className="mono text-[10px] text-slate-300">{finding.value}</td>
-                  <td className="text-[10px] leading-5 text-slate-400">
+                  <td className="mono text-xs text-slate-300">{finding.value}</td>
+                  <td className="text-xs leading-5 text-slate-400">
                     <div>{finding.requirement}</div>
                     <div className="mt-0.5 text-slate-500">{finding.detail}</div>
                   </td>
@@ -235,7 +237,7 @@ export function PlanView(ctx: Ctx) {
           <Stat label="کمینه فاصله وجه دیوار تا مرز" value={levelAudit.minClearanceM === null ? "—" : `${levelAudit.minClearanceM.toFixed(3)}`} unit="m" tone={(levelAudit.minClearanceM ?? 0) >= -0.01 ? "good" : "bad"} />
         </div>
         {levelAudit.daylight.rejected.length > 0 && (
-          <div className="mt-2 rounded border border-amber-400/30 bg-amber-400/10 p-2 text-[10px] leading-5 text-amber-100">
+          <div className="mt-2 rounded border border-amber-400/30 bg-amber-400/10 p-2 text-xs leading-5 text-amber-100">
             <div className="font-bold">فضاهای بدون پنجره معتبر و علت دقیق:</div>
             <ul className="mt-1 space-y-0.5">
               {levelAudit.daylight.rejected.map((row) => (
@@ -244,7 +246,7 @@ export function PlanView(ctx: Ctx) {
             </ul>
           </div>
         )}
-        <p className="mt-2 text-[10px] leading-5 text-slate-500">{audit.disclaimer}</p>
+        <p className="mt-2 text-xs leading-5 text-slate-500">{audit.disclaimer}</p>
       </Panel>
 
       <Panel title="الگوی چیدمان داخلی واحدها" subtitle="موتور برای هر واحد چند الگو می‌سازد، امتیاز می‌دهد و بهترین را انتخاب می‌کند؛ دلایل رد شدن بقیه ثبت می‌شود.">
@@ -254,17 +256,17 @@ export function PlanView(ctx: Ctx) {
             <tbody>
               {(level.unitLayouts ?? []).map((layout) => (
                 <tr key={layout.unitIndex}>
-                  <td className="mono text-[10px] text-teal-200">{layout.unitIndex}</td>
+                  <td className="mono text-xs text-teal-200">{layout.unitIndex}</td>
                   <td className="text-slate-100">{layout.type}</td>
                   <td className="text-slate-100">{layout.patternLabel}</td>
-                  <td className="mono text-[10px]">{layout.score.toFixed(1)}</td>
+                  <td className="mono text-xs">{layout.score.toFixed(1)}</td>
                   <td><StatusBadge status={layout.feasible ? "pass" : "warn"} /></td>
-                  <td className="text-[10px] leading-5 text-slate-400">
+                  <td className="text-xs leading-5 text-slate-400">
                     {layout.alternatives.filter((alt) => !alt.feasible).map((alt) => (
                       <div key={alt.patternId}>• {alt.label}: {alt.reason}</div>
                     ))}
                   </td>
-                  <td className="text-[10px] leading-5 text-amber-200">
+                  <td className="text-xs leading-5 text-amber-200">
                     {layout.notes.map((note) => <div key={note}>• {note}</div>)}
                     {layout.darkHabitable.length > 0 && <div>• فضاهای بی‌نور: {layout.darkHabitable.join("، ")}</div>}
                   </td>
@@ -274,7 +276,7 @@ export function PlanView(ctx: Ctx) {
           </table>
         </div>
         {scheme.layoutDecision && (
-          <div className="mt-2 rounded border border-white/10 bg-white/5 p-2 text-[10px] leading-5 text-slate-300">
+          <div className="mt-2 rounded border border-white/10 bg-white/5 p-2 text-xs leading-5 text-slate-300">
             <span className="font-bold text-slate-100">تصمیم تعداد واحد در طبقه:</span>{" "}
             {scheme.layoutDecision.candidates
               .map((c) => `${c.unitsPerFloor} واحد → امتیاز ${c.adjusted}`)
@@ -287,21 +289,23 @@ export function PlanView(ctx: Ctx) {
       <div className="grid gap-4 lg:grid-cols-2">
         <Panel title="جدول بازشوها" subtitle="ابعاد، ارتفاع کف‌پنجره و دیوار میزبان">
           <div className="max-h-80 overflow-y-auto scroll-thin">
-            <table className="table-eng">
-              <thead><tr><th>دیوار</th><th>نوع</th><th>عرض</th><th>ارتفاع</th><th>کف</th><th>توضیح</th></tr></thead>
-              <tbody>
-                {(level.openings ?? []).map((opening) => (
-                  <tr key={opening.id}>
-                    <td className="mono text-[10px] text-teal-200">{opening.wallId}</td>
-                    <td className="text-slate-100">{OPENING_LABEL[opening.kind] ?? opening.kind}</td>
-                    <td className="mono text-[10px]">{opening.widthM.toFixed(2)} m</td>
-                    <td className="mono text-[10px]">{opening.heightM.toFixed(2)} m</td>
-                    <td className="mono text-[10px]">{opening.sillM.toFixed(2)} m</td>
-                    <td className="text-[10px] text-slate-400">{opening.note}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+            <div className="overflow-x-auto scroll-thin -mx-1 px-1">
+              <table className="table-eng">
+                <thead><tr><th>دیوار</th><th>نوع</th><th>عرض</th><th>ارتفاع</th><th>کف</th><th>توضیح</th></tr></thead>
+                <tbody>
+                  {(level.openings ?? []).map((opening) => (
+                    <tr key={opening.id}>
+                      <td className="mono text-xs text-teal-200">{opening.wallId}</td>
+                      <td className="text-slate-100">{OPENING_LABEL[opening.kind] ?? opening.kind}</td>
+                      <td className="mono text-xs">{opening.widthM.toFixed(2)} m</td>
+                      <td className="mono text-xs">{opening.heightM.toFixed(2)} m</td>
+                      <td className="mono text-xs">{opening.sillM.toFixed(2)} m</td>
+                      <td className="text-xs text-slate-400">{opening.note}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           </div>
         </Panel>
 
@@ -320,18 +324,20 @@ export function PlanView(ctx: Ctx) {
             })}
           </div>
           <div className="mt-3 max-h-56 overflow-y-auto scroll-thin">
-            <table className="table-eng">
-              <thead><tr><th>اندازه</th><th>مقدار</th><th>نوع</th></tr></thead>
-              <tbody>
-                {(level.dimensions ?? []).map((dim) => (
-                  <tr key={dim.id}>
-                    <td className="text-[10px] text-slate-300">{dim.label}</td>
-                    <td className="mono text-[10px] text-slate-100">{dim.valueM.toFixed(2)} m</td>
-                    <td className="text-[10px] text-slate-500">{dim.kind === "overall" ? "کلی" : "جزئی"}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+            <div className="overflow-x-auto scroll-thin -mx-1 px-1">
+              <table className="table-eng">
+                <thead><tr><th>اندازه</th><th>مقدار</th><th>نوع</th></tr></thead>
+                <tbody>
+                  {(level.dimensions ?? []).map((dim) => (
+                    <tr key={dim.id}>
+                      <td className="text-xs text-slate-300">{dim.label}</td>
+                      <td className="mono text-xs text-slate-100">{dim.valueM.toFixed(2)} m</td>
+                      <td className="text-xs text-slate-500">{dim.kind === "overall" ? "کلی" : "جزئی"}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           </div>
         </Panel>
       </div>
@@ -339,12 +345,12 @@ export function PlanView(ctx: Ctx) {
       <Panel title="دسترسی به خروجی‌ها" subtitle="همان مدل مرکزی، بدون بازسازی دستی">
         {ctx.active?.freshness.state === "current" && unsafeMethodOutputIssues(ctx.active.model).length === 0 ? <div className="flex flex-wrap gap-2">
           {["pdf", "dxf", "svg", "ifc", "xlsx", "csv", "json"].map((format) => (
-            <a key={format} className="btn text-[11px]" href={`/api/projects/${ctx.projectId}/schemes/${encodeURIComponent(ctx.active!.rowId)}/export?format=${format}&revision=${ctx.active!.revision}`}>
+            <a key={format} className="btn text-[0.8125rem]" href={`/api/projects/${ctx.projectId}/schemes/${encodeURIComponent(ctx.active!.rowId)}/export?format=${format}&revision=${ctx.active!.revision}`}>
               {format.toUpperCase()}
             </a>
           ))}
         </div> : <p className="text-amber-200">دریافت خروجی به‌دلیل تازگی نامعلوم/قدیمی یا روش خارج از دامنه غیرفعال است.</p>}
-        <p className="mt-2 text-[10px] leading-5 text-slate-400">
+        <p className="mt-2 text-xs leading-5 text-slate-400">
           DXF در متر صادر می‌شود و SVG پلان دارای برچسب فارسی است. IFC صرفاً زیرمجموعهٔ فضایی IfcSpace را صادر می‌کند؛ سازگاری با نرم‌افزار مقصد و اسکیمای رسمی باید مستقل بررسی شود.
         </p>
       </Panel>
@@ -385,7 +391,7 @@ export function SchemesView(ctx: Ctx) {
           <div className="flex flex-wrap items-end gap-2">
             <div>
               <span className="label">seed</span>
-              <input type="number" className="field mono w-32 py-1 text-[11px]" value={ctx.seed} onChange={(e) => ctx.setSeed(Number(e.target.value))} />
+              <input type="number" className="field mono w-32 py-1 text-[0.8125rem]" value={ctx.seed} onChange={(e) => ctx.setSeed(Number(e.target.value))} />
             </div>
             <div>
               <span className="label">راهبردها: {ctx.variants}</span>
@@ -403,7 +409,7 @@ export function SchemesView(ctx: Ctx) {
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
           {WEIGHT_GROUPS.map((group) => (
             <div key={group.id}>
-              <div className="mb-1 flex items-center justify-between text-[10px]">
+              <div className="mb-1 flex items-center justify-between text-xs">
                 <span className="text-slate-300">{group.label}</span>
                 <span className="mono text-teal-200">{Math.round((ctx.weights[group.id] ?? group.default) * 100)}</span>
               </div>
@@ -432,10 +438,10 @@ export function SchemesView(ctx: Ctx) {
               type="button"
             >
               <div className="flex items-center justify-between">
-                <span className="mono text-[10px] text-teal-200">{stored.model.code}</span>
-                <span className="mono text-[11px] font-bold text-slate-100">{fmt(rank?.score ?? stored.score, 1)}{rank && !rank.comparisonComplete ? " (جزئی)" : ""}</span>
+                <span className="mono text-xs text-teal-200">{stored.model.code}</span>
+                <span className="mono text-[0.8125rem] font-bold text-slate-100">{fmt(rank?.score ?? stored.score, 1)}{rank && !rank.comparisonComplete ? " (جزئی)" : ""}</span>
               </div>
-              <div className="mt-1 text-[11px] font-semibold leading-5 text-slate-100">{stored.model.strategyLabel}</div>
+              <div className="mt-1 text-[0.8125rem] font-semibold leading-5 text-slate-100">{stored.model.strategyLabel}</div>
               <div className="mt-1 flex flex-wrap gap-1">
                 {rank?.pareto && <span className="chip border-teal-400/40 bg-teal-400/10 text-teal-200">پارتو</span>}
                 {stored.report.blocked ? (
@@ -450,7 +456,7 @@ export function SchemesView(ctx: Ctx) {
                 )}
                 <span className="chip border-slate-400/30 bg-slate-400/10 text-slate-300">مشورتی</span>
               </div>
-              <div className="mono mt-2 flex items-center justify-between text-[10px] text-slate-400">
+              <div className="mono mt-2 flex items-center justify-between text-xs text-slate-400">
                 <span>{stored.model.unitsTotal} واحد</span>
                 <span>{(stored.model.grossFloorAreaM2 / stored.model.plotAreaM2).toFixed(2)} FAR</span>
               </div>
@@ -495,7 +501,7 @@ export function SchemesView(ctx: Ctx) {
                   if (!criterion) return null;
                   return (
                     <div key={id}>
-                      <div className="flex items-center justify-between text-[10px] text-slate-400">
+                      <div className="flex items-center justify-between text-xs text-slate-400">
                         <span>{criterion.label}</span>
                         <span className="mono">{criterion.raw === null ? "نامشخص" : `${fmt(criterion.normalized * 100, 0)}٪`}</span>
                       </div>
@@ -513,9 +519,9 @@ export function SchemesView(ctx: Ctx) {
                   </span>
                 ))}
               </div>
-              <p className="mt-2 text-[10px] leading-5 text-slate-400">{active.report.disclaimer}</p>
+              <p className="mt-2 text-xs leading-5 text-slate-400">{active.report.disclaimer}</p>
               {rankingById.get(active.model.id) && (
-                <div className="mt-2 rounded border border-amber-400/30 bg-amber-400/10 p-2 text-[10px] leading-5 text-amber-100">
+                <div className="mt-2 rounded border border-amber-400/30 bg-amber-400/10 p-2 text-xs leading-5 text-amber-100">
                   <div className="font-bold">{rankingById.get(active.model.id)!.verification.label}</div>
                   <div className="mt-1">انحراف ورودی پروژه: {rankingById.get(active.model.id)!.verification.projectInputFailures} · آستانه داخلی: {rankingById.get(active.model.id)!.verification.internalAssumptionFailures} · ارجاع تأییدنشده: {rankingById.get(active.model.id)!.verification.unverifiedExternalFailures} · ارزیابی‌نشده: {rankingById.get(active.model.id)!.verification.insufficientRules}</div>
                   <ul className="mt-1 space-y-0.5">
@@ -550,7 +556,7 @@ export function SchemesView(ctx: Ctx) {
                 return (
                   <tr key={criterion.id}>
                     <td className="font-semibold text-slate-100">{criterion.label}</td>
-                    <td className="mono text-[10px] text-slate-400">{criterion.unit}</td>
+                    <td className="mono text-xs text-slate-400">{criterion.unit}</td>
                     {values.map((value, i) => (
                       <td key={schemes[i].rowId} className={`mono ${value !== null && best !== null && Math.abs(value - best) < 1e-9 ? "text-teal-300" : "text-slate-300"}`}>
                         {value === null ? "نامشخص" : fmt(value, value > 100 ? 0 : 2)}
@@ -561,7 +567,7 @@ export function SchemesView(ctx: Ctx) {
               })}
               <tr>
                 <td className="font-semibold text-slate-100">امتیاز مشورتی (پس از جریمه)</td>
-                <td className="mono text-[10px] text-slate-400">0-100</td>
+                <td className="mono text-xs text-slate-400">0-100</td>
                 {schemes.map((s) => {
                   const rank = rankingById.get(s.model.id);
                   return (
@@ -576,13 +582,13 @@ export function SchemesView(ctx: Ctx) {
                 <td className="font-semibold text-slate-100">جبهه پارتو</td>
                 <td />
                 {schemes.map((s) => (
-                  <td key={s.rowId}>{rankingById.get(s.model.id)?.pareto === true ? <StatusBadge status="pass" /> : <span className="text-[11px] text-slate-500">{rankingById.get(s.model.id)?.pareto === null ? "نامشخص" : "—"}</span>}</td>
+                  <td key={s.rowId}>{rankingById.get(s.model.id)?.pareto === true ? <StatusBadge status="pass" /> : <span className="text-[0.8125rem] text-slate-500">{rankingById.get(s.model.id)?.pareto === null ? "نامشخص" : "—"}</span>}</td>
                 ))}
               </tr>
             </tbody>
           </table>
         </div>
-        <div className="mt-2 space-y-1 text-[10px] leading-5 text-slate-400">
+        <div className="mt-2 space-y-1 text-xs leading-5 text-slate-400">
           <p className="rounded border border-amber-400/30 bg-amber-400/10 px-2 py-1 text-amber-100">
             این امتیاز <span className="font-bold">مشورتی</span> است و انطباق قانونی یا ایمنی را اثبات نمی‌کند: سند ضوابط تأییدنشده است، بخشی از آستانه‌ها داخلی و بخشی ورودی پروژه‌اند. رتبه‌بندی فقط برای مقایسه گزینه‌هاست.
           </p>
@@ -595,11 +601,11 @@ export function SchemesView(ctx: Ctx) {
 
 export function ValidationView(ctx: Ctx) {
   const active = ctx.active;
-  if (!active) return <p className="panel-soft p-8 text-center text-[11px] text-slate-400">ابتدا طرح تولید کنید.</p>;
+  if (!active) return <p className="panel-soft p-8 text-center text-[0.8125rem] text-slate-400">ابتدا طرح تولید کنید.</p>;
   const report = active.report;
   return (
     <div className="space-y-4">
-      <div className="rounded-lg border border-amber-400/40 bg-amber-400/10 px-3 py-2 text-[11px] leading-6 text-amber-100">
+      <div className="rounded-lg border border-amber-400/40 bg-amber-400/10 px-3 py-2 text-[0.8125rem] leading-6 text-amber-100">
         <span className="font-bold">مجموعه آستانه‌های داخلی ({report.codeSetCode}@{report.codeSetEdition}) — وضعیت: {report.codeSetVerification ?? "unverified"}.</span>{" "}
         {report.codeSetNote ?? "این ضوابط رسمی نیستند و باید با سند تأییدشده پروژه جایگزین شوند."}
       </div>
@@ -612,7 +618,7 @@ export function ValidationView(ctx: Ctx) {
       </div>
 
       <div className="panel-soft p-3">
-        <h3 className="text-[11px] font-bold text-slate-100">تفکیک سطوح شواهد</h3>
+        <h3 className="text-[0.8125rem] font-bold text-slate-100">تفکیک سطوح شواهد</h3>
         <div className="mt-1 flex flex-wrap gap-1">
           {Object.entries(report.evidenceSummary ?? {}).map(([tier, count]) => (
             <span key={tier} className="chip">
@@ -620,7 +626,7 @@ export function ValidationView(ctx: Ctx) {
             </span>
           ))}
         </div>
-        <ul className="mt-2 space-y-1 text-[10px] leading-5 text-slate-400">
+        <ul className="mt-2 space-y-1 text-xs leading-5 text-slate-400">
           <li>• «نتیجهٔ مثبت این کنترل» فقط مقایسه با معیار موجود است؛ انطباق مقرراتی یا ایمنی احراز نشده است.</li>
           <li>• «ورودی پروژه» = آستانه از خود پروژه آمده، نه از سند قانونی.</li>
           <li>• «فرض داخلی» = آستانه پیش‌فرض غیررسمی HERMICAD؛ خروج از آن تخلف قانونی اثبات‌شده نیست.</li>
@@ -635,7 +641,7 @@ export function ValidationView(ctx: Ctx) {
                   <tr key={item.item}>
                     <td className="text-slate-200">{item.item}</td>
                     <td>{item.present ? <StatusBadge status="present" /> : <span className="chip border-amber-400/40 bg-amber-400/10 text-amber-200">موجود نیست</span>}</td>
-                    <td className="text-[10px] leading-5 text-slate-400">{item.impact}</td>
+                    <td className="text-xs leading-5 text-slate-400">{item.impact}</td>
                   </tr>
                 ))}
               </tbody>
@@ -661,24 +667,26 @@ export function ValidationView(ctx: Ctx) {
               <span className="chip">نقض: {ctx.repair.beforeFailed} → {ctx.repair.afterFailed}</span>
               <span className="chip">هشدار: {ctx.repair.beforeWarnings} → {ctx.repair.afterWarnings}</span>
             </div>
-            <table className="table-eng">
-              <thead>
-                <tr><th>قاعده</th><th>اقدام</th><th>وضعیت</th><th>جزئیات</th></tr>
-              </thead>
-              <tbody>
-                {ctx.repair.actions.map((action) => (
-                  <tr key={`${action.ruleId}-${action.action}`}>
-                    <td className="mono text-[10px] text-teal-200">{action.ruleId}</td>
-                    <td className="text-slate-100">{action.action}</td>
-                    <td><StatusBadge status={action.applied ? "pass" : "warn"} /></td>
-                    <td className="text-[11px] leading-5 text-slate-300">{action.detail}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+            <div className="overflow-x-auto scroll-thin -mx-1 px-1">
+              <table className="table-eng">
+                <thead>
+                  <tr><th>قاعده</th><th>اقدام</th><th>وضعیت</th><th>جزئیات</th></tr>
+                </thead>
+                <tbody>
+                  {ctx.repair.actions.map((action) => (
+                    <tr key={`${action.ruleId}-${action.action}`}>
+                      <td className="mono text-xs text-teal-200">{action.ruleId}</td>
+                      <td className="text-slate-100">{action.action}</td>
+                      <td><StatusBadge status={action.applied ? "pass" : "warn"} /></td>
+                      <td className="text-[0.8125rem] leading-5 text-slate-300">{action.detail}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           </div>
         ) : (
-          <p className="text-[11px] leading-6 text-slate-400">
+          <p className="text-[0.8125rem] leading-6 text-slate-400">
             با اجرای اصلاح، تغییرات مجاز (کاهش طبقات، پارکینگ زیرزمینی، ادغام فضای کوچک، افزایش طبقات، اصلاح پی) اعمال و
             گزارش اعتبارسنجی بازتولید می‌شود.
           </p>
@@ -703,18 +711,18 @@ export function ValidationView(ctx: Ctx) {
             <tbody>
               {report.evaluations.map((evaluation) => (
                 <tr key={evaluation.ruleId}>
-                  <td className="mono text-[10px] text-teal-200">{evaluation.ruleId}</td>
+                  <td className="mono text-xs text-teal-200">{evaluation.ruleId}</td>
                   <td>
                     <span className="font-semibold text-slate-100">{evaluation.title}</span>
                     <details className="mt-1">
-                      <summary className="cursor-pointer text-[10px] text-slate-400">پیام و ردیابی</summary>
-                      <p className="mt-1 text-[11px] leading-5 text-slate-300">{evaluation.message}</p>
-                      <ul className="mt-1 space-y-0.5 text-[10px] leading-5 text-slate-400">
+                      <summary className="cursor-pointer text-xs text-slate-400">پیام و ردیابی</summary>
+                      <p className="mt-1 text-[0.8125rem] leading-5 text-slate-300">{evaluation.message}</p>
+                      <ul className="mt-1 space-y-0.5 text-xs leading-5 text-slate-400">
                         {evaluation.trace.map((t) => <li key={t}>– {t}</li>)}
                       </ul>
-                      <p className="mt-1 text-[10px] text-slate-400">روش: {evaluation.method}</p>
-                      <p className="mt-1 text-[10px] text-amber-200">اقدام پیشنهادی: {evaluation.remediation}</p>
-                      <p className="mt-1 text-[10px] text-slate-500">ممیزی منبع: {evaluation.document?.auditNote ?? "ثبت نشده"}</p>
+                      <p className="mt-1 text-xs text-slate-400">روش: {evaluation.method}</p>
+                      <p className="mt-1 text-xs text-amber-200">اقدام پیشنهادی: {evaluation.remediation}</p>
+                      <p className="mt-1 text-xs text-slate-500">ممیزی منبع: {evaluation.document?.auditNote ?? "ثبت نشده"}</p>
                     </details>
                   </td>
                   <td>
@@ -725,15 +733,15 @@ export function ValidationView(ctx: Ctx) {
                     <span className="chip">{EVIDENCE_LABEL[evaluation.evidence] ?? evaluation.evidence}</span>
                     <div className="mt-1 text-[9px] text-slate-500">{evaluation.verification === "externally-verified" ? "تأییدشده بیرونی" : "تأییدنشده"}</div>
                   </td>
-                  <td className="mono text-[11px] text-slate-200">{typeof evaluation.observed === "number" ? `${fmt(evaluation.observed, 2)} ${evaluation.unit}` : evaluation.observed}</td>
-                  <td className="mono text-[11px] text-slate-400">{evaluation.required === null ? "نامشخص" : `${fmt(evaluation.required, 2)} ${evaluation.unit}`}</td>
-                  <td className="text-[10px] leading-4 text-slate-400">
+                  <td className="mono text-[0.8125rem] text-slate-200">{typeof evaluation.observed === "number" ? `${fmt(evaluation.observed, 2)} ${evaluation.unit}` : evaluation.observed}</td>
+                  <td className="mono text-[0.8125rem] text-slate-400">{evaluation.required === null ? "نامشخص" : `${fmt(evaluation.required, 2)} ${evaluation.unit}`}</td>
+                  <td className="text-xs leading-4 text-slate-400">
                     {evaluation.document?.title ?? "سند رسمی: در دسترس نیست"}
                     <div className="text-[9px] text-slate-500">
                       بند: {evaluation.document?.clause ?? "—"} · نسخه: {evaluation.document?.version ?? "—"} · {evaluation.document?.availability ?? "official-text-not-obtained"}
                     </div>
                   </td>
-                  <td className="text-[10px] leading-4 text-slate-400">
+                  <td className="text-xs leading-4 text-slate-400">
                     {evaluation.source} · {evaluation.edition}
                     <div className="mt-1 text-[9px] text-slate-500">فرمول: {evaluation.formula}</div>
                     {evaluation.tests && <div className="mt-1 text-[9px] text-slate-500">آزمون منفی: {evaluation.tests.negative}</div>}
@@ -750,14 +758,14 @@ export function ValidationView(ctx: Ctx) {
 
 export function AnalysisView(ctx: Ctx) {
   const scheme = ctx.active?.model;
-  if (!scheme) return <p className="panel-soft p-8 text-center text-[11px] text-slate-400">ابتدا طرح تولید کنید.</p>;
+  if (!scheme) return <p className="panel-soft p-8 text-center text-[0.8125rem] text-slate-400">ابتدا طرح تولید کنید.</p>;
   const status = scheme.analysisStatus;
   return (
     <div className="space-y-4">
-      <div className="rounded-lg border border-sky-400/40 bg-sky-400/10 px-3 py-2 text-[11px] leading-6 text-sky-100">
+      <div className="rounded-lg border border-sky-400/40 bg-sky-400/10 px-3 py-2 text-[0.8125rem] leading-6 text-sky-100">
         <span className="font-bold">مرحله تحلیل: {status?.level ?? "preliminary-screening"} — قابل استفاده برای ساخت: خیر.</span>{" "}
         این اعداد برآورد غربالگری‌اند و جایگزین محاسبات و تأیید مهندس دارای صلاحیت نیستند.
-        <ul className="mt-1 list-inside list-disc text-[10px] leading-5">
+        <ul className="mt-1 list-inside list-disc text-xs leading-5">
           {(status?.limitations ?? []).map((limitation) => (
             <li key={limitation}>{limitation}</li>
           ))}
@@ -779,7 +787,7 @@ export function AnalysisView(ctx: Ctx) {
               { label: "عرض پی منفرد", value: scheme.structural.requiredFoundationWidthM === null ? "محاسبه نشد / قابل استفاده نیست" : `${scheme.structural.requiredFoundationWidthM} m`, mono: true },
             ]}
           />
-          <ul className="mt-2 space-y-1 text-[10px] leading-5 text-slate-400">
+          <ul className="mt-2 space-y-1 text-xs leading-5 text-slate-400">
             {scheme.structural.assumptions.map((a) => <li key={a.id}>• {a.label}: {a.value} {a.unit} — {a.basis}</li>)}
           </ul>
           {scheme.structural.formulaRefs.length > 0 && (
@@ -788,7 +796,7 @@ export function AnalysisView(ctx: Ctx) {
             </p>
           )}
           {scheme.structural.validityNotes.length > 0 && (
-            <ul className="mt-1 space-y-1 text-[10px] leading-5 text-amber-200">
+            <ul className="mt-1 space-y-1 text-xs leading-5 text-amber-200">
               {scheme.structural.validityNotes.map((n) => <li key={n}>⚠ {n}</li>)}
             </ul>
           )}
@@ -809,7 +817,7 @@ export function AnalysisView(ctx: Ctx) {
               { label: "گاز", value: `${fmt(scheme.mep.gasDemandM3h, 1)} m³/h`, mono: true },
             ]}
           />
-          <ul className="mt-2 space-y-1 text-[10px] leading-5 text-slate-400">
+          <ul className="mt-2 space-y-1 text-xs leading-5 text-slate-400">
             {scheme.mep.assumptions.map((a) => <li key={a.id}>• {a.label}: {a.value} {a.unit} — {a.basis}</li>)}
           </ul>
         </Panel>
@@ -828,7 +836,7 @@ export function AnalysisView(ctx: Ctx) {
               { label: "عرض راهرو", value: `${scheme.circulation.corridorWidthM} m`, mono: true },
             ]}
           />
-          <p className="mt-2 rounded border border-amber-400/30 bg-amber-400/10 p-2 text-[10px] leading-5 text-amber-100">
+          <p className="mt-2 rounded border border-amber-400/30 bg-amber-400/10 p-2 text-xs leading-5 text-amber-100">
             {scheme.parking.note} — روش فاصله: {scheme.circulation.routeMethod}
           </p>
         </Panel>
@@ -839,22 +847,24 @@ export function AnalysisView(ctx: Ctx) {
             <Stat label="میانگین نسبت شیشه" value={fmt(scheme.daylight.averageWindowRatio * 100, 1)} unit="%" />
             <Stat label="تهویه دوطرفه" value={fmt((scheme.metrics.find((m) => m.id === "crossVent")?.value ?? 0), 1)} unit="%" />
           </div>
-          <p className="mt-2 text-[10px] leading-5 text-slate-400">
+          <p className="mt-2 text-xs leading-5 text-slate-400">
             حد آستانه نسبت شیشه ۸٪ سطح کف است. این معیار «برآورد جایگزین» است و تحلیل دقیق نور روز (DF/DA) نیست.
           </p>
           <div className="mt-3">
-            <h3 className="mb-1 text-[11px] font-bold text-slate-100">معیارهای کامل طرح</h3>
+            <h3 className="mb-1 text-[0.8125rem] font-bold text-slate-100">معیارهای کامل طرح</h3>
             <div className="max-h-64 overflow-y-auto scroll-thin">
-              <table className="table-eng">
-                <tbody>
-                  {scheme.metrics.map((m) => (
-                    <tr key={m.id}>
-                      <td className="text-slate-300">{m.label}</td>
-                      <td className="mono text-left text-slate-100">{fmt(m.value, m.value > 100 ? 0 : 2)} {m.unit}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+              <div className="overflow-x-auto scroll-thin -mx-1 px-1">
+                <table className="table-eng">
+                  <tbody>
+                    {scheme.metrics.map((m) => (
+                      <tr key={m.id}>
+                        <td className="text-slate-300">{m.label}</td>
+                        <td className="mono text-left text-slate-100">{fmt(m.value, m.value > 100 ? 0 : 2)} {m.unit}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
             </div>
           </div>
         </Panel>
@@ -863,28 +873,30 @@ export function AnalysisView(ctx: Ctx) {
       <div className="grid gap-4 lg:grid-cols-2">
         <Panel title="فرضیات مدل مرکزی" subtitle="هر فرض با مبنا و سطح اطمینان">
           <div className="max-h-72 overflow-y-auto scroll-thin">
-            <table className="table-eng">
-              <thead><tr><th>فرض</th><th>مقدار</th><th>مبنا</th><th>سطح</th></tr></thead>
-              <tbody>
-                {scheme.assumptions.map((a) => (
-                  <tr key={a.id}>
-                    <td className="text-slate-100">{a.label}</td>
-                    <td className="mono text-[10px] text-slate-200">{a.value} {a.unit}</td>
-                    <td className="text-[10px] leading-4 text-slate-400">{a.basis}</td>
-                    <td><span className="chip">{a.confidence}</span></td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+            <div className="overflow-x-auto scroll-thin -mx-1 px-1">
+              <table className="table-eng">
+                <thead><tr><th>فرض</th><th>مقدار</th><th>مبنا</th><th>سطح</th></tr></thead>
+                <tbody>
+                  {scheme.assumptions.map((a) => (
+                    <tr key={a.id}>
+                      <td className="text-slate-100">{a.label}</td>
+                      <td className="mono text-xs text-slate-200">{a.value} {a.unit}</td>
+                      <td className="text-xs leading-4 text-slate-400">{a.basis}</td>
+                      <td><span className="chip">{a.confidence}</span></td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           </div>
         </Panel>
         <Panel title="ردیابی تصمیم‌ها" subtitle="از زمین تا معیار — قابل بازتولید با seed یکسان">
           <ol className="space-y-2">
             {scheme.trace.map((step) => (
               <li key={step.step} className="panel-soft p-2.5">
-                <div className="text-[11px] font-bold text-teal-200">{step.step}</div>
-                <p className="mt-0.5 text-[10px] leading-5 text-slate-400">{step.detail}</p>
-                <p className="mt-0.5 text-[11px] leading-5 text-slate-100">{step.output}</p>
+                <div className="text-[0.8125rem] font-bold text-teal-200">{step.step}</div>
+                <p className="mt-0.5 text-xs leading-5 text-slate-400">{step.detail}</p>
+                <p className="mt-0.5 text-[0.8125rem] leading-5 text-slate-100">{step.output}</p>
               </li>
             ))}
           </ol>
@@ -901,7 +913,7 @@ export function AnalysisView(ctx: Ctx) {
 
 export function ExportsView(ctx: Ctx) {
   const active = ctx.active;
-  if (!active) return <p className="panel-soft p-8 text-center text-[11px] text-slate-400">ابتدا طرح تولید کنید.</p>;
+  if (!active) return <p className="panel-soft p-8 text-center text-[0.8125rem] text-slate-400">ابتدا طرح تولید کنید.</p>;
   const scheme = active.model;
   const projectId = ctx.projectId;
   return (
@@ -919,17 +931,17 @@ export function ExportsView(ctx: Ctx) {
             >
               <div className="flex items-center justify-between">
                 <span className="text-xs font-bold text-slate-100">{format.label}</span>
-                <span className="mono text-[10px] text-teal-200">.{format.id}</span>
+                <span className="mono text-xs text-teal-200">.{format.id}</span>
               </div>
-              <p className="mt-1 text-[10px] leading-5 text-slate-400">{format.note}</p>
+              <p className="mt-1 text-xs leading-5 text-slate-400">{format.note}</p>
             </a>
           ))}
         </div> : <p className="text-amber-200">خروجی این نسخه تا تولید مجدد یا رفع روش خارج از دامنه قابل دریافت نیست.</p>}
-        <p className="mt-3 rounded border border-amber-400/30 bg-amber-400/10 p-2 text-[10px] leading-5 text-amber-100">
+        <p className="mt-3 rounded border border-amber-400/30 bg-amber-400/10 p-2 text-xs leading-5 text-amber-100">
           محدودیت‌های صادرشده: PDF با برچسب لاتین و بدون فونت فارسی؛ IFC فقط زیرمجموعه فضایی (IfcSpace)؛ XLSX بدون فشرده‌سازی؛
           DXF در مقیاس متر. این محدودیت‌ها در متادیتای هر خروجی ثبت می‌شوند.
         </p>
-        <p className="mt-2 rounded border border-rose-400/30 bg-rose-500/10 p-2 text-[10px] leading-5 text-rose-100">
+        <p className="mt-2 rounded border border-rose-400/30 bg-rose-500/10 p-2 text-xs leading-5 text-rose-100">
           <span className="font-bold">IFC:</span> بررسی انجام‌شده «ساختاری/محتوایی» است (صحت نحوی، حل ارجاع‌ها و قاعده صوری IfcProduct بر پایه مستند رسمی buildingSMART).
           اعتبارسنجی اسکیمای رسمی IFC4 (EXPRESS/STEP) در این محیط انجام <span className="font-bold">نشده</span> است، چون هیچ ابزار ifcopenshell/IfcValidator نصب نیست.
           مبنای فرمول‌ها و طبقه‌بندی اعتبار آن‌ها در شیت «Basis» فایل XLSX و بخش engineeringBasis فایل JSON صادر می‌شود.
@@ -939,21 +951,23 @@ export function ExportsView(ctx: Ctx) {
       <div className="grid gap-4 lg:grid-cols-2">
         <Panel title="اقلام خروجی ثبت‌شده" subtitle="فقط فراداده ثبت می‌شود؛ فایل‌ها روی سرور ذخیره نمی‌شوند و هش امضای دیجیتال نیست.">
           {ctx.bundle.artifacts.length === 0 ? (
-            <p className="text-[11px] text-slate-400">هنوز فایلی صادر نشده است. با کلیک روی هر قالب، خروجی ساخته و ثبت می‌شود.</p>
+            <p className="text-[0.8125rem] text-slate-400">هنوز فایلی صادر نشده است. با کلیک روی هر قالب، خروجی ساخته و ثبت می‌شود.</p>
           ) : (
-            <table className="table-eng">
-              <thead><tr><th>فایل</th><th>قالب</th><th>حجم</th><th>زمان</th></tr></thead>
-              <tbody>
-                {ctx.bundle.artifacts.map((artifact) => (
-                  <tr key={artifact.id}>
-                    <td className="text-[10px] text-slate-200"><span className="mono">{artifact.filename}</span><br /><a className="text-teal-200 underline" href={`/api/projects/${projectId}/artifacts/${artifact.id}`} target="_blank" rel="noreferrer">فراداده و هش</a></td>
-                    <td><span className="chip">{artifact.format}</span></td>
-                    <td className="mono text-[10px] text-slate-400">{(artifact.bytes / 1024).toFixed(1)} KB</td>
-                    <td className="text-[10px] text-slate-400">{new Date(artifact.createdAt).toLocaleString("fa-IR")}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+            <div className="overflow-x-auto scroll-thin -mx-1 px-1">
+              <table className="table-eng">
+                <thead><tr><th>فایل</th><th>قالب</th><th>حجم</th><th>زمان</th></tr></thead>
+                <tbody>
+                  {ctx.bundle.artifacts.map((artifact) => (
+                    <tr key={artifact.id}>
+                      <td className="text-xs text-slate-200"><span className="mono">{artifact.filename}</span><br /><a className="text-teal-200 underline" href={`/api/projects/${projectId}/artifacts/${artifact.id}`} target="_blank" rel="noreferrer">فراداده و هش</a></td>
+                      <td><span className="chip">{artifact.format}</span></td>
+                      <td className="mono text-xs text-slate-400">{(artifact.bytes / 1024).toFixed(1)} KB</td>
+                      <td className="text-xs text-slate-400">{new Date(artifact.createdAt).toLocaleString("fa-IR")}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           )}
           <a className="mt-3 inline-block text-xs text-teal-200 underline" href={`/api/projects/${projectId}/artifacts`} target="_blank" rel="noreferrer">فهرست صفحه‌بندی‌شدهٔ همهٔ فراداده‌ها</a>
         </Panel>
@@ -975,10 +989,10 @@ export function ExportsView(ctx: Ctx) {
           />
           <div className="mt-3 space-y-1">
             {ctx.bundle.warnings.slice(0, 4).map((warning) => (
-              <p key={warning} className="rounded border border-white/10 bg-white/5 px-2 py-1 text-[10px] leading-5 text-slate-300">• {warning}</p>
+              <p key={warning} className="rounded border border-white/10 bg-white/5 px-2 py-1 text-xs leading-5 text-slate-300">• {warning}</p>
             ))}
           </div>
-          <p className="mt-3 rounded border border-rose-400/30 bg-rose-500/10 p-2 text-[10px] leading-5 text-rose-100">
+          <p className="mt-3 rounded border border-rose-400/30 bg-rose-500/10 p-2 text-xs leading-5 text-rose-100">
             {active.report.disclaimer}
           </p>
         </Panel>

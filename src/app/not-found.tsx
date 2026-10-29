@@ -25,7 +25,7 @@ const routes = [
 
 export default function NotFound() {
   return (
-    <main className="mx-auto max-w-3xl px-5 py-16">
+    <main className="mx-auto w-full max-w-3xl px-5 py-16 sm:py-24">
       <div className="panel p-7">
         <div className="flex flex-wrap items-center gap-2">
           <span className="chip border-amber-400/40 bg-amber-400/10 text-amber-200">۴۰۴ · یافت نشد</span>
@@ -48,13 +48,13 @@ export default function NotFound() {
         </div>
 
         <div className="mt-7 border-t border-white/10 pt-5">
-          <p className="text-[11px] font-semibold text-slate-300">مسیرهای پرکاربرد</p>
+          <p className="text-[0.8125rem] font-semibold text-slate-300">مسیرهای پرکاربرد</p>
           <ul className="mt-3 grid gap-2 sm:grid-cols-2">
             {routes.map((route) => (
               <li key={route.href}>
                 <Link href={route.href} className="panel-soft block px-3 py-2.5 transition hover:bg-white/5">
                   <span className="block text-xs font-semibold text-teal-200">{route.label}</span>
-                  <span className="mt-0.5 block text-[10px] text-slate-400">{route.hint}</span>
+                  <span className="mt-0.5 block text-xs text-slate-400">{route.hint}</span>
                 </Link>
               </li>
             ))}

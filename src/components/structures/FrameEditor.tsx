@@ -543,7 +543,7 @@ function Numeric({
           change(typeof n === "number" ? n : NaN);
         }}
       />
-      <span id={inputId} className="mt-1 block text-[10px] leading-5 text-slate-400">
+      <span id={inputId} className="mt-1 block text-xs leading-5 text-slate-400">
         بازهٔ نرم‌افزار: {range[0].toLocaleString("fa-IR")} تا {range[1].toLocaleString("fa-IR")}
       </span>
     </label>

@@ -31,7 +31,7 @@ export default async function DesignPage({ params }: { params: Promise<{ id: str
           <p className="mt-2 text-xs leading-6 text-slate-300">
             خواندن سند از پایگاه داده ممکن نشد. کمی بعد دوباره تلاش کنید.
           </p>
-          <p className="mono mt-2 rounded border border-rose-400/30 bg-rose-500/10 p-2 text-[11px] text-rose-200">{error}</p>
+          <p className="mono mt-2 rounded border border-rose-400/30 bg-rose-500/10 p-2 text-[0.8125rem] text-rose-200">{error}</p>
           <Link href="/design" className="btn mt-4">
             بازگشت به استودیو
           </Link>

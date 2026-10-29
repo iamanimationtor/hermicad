@@ -62,7 +62,7 @@ export function WorkspaceAccess() {
     setTimeout(() => URL.revokeObjectURL(url), 1000);
   };
   return (
-    <section className="panel p-4" aria-label="حساب و بازیابی فضای کار">
+    <section className="panel p-5" aria-label="حساب و بازیابی فضای کار">
       <h2 className="text-sm font-bold text-teal-200">حساب و بازیابی فضای کار</h2>
       <p className="my-2 text-xs leading-6 text-slate-300">
         کار مهمان رایگان و بدون ثبت‌نام است. برای بازگشت پس از حذف کوکی، حساب اختیاری بسازید یا کلید بازیابی بگیرید. ورود، فضای کار را عوض

@@ -27,7 +27,7 @@ export default function ErrorBoundary({
   }, [error]);
 
   return (
-    <main className="mx-auto max-w-3xl px-5 py-16">
+    <main className="mx-auto w-full max-w-3xl px-5 py-16 sm:py-24">
       <div className="panel p-7">
         <div className="flex flex-wrap items-center gap-2">
           <span className="chip border-rose-400/40 bg-rose-500/10 text-rose-200">خطای موقت</span>
@@ -52,7 +52,7 @@ export default function ErrorBoundary({
           </Link>
         </div>
 
-        <p className="mt-6 border-t border-white/10 pt-4 text-[11px] leading-6 text-slate-400">
+        <p className="mt-6 border-t border-white/10 pt-4 text-[0.8125rem] leading-6 text-slate-400">
           اگر خطا هنگام بازکردن یک پروژه یا سند خاص رخ می‌دهد، از فهرست پروژه‌ها آن مورد را بررسی کنید؛ خروجی‌های
           قبلی روی سرور باقی می‌مانند.
         </p>

@@ -2,197 +2,269 @@ import Link from "next/link";
 import { CODE_SET, ENGINE_VERSION } from "@/domain/constants";
 import { RULE_COUNT } from "@/domain/codes";
 import { qualitySummary } from "@/domain/testing/suite";
-import { WEIGHT_GROUPS } from "@/domain/optimize";
-import { Panel, Stat } from "@/components/ui";
+import { CATALOG_STATS } from "@/domain/studio/catalog";
 
 /**
- * این صفحه هیچ دادهٔ زمان‌درخواستی ندارد: فقط ثابت‌های نسخه و خلاصهٔ مجموعهٔ
- * آزمون را نشان می‌دهد. پس در زمان ساخت آماده می‌شود و بازدیدکنندهٔ اول هزینهٔ
- * اجرای موتور آزمون را نمی‌پردازد. عددهای نمایش‌داده‌شده متعلق به همین بیلد
- * هستند که از نظر معنایی درست‌تر از اجرای دوباره در هر بازدید است.
+ * صفحهٔ اصلی.
+ *
+ * تصمیم‌های این صفحه:
+ *  - هیچ دادهٔ زمان‌درخواستی ندارد؛ در زمان ساخت آماده می‌شود. عددهای کیفیت از
+ *    همین بیلد می‌آیند، پس بازدیدکنندهٔ اول هزینهٔ اجرای موتور آزمون را نمی‌دهد.
+ *  - به‌جای فهرست بلند قابلیت‌ها، سه وعدهٔ روشن و یک بخش صادقانهٔ «چه چیزی
+ *    نیست». جزئیات فنی به `/scope` و `/architecture` سپرده شده است.
  */
 export const dynamic = "force-static";
 
-const capabilities: { area: string; detail: string; status: "done" | "limited" | "out" }[] = [
-  { area: "دادهٔ پروژه و سند استودیو", detail: "مدل‌ها و سند ذخیره می‌شوند؛ نگاشت کامل ترسیم، تحلیل، طراحی و تاریخچهٔ همهٔ نسخه‌ها هنوز موجود نیست.", status: "limited" },
-  { area: "هندسه محاسباتی زمین نامنظم", detail: "مساحت شولیس، کنترل خودمتقاطع، عقب‌نشینی جهت‌دار با برش نیم‌صفحه، بیشینه مستطیل محاطی روی شبکه", status: "done" },
-  { area: "ساختاری‌سازی نیازمندی", detail: "استخراج قطعی پارامترها از متن فارسی/انگلیسی با ثبت الگو و اطمینان؛ بدون حدس پنهان", status: "done" },
-  { area: "کنترل‌های اولیه و منشأ آستانه", detail: `${RULE_COUNT} کنترل با ردیابی؛ آستانه‌ها داخلی یا اظهاری‌اند و منابع رسمی برای پروژه احراز نشده‌اند.`, status: "limited" },
-  { area: "طراحی مولد و مقایسه", detail: "۵ راهبرد حجم، چیدمان خودکار فضا با seed قطعی، تحلیل و رتبه‌بندی چندمعیاره + جبهه پارتو", status: "done" },
-  { area: "اصلاح خودکار و بازاعتبارسنجی", detail: "حلقه اصلاح (تراکم، پارکینگ، ادغام فضا، پی) با ثبت اقدامات اعمال‌شده و اعمال‌نشده", status: "done" },
-  { area: "برآورد معماری/سازه/تأسیسات", detail: "روابط سرانگشتی و مدل‌های محدود؛ نه تحلیل و طراحی اجرایی پروژه یا شبکهٔ تأسیساتی.", status: "limited" },
-  { area: "خروجی PDF/DXF/SVG/IFC/XLSX/CSV/JSON", detail: "فایل‌های واقعی و مستقل از کتابخانه تجاری؛ IFC فقط زیرمجموعه فضایی", status: "limited" },
-  { area: "بارگذاری DWG/IFC موجود", detail: "ورود مدل خارجی هنوز پیاده نشده؛ ویرایشگر گرافیکی استودیو برای مدل بومی موجود است", status: "out" },
-  { area: "تحلیل سازه اجرایی و MEP دقیق", detail: "نیازمند نرم‌افزار تخصصی و مهندس دارای صلاحیت؛ HERMICAD فقط طرح مقدماتی و کنترل اولیه می‌دهد", status: "out" },
-  { area: "استنتاج با مدل زبانی ابری", detail: "عمداً وابسته نیستیم؛ هوشمندی از الگوریتم، هندسه، قواعد و بهینه‌سازی می‌آید", status: "out" },
+const STEPS = [
+  {
+    title: "زمین را توصیف کنید",
+    detail: "مختصات، شیب، عقب‌نشینی و محدودیت‌های محلی — یا شکل زمین را از چند قالب آماده انتخاب کنید.",
+  },
+  {
+    title: "نیازمندی را روشن کنید",
+    detail: "تعداد واحدها و برنامهٔ فضاها را بنویسید؛ موتور پارامترها را استخراج و برای تأیید شما نمایش می‌دهد.",
+  },
+  {
+    title: "گزینه‌ها را مقایسه کنید",
+    detail: "پنج راهبرد حجم تولید می‌شود، هر کدام تحلیل و کنترل می‌شود، و در پایان با نمودار پارتو مقایسه می‌شوند.",
+  },
 ];
 
-const statusMap = {
-  done: { label: "پیاده‌سازی‌شده", className: "border-teal-400/40 bg-teal-400/10 text-teal-200" },
-  limited: { label: "محدود و مستند", className: "border-amber-400/40 bg-amber-400/10 text-amber-200" },
-  out: { label: "خارج از دامنه نسخه فعلی", className: "border-slate-500/30 bg-slate-500/10 text-slate-300" },
-};
+const PILLARS = [
+  {
+    title: "هندسهٔ واقعی، نه تقریب",
+    body: "مساحت با فرمول شولیس، کنترل خودمتقاطع، عقب‌نشینی جهت‌دار با برش نیم‌صفحه و بیشینهٔ مستطیل محاطی روی شبکه — همه با کد قابل بازبینی.",
+    points: ["زمین نامنظم و شیب‌دار", "محدودهٔ ساخت‌پذیر با محاسبهٔ دقیق", "چیدمان خودکار فضا با seed قطعی"],
+    icon: (
+      <path
+        d="M3.5 6.5 10 3l6.5 3.5v7L10 17l-6.5-3.5v-7Z"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="1.4"
+        strokeLinejoin="round"
+      />
+    ),
+  },
+  {
+    title: "هر عدد، قابل ردیابی",
+    body: "هر کنترل می‌گوید از کدام آستانه، کدام فرض و کدام نسخهٔ قواعد آمده است. چیزی که نمی‌دانیم، «نامعلوم» می‌ماند — نه حدس.",
+    points: ["منشأ آستانه روی هر کنترل", "تفکیک «نتیجهٔ مثبت» از «تأیید»", "تاریخچهٔ نسخه‌ها و خروجی‌ها"],
+    icon: (
+      <>
+        <circle cx="10" cy="10" r="6.5" fill="none" stroke="currentColor" strokeWidth="1.4" />
+        <path d="M10 6.5v4l2.5 1.5" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" />
+      </>
+    ),
+  },
+  {
+    title: "خروجی‌های آمادهٔ کار",
+    body: "نقشه، جدول و مدل را در قالبی بگیرید که ابزار بعدی‌تان می‌فهمد؛ همه بدون وابستگی به کتابخانهٔ تجاری.",
+    points: ["PDF، DXF، SVG، IFC4", "Excel متره و میلگرد، CSV، JSON", "استودیو با کتابخانهٔ اشیای آماده"],
+    icon: (
+      <>
+        <path d="M5 3.5h6l4 4v9H5z" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinejoin="round" />
+        <path d="M11 3.5v4h4" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinejoin="round" />
+      </>
+    ),
+  },
+];
 
 export default function HomePage() {
-  // خلاصهٔ ماندگار: اجرای کامل مجموعه در هر بازدید، صفحهٔ فرود را کند می‌کرد.
   const suite = qualitySummary();
+  const checksHealthy = suite.failed === 0;
+
   return (
     <main>
-      <section className="grid-bg border-b border-white/10">
-        <div className="mx-auto grid max-w-[1400px] gap-8 px-5 py-14 lg:grid-cols-[1.35fr_0.65fr]">
-          <div>
-            <div className="flex flex-wrap items-center gap-2 text-[11px]">
-              <span className="chip border-teal-400/40 bg-teal-400/10 text-teal-200">Autonomous Engineering Intelligence</span>
-              <span className="chip">Deterministic engine · no external AI</span>
-              <span className="chip">{ENGINE_VERSION}</span>
-            </div>
-            <h1 className="mt-5 text-3xl font-extrabold leading-tight text-white sm:text-4xl lg:text-[44px]">
-              HERMICAD — از زمین نامنظم تا چند طرح قابل‌مقایسه، با محاسبه و ردیابی واقعی
+      {/* ── قهرمان ──────────────────────────────────────────────────────── */}
+      <section className="relative overflow-hidden">
+        <div className="pointer-events-none absolute inset-x-0 -top-40 h-80 bg-[radial-gradient(60%_100%_at_50%_0%,rgba(56,217,172,0.16),transparent_70%)]" />
+        <div className="shell relative grid gap-12 py-14 sm:py-20 lg:grid-cols-[1.08fr_0.92fr] lg:items-center lg:gap-16">
+          <div className="rise-in">
+            <span className="eyebrow">موتور قطعی · خروجی قابل بازبینی</span>
+            <h1 className="display mt-4">
+              از زمین نامنظم
+              <br className="hidden sm:block" /> تا چند طرح قابل مقایسه
             </h1>
-            <p className="mt-4 max-w-3xl text-sm leading-7 text-slate-300">
-              نیازمندی‌ها ثبت، هندسه تحلیل و طرح‌های مقدماتی تولید و ترسیم می‌شوند. کنترل‌ها از آستانه‌های داخلی یا دادهٔ
-              واردشده استفاده می‌کنند؛ منبع رسمی، طراحی همهٔ رشته‌ها و هماهنگی مدل‌ها هنوز احراز نشده است. فایل‌های تولیدشده
-              برای بازبینی‌اند، نه گواهی انطباق یا مدارک مصوب اجرا.
+            <p className="lede mt-5">
+              HERMICAD زمین را می‌خواند، نیازمندی‌ها را ساختار می‌دهد، چند گزینهٔ مقدماتی می‌سازد و با
+              محاسبه و ردیابی واقعی کنار هم می‌گذارد — تا پیش از کشیدن اولین خط، تصمیم روشنی گرفته باشید.
             </p>
-            <div className="mt-6 flex flex-wrap gap-3">
-              <Link href="/guide" className="btn btn-primary px-5 py-2.5 text-sm">
-                شروع گام‌به‌گام پروژه
+
+            <div className="mt-8 flex flex-wrap items-center gap-3">
+              <Link href="/new" className="btn btn-primary btn-lg">
+                شروع پروژهٔ تازه
+                <svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true" className="rotate-180">
+                  <path d="M3 8h9M8.5 4.5 12 8l-3.5 3.5" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
+                </svg>
               </Link>
-              <Link href="/scope" className="btn px-5 py-2.5 text-sm">
-                دامنه و محدودیت‌ها
+              <Link href="/guide" className="btn btn-lg">
+                راهنمای گام‌به‌گام
               </Link>
-              <Link href="/quality" className="btn px-5 py-2.5 text-sm">
-                دروازه کیفیت ({suite.passed}/{suite.total})
+              <Link href="/projects" className="btn btn-ghost btn-lg">
+                دیدن یک نمونهٔ کامل
               </Link>
             </div>
-            <div className="mt-7 grid gap-2 sm:grid-cols-4">
-              <Stat label="کنترل‌های داخلی/اظهاری" value={RULE_COUNT} hint={`${CODE_SET.code}@${CODE_SET.edition} · تأییدنشده`} />
-              <Stat label="آزمون خودکار" value={`${suite.passed}/${suite.total}`} tone={suite.failed === 0 ? "good" : "bad"} hint="unit · integration · regression" />
-              <Stat label="معیارهای بهینه‌سازی" value={10} hint="رتبه‌بندی وزنی + جبهه پارتو" />
-              <Stat label="قالب خروجی واقعی" value={7} hint="PDF, DXF, SVG, IFC, XLSX, CSV, JSON" />
-            </div>
+
+            <p className="mt-6 flex flex-wrap items-center gap-x-5 gap-y-2 text-xs text-slate-400">
+              <span className="inline-flex items-center gap-1.5">
+                <span className="h-1.5 w-1.5 rounded-full bg-teal-400" aria-hidden="true" />
+                بدون ثبت‌نام شروع می‌کنید
+              </span>
+              <span className="inline-flex items-center gap-1.5">
+                <span className="h-1.5 w-1.5 rounded-full bg-teal-400" aria-hidden="true" />
+                رایگان و عمومی
+              </span>
+              <span className="inline-flex items-center gap-1.5">
+                <span className="h-1.5 w-1.5 rounded-full bg-teal-400" aria-hidden="true" />
+                موتور {ENGINE_VERSION.replace("hermicad-engine/", "نسخهٔ ")}
+              </span>
+            </p>
           </div>
-          <Panel title="جریان مقدماتی موتور مولد" subtitle="مدل مولد و سند ترسیمی الزاماً مدل تحلیل و طراحی یکپارچه نیستند">
-            <ol className="space-y-2 text-[11px] leading-5">
-              {[
-                ["۱", "زمین و محدودیت‌ها", "مختصات، شیب، عقب‌نشینی"],
-                ["۲", "ساختاری‌سازی نیازمندی", "پارس قطعی + فرم تأیید"],
-                ["۳", "محدوده ساخت‌پذیر", "برش نیم‌صفحه + شبکه محاطی"],
-                ["۴", "تولید گزینه‌ها", "۵ راهبرد، seed قطعی"],
-                ["۵", "تحلیل مهندسی", "سازه، MEP، پارکینگ، نور"],
-                ["۶", "کنترل‌های مقدماتی", "مقایسه با آستانهٔ داخلی/اظهاری"],
-                ["۷", "اصلاح و بهینه‌سازی", "حلقه اصلاح + پارتو"],
-                ["۸", "خروجی مهندسی", "نقشه، BIM، گزارش"],
-              ].map(([step, title, detail]) => (
-                <li key={step} className="flex gap-2">
-                  <span className="mono mt-0.5 grid h-5 w-5 shrink-0 place-items-center rounded bg-teal-400/15 text-[10px] text-teal-200">
-                    {step}
+
+          {/* مسیر سه‌گامی، به‌شکل یک کارت کنار متن */}
+          <div className="panel relative overflow-hidden p-6 sm:p-7">
+            <div className="pointer-events-none absolute -end-16 -top-16 h-40 w-40 rounded-full bg-teal-400/10 blur-2xl" />
+            <div className="flex items-center justify-between gap-3">
+              <h2 className="text-sm font-bold text-white">مسیر کار در سه گام</h2>
+              <span className="chip border-teal-400/30 bg-teal-400/10 text-teal-100">حدود چند دقیقه</span>
+            </div>
+            <ol className="mt-6 space-y-5">
+              {STEPS.map((step, index) => (
+                <li key={step.title} className="flex gap-4">
+                  <span className="mono grid h-8 w-8 shrink-0 place-items-center rounded-lg border border-teal-400/30 bg-teal-400/10 text-xs font-bold text-teal-200">
+                    {["۰۱", "۰۲", "۰۳"][index]}
                   </span>
-                  <span>
-                    <span className="font-semibold text-slate-100">{title}</span>
-                    <span className="block text-slate-400">{detail}</span>
+                  <span className="min-w-0">
+                    <span className="block text-sm font-semibold text-white">{step.title}</span>
+                    <span className="mt-1 block text-sm leading-7 text-slate-400">{step.detail}</span>
                   </span>
                 </li>
               ))}
             </ol>
-          </Panel>
-        </div>
-      </section>
-
-      <section className="mx-auto max-w-[1400px] px-5 py-12">
-        <div className="grid gap-6 lg:grid-cols-[1.1fr_0.9fr]">
-          <Panel
-            title="ماتریس صداقت قابلیت‌ها"
-            subtitle="هر قابلیت با وضعیت واقعی خودش آمده است؛ قابلیت ناقص، «کامل» نمایش داده نمی‌شود."
-          >
-            <div className="overflow-x-auto scroll-thin">
-              <table className="table-eng">
-                <thead>
-                  <tr>
-                    <th>حوزه</th>
-                    <th>آنچه واقعاً انجام می‌شود</th>
-                    <th>وضعیت</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {capabilities.map((c) => (
-                    <tr key={c.area}>
-                      <td className="font-semibold text-slate-100">{c.area}</td>
-                      <td className="text-slate-300">{c.detail}</td>
-                      <td>
-                        <span className={`chip ${statusMap[c.status].className}`}>{statusMap[c.status].label}</span>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+            <div className="mt-6 flex items-center gap-2 border-t border-white/8 pt-4 text-xs text-slate-400">
+              <svg width="15" height="15" viewBox="0 0 16 16" aria-hidden="true" className="shrink-0 text-teal-300">
+                <path d="M8 1.8 13 4v4.2c0 3-2.1 5.2-5 6-2.9-.8-5-3-5-6V4l5-2.2Z" fill="none" stroke="currentColor" strokeWidth="1.3" strokeLinejoin="round" />
+                <path d="m6 8 1.6 1.6L10.4 7" fill="none" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round" />
+              </svg>
+              خروجی‌ها مقدماتی‌اند و برای بازبینی متخصص ساخته شده‌اند.
             </div>
-          </Panel>
-          <div className="space-y-6">
-            <Panel title="داده‌های مسیر مولد" subtitle="مدل این مسیر به‌تنهایی نگاشت کامل تحلیل، طراحی و مدارک همهٔ رشته‌ها نیست">
-              <ul className="space-y-2 text-[11px] leading-5 text-slate-300">
-                <li className="panel-soft p-3">
-                  <span className="font-semibold text-teal-200">SiteModel</span> — مرز، رأس‌ها، ترازها، عقب‌نشینی، پهنه
-                  لرزه‌ای، ظرفیت باربری، اقلیم.
-                </li>
-                <li className="panel-soft p-3">
-                  <span className="font-semibold text-teal-200">Requirements</span> — برنامه واحدها، حداقل‌ها، تراکم، سطح
-                  اشغال، پارکینگ + نتیجه پارس با اطمینان و ردیابی.
-                </li>
-                <li className="panel-soft p-3">
-                  <span className="font-semibold text-teal-200">CanonicalScheme</span> — بلوک‌ها، طبقات، فضاها، هسته‌ها،
-                  تحلیل سازه/MEP/پارکینگ/گردش/نور، معیارها، فرضیات، گام‌های ردیابی.
-                </li>
-                <li className="panel-soft p-3">
-                  <span className="font-semibold text-teal-200">ValidationReport</span> — ارزیابی هر قاعده با نسخه سند،
-                  مقدار مشاهده‌شده، حد مجاز، منبع، راهکار اصلاح.
-                </li>
-              </ul>
-            </Panel>
-            <Panel title="وزن‌های پیش‌فرض تصمیم" subtitle="قابل تغییر در کارگاه؛ رتبه‌بندی و پارتو بلافاصله بازمحاسبه می‌شود">
-              <div className="space-y-2">
-                {WEIGHT_GROUPS.map((g) => (
-                  <div key={g.id} className="flex items-center justify-between border-b border-white/5 pb-1.5 text-[11px]">
-                    <span className="text-slate-300">{g.label}</span>
-                    <span className="mono text-teal-200">{(g.default * 100).toFixed(0)}%</span>
-                  </div>
-                ))}
-              </div>
-            </Panel>
           </div>
         </div>
       </section>
 
-      <section className="mx-auto max-w-[1400px] px-5 pb-14">
-        <Panel
-          title="اولین محصول عملی: پروژه مسکونی روی زمین نامنظم"
-          subtitle="این مسیر از ورودی تا فایل قابل آزمایش است؛ خروجی آن طرح مقدماتی است و آمادگی اجرا را اثبات نمی‌کند."
-        >
-          <div className="grid gap-3 md:grid-cols-4">
-            {[
-              ["ورودی", "زمین شش‌ضلعی ۸۶۸ m² با شیب ۲.۸ m، ۱۴ واحد، عقب‌نشینی جهت‌دار"],
-              ["تولید", "۵ طرح با بلوک فشرده/کم‌عمق/دوبلوک؛ هر طرح با seed مستقل"],
-              ["کنترل مقدماتی", "مقایسهٔ داخلی + اصلاح الگوریتمی؛ نه تأیید مقررات"],
-              ["خروجی", "PDF برداری، DXF لایه‌بندی‌شده، IFC4 فضایی، XLSX/CSV/JSON/SVG"],
-            ].map(([title, body]) => (
-              <div key={title} className="panel-soft p-3">
-                <div className="text-xs font-bold text-teal-200">{title}</div>
-                <p className="mt-1 text-[11px] leading-5 text-slate-300">{body}</p>
-              </div>
-            ))}
+      {/* ── نوار عددها ──────────────────────────────────────────────────── */}
+      <section aria-label="نمای کلی موتور" className="border-y border-white/8 bg-white/[0.02]">
+        <dl className="shell grid grid-cols-2 gap-x-6 gap-y-8 py-9 sm:grid-cols-4">
+          {[
+            { label: "کنترل داخلی روی هر طرح", value: RULE_COUNT, hint: `${CODE_SET.code}@${CODE_SET.edition} · تأییدنشده` },
+            { label: "آزمون خودکار", value: `${suite.passed}/${suite.total}`, hint: checksHealthy ? "همه سبز" : "نیازمند بررسی" },
+            { label: "قالب خروجی واقعی", value: 7, hint: "PDF · DXF · SVG · IFC · XLSX · CSV · JSON" },
+            { label: "شیء آماده در کتابخانه", value: CATALOG_STATS.items, hint: `${CATALOG_STATS.categories} دستهٔ کاربردی` },
+          ].map((item) => (
+            <div key={item.label}>
+              <dd className="mono text-2xl font-extrabold tabular-nums text-white sm:text-3xl">{item.value}</dd>
+              <dt className="mt-1 text-sm font-medium text-slate-300">{item.label}</dt>
+              <p className="mt-0.5 text-xs text-slate-500">{item.hint}</p>
+            </div>
+          ))}
+        </dl>
+      </section>
+
+      {/* ── سه ستون ارزش ────────────────────────────────────────────────── */}
+      <section className="shell py-16 sm:py-20">
+        <div className="max-w-2xl">
+          <span className="eyebrow">چرا HERMICAD</span>
+          <h2 className="section-title mt-3">سه چیزی که همیشه سرِ جایش می‌ماند</h2>
+          <p className="lede mt-3">
+            سرعت بی‌فایده است اگر نتیجه قابل اعتماد نباشد. هر بخش این ابزار حول یک پرسش ساخته شده:
+            آیا می‌توانم به این عدد تکیه کنم و خودم بازبینی‌اش کنم؟
+          </p>
+        </div>
+
+        <div className="mt-10 grid gap-4 md:grid-cols-3">
+          {PILLARS.map((pillar) => (
+            <article key={pillar.title} className="panel card-link p-6">
+              <span className="grid h-11 w-11 place-items-center rounded-xl border border-teal-400/25 bg-teal-400/10 text-teal-300">
+                <svg width="22" height="22" viewBox="0 0 20 20" aria-hidden="true">
+                  {pillar.icon}
+                </svg>
+              </span>
+              <h3 className="mt-5 text-base font-bold text-white">{pillar.title}</h3>
+              <p className="mt-2 text-sm leading-7 text-slate-400">{pillar.body}</p>
+              <ul className="mt-4 space-y-2 border-t border-white/8 pt-4">
+                {pillar.points.map((point) => (
+                  <li key={point} className="flex items-start gap-2 text-sm text-slate-300">
+                    <svg width="14" height="14" viewBox="0 0 16 16" aria-hidden="true" className="mt-1.5 shrink-0 text-teal-400">
+                      <path d="m3.5 8.5 3 3 6-7" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+                    </svg>
+                    {point}
+                  </li>
+                ))}
+              </ul>
+            </article>
+          ))}
+        </div>
+      </section>
+
+      {/* ── صداقت: چه چیزی نیست ─────────────────────────────────────────── */}
+      <section className="shell pb-16 sm:pb-20">
+        <div className="panel overflow-hidden">
+          <div className="grid gap-0 md:grid-cols-2">
+            <div className="border-b border-white/8 p-6 sm:p-8 md:border-b-0 md:border-e">
+              <h2 className="text-lg font-bold text-white">این ابزار برای چه ساخته شده</h2>
+              <ul className="mt-4 space-y-3 text-sm leading-7 text-slate-300">
+                {[
+                  "رسیدن سریع از زمین خالی به چند گزینهٔ مقدماتیِ قابل مقایسه",
+                  "بررسی محدودیت‌های هندسی، پارکینگ، نور و تراکم پیش از طراحی دستی",
+                  "ساخت خروجی‌های نیمه‌آماده برای شروع کار در نرم‌افزار تخصصی",
+                ].map((item) => (
+                  <li key={item} className="flex gap-2.5">
+                    <span className="mt-2.5 h-1 w-1 shrink-0 rounded-full bg-teal-400" aria-hidden="true" />
+                    {item}
+                  </li>
+                ))}
+              </ul>
+            </div>
+            <div className="bg-amber-400/[0.04] p-6 sm:p-8">
+              <h2 className="text-lg font-bold text-white">و برای چه ساخته نشده</h2>
+              <ul className="mt-4 space-y-3 text-sm leading-7 text-slate-300">
+                {[
+                  "جای مهندس دارای صلاحیت را نمی‌گیرد و تأییدیهٔ انطباق صادر نمی‌کند",
+                  "تحلیل سازهٔ اجرایی و طراحی شبکهٔ تأسیسات در دامنهٔ این نسخه نیست",
+                  "آستانه‌ها داخلی یا اظهاری‌اند؛ متن رسمی برای پروژهٔ شما احراز نشده است",
+                ].map((item) => (
+                  <li key={item} className="flex gap-2.5">
+                    <span className="mt-2.5 h-1 w-1 shrink-0 rounded-full bg-amber-400" aria-hidden="true" />
+                    {item}
+                  </li>
+                ))}
+              </ul>
+              <Link href="/scope" className="btn mt-6">
+                دامنه و محدودیت‌ها را ببینید
+              </Link>
+            </div>
           </div>
-          <div className="mt-4 flex flex-wrap gap-3">
-            <Link href="/projects" className="btn btn-primary">
-              شروع با پروژه نمونه
+        </div>
+      </section>
+
+      {/* ── فراخوان پایانی ──────────────────────────────────────────────── */}
+      <section className="shell pb-20">
+        <div className="relative overflow-hidden rounded-3xl border border-teal-400/20 bg-gradient-to-bl from-teal-400/[0.12] via-white/[0.02] to-transparent p-8 text-center sm:p-12">
+          <div className="pointer-events-none absolute -start-20 -top-24 h-56 w-56 rounded-full bg-teal-400/10 blur-3xl" />
+          <h2 className="relative text-2xl font-extrabold text-white sm:text-3xl">اولین زمین را همین حالا شروع کنید</h2>
+          <p className="relative mx-auto mt-3 max-w-2xl text-sm leading-7 text-slate-300 sm:text-base">
+            نیازی به ثبت‌نام نیست. یک زمین تعریف کنید و در چند دقیقه چند طرح مقدماتی با تحلیل کامل ببینید —
+            هر زمان بخواهید می‌توانید همهٔ اعدادش را باز کنید.
+          </p>
+          <div className="relative mt-7 flex flex-wrap items-center justify-center gap-3">
+            <Link href="/new" className="btn btn-primary btn-lg">
+              شروع تعریف هدایت‌شده
             </Link>
-            <Link href="/architecture#roadmap" className="btn">
-              نقشه راه توسعه
+            <Link href="/design" className="btn btn-lg">
+              ورود به استودیو طراحی
             </Link>
-            <a href="/api/quality" className="btn">
-              /api/quality
-            </a>
           </div>
-        </Panel>
+        </div>
       </section>
     </main>
   );

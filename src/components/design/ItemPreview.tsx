@@ -94,7 +94,7 @@ export function ItemChip({ item, onPick }: { item: CatalogItem; onPick: () => vo
     >
       <ItemPreview item={item} size={38} />
       <span className="min-w-0 flex-1">
-        <span className="block truncate text-[11px] text-slate-200 group-hover:text-teal-100">{item.nameFa}</span>
+        <span className="block truncate text-[0.8125rem] text-slate-200 group-hover:text-teal-100">{item.nameFa}</span>
         <span className="mono block text-[9px] text-slate-500">
           {item.defaultSize.w.toFixed(2)}×{item.defaultSize.d.toFixed(2)}
         </span>

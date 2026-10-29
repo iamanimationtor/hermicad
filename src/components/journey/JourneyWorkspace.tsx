@@ -124,7 +124,7 @@ export function JourneyWorkspace({ initial }: { initial: StudioDocument }) {
     }
   };
   return (
-    <main className="mx-auto max-w-[1400px] px-4 py-7 sm:px-6">
+    <main className="shell-wide py-7 sm:py-9">
       <header className="mb-6 flex flex-wrap items-start justify-between gap-4">
         <div>
           <Link
@@ -166,7 +166,7 @@ export function JourneyWorkspace({ initial }: { initial: StudioDocument }) {
         </div>
       </header>
       <div className="grid items-start gap-5 lg:grid-cols-[260px_minmax(0,1fr)]">
-        <aside className="panel p-4 lg:sticky lg:top-24">
+        <aside className="panel p-5 lg:sticky lg:top-24">
           <h2 className="mb-3 font-bold">مسیر انجام پروژه</h2>
           <select
             aria-label="مرحلهٔ جاری"
@@ -518,7 +518,7 @@ function Question({ field, value, onChange }: { field: Field; value: unknown; on
         {field.help}
       </p>
       {field.type === "number" && (
-        <p className="mt-1 text-[10px] text-slate-500">
+        <p className="mt-1 text-xs text-slate-500">
           بازهٔ پذیرش نرم‌افزار: {field.min} تا {field.max}؛ نه حد مجاز مقررات.
         </p>
       )}

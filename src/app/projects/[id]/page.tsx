@@ -25,7 +25,7 @@ export default async function ProjectPage({ params }: { params: Promise<{ id: st
           <p className="mt-2 text-xs leading-6 text-slate-300">
             اتصال به پایگاه داده یا خواندن مدل پروژه ممکن نشد. پایگاه داده را بررسی کنید و سپس دوباره تلاش کنید.
           </p>
-          <p className="mono mt-2 rounded border border-rose-400/30 bg-rose-500/10 p-2 text-[11px] text-rose-200">{error}</p>
+          <p className="mono mt-2 rounded border border-rose-400/30 bg-rose-500/10 p-2 text-[0.8125rem] text-rose-200">{error}</p>
           <Link href="/projects" className="btn mt-4">بازگشت به پروژه‌ها</Link>
         </div>
       </main>
