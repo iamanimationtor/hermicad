@@ -28,6 +28,7 @@ import {
 } from "./archDetails";
 import { renderStudioDetailDxf, renderStudioDetailPdf, renderStudioDetailSheet } from "./details";
 import { renderStudioSchedulePdf, renderStudioScheduleSheet } from "./schedules";
+import { renderStudioSlabRebarPdf, renderStudioSlabRebarSheet } from "./slabRebar";
 import {
   documentBounds,
   documentFingerprint,
@@ -1196,6 +1197,8 @@ export const STUDIO_FORMATS = [
   "arch-details",
   "arch-details-pdf",
   "arch-details-dxf",
+  "slab-rebar",
+  "slab-rebar-pdf",
   "schedules",
   "schedules-pdf",
   "elevations-dxf",
@@ -1269,6 +1272,18 @@ export function exportStudio(
         filename: `${base}-schedules.pdf`,
         mime: "application/pdf",
         data: Buffer.from(renderStudioSchedulePdf(doc)),
+      };
+    case "slab-rebar":
+      return {
+        filename: `${base}-slab-rebar.svg`,
+        mime: "image/svg+xml; charset=utf-8",
+        data: Buffer.from(renderStudioSlabRebarSheet(doc), "utf8"),
+      };
+    case "slab-rebar-pdf":
+      return {
+        filename: `${base}-slab-rebar.pdf`,
+        mime: "application/pdf",
+        data: Buffer.from(renderStudioSlabRebarPdf(doc)),
       };
     case "details":
       return {

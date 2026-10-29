@@ -105,6 +105,9 @@ export default async function DesignGalleryPage({ params }: { params: Promise<{ 
           <a href={`${base}?format=details-pdf`} className="btn" download>
             جزئیات سازه و جدول میلگرد
           </a>
+          <a href={`${base}?format=slab-rebar-pdf`} className="btn" download>
+            پلان آرماتور سقف (نشان‌گذاری میلگرد)
+          </a>
           <a href={`${base}?format=schedules-pdf`} className="btn" download>
             جداول، کیپلان و بازشوها
           </a>

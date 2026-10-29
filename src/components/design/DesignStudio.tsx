@@ -916,6 +916,8 @@ export function DesignStudio({ initialDesign }: { initialDesign: StudioDocument 
               { id: "section-pdf", label: "برش A-A (PDF)" },
               { id: "elevations-dxf", label: "نماها DXF (۱:۱)" },
               { id: "section-dxf", label: "برش DXF (۱:۱)" },
+              { id: "slab-rebar", label: "پلان آرماتور سقف (SVG)" },
+              { id: "slab-rebar-pdf", label: "پلان آرماتور سقف (PDF)" },
               { id: "schedules", label: "جداول و کیپلان (SVG)" },
               { id: "schedules-pdf", label: "جداول و کیپلان (PDF)" },
               { id: "details", label: "جزئیات سازه و میلگرد (SVG)" },

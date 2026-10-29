@@ -54,12 +54,21 @@ import {
   faMeter,
   faNumber,
   faPercent,
+  sheetFrame,
 } from "@/domain/studio/sheetKit";
 import {
   renderStudioSchedulePdf,
   renderStudioScheduleSheet,
   studioSchedules,
 } from "@/domain/studio/schedules";
+import {
+  renderStudioSlabRebarPdf,
+  renderStudioSlabRebarSheet,
+  slabRebarPlan,
+  slabRebarScene,
+  SLAB_BAR_DIA,
+  SLAB_SPACING,
+} from "@/domain/studio/slabRebar";
 import { shapeForDisplay, shapeLogical } from "@/domain/studio/pdf/arabic";
 import { inflateSync } from "node:zlib";
 import { loadTypeface } from "@/domain/studio/pdf/typeface";
@@ -1003,4 +1012,98 @@ test("studio/exporters", "جزئیات سازه DXF: هاشور توپر، لا�
   // بازهٔ نقش باید اندازهٔ کاغذ باشد نه صفر
   assert(!text.includes("$EXTMAX\n10\n0\n20\n0"), "بازهٔ نقش تنظیم نشده");
   return `${hatches} هاشور · ${circles} دایره`;
+});
+
+test("studio/slab-rebar", "نشان‌های میلگرد دال: هندسه، تجمیع و جمع وزن با دهانه‌ها می‌خواند", () => {
+  const doc = sampleDesign();
+  const plan = slabRebarPlan(doc);
+  assert(plan.fields.length >= 4, `تعداد دهانه: ${plan.fields.length}`);
+  const xs = plan.fields.flatMap((field) => [field.x0, field.x1]);
+  const ys = plan.fields.flatMap((field) => [field.y0, field.y1]);
+  assert(Math.abs(plan.outline.x - Math.min(...xs)) < 0.011, "مبدأ عرض کادر دال نادرست است");
+  assert(Math.abs(plan.outline.w - (Math.max(...xs) - Math.min(...xs))) < 0.011, "عرض کادر دال نادرست است");
+  assert(Math.abs(plan.outline.h - (Math.max(...ys) - Math.min(...ys))) < 0.011, "ارتفاع کادر دال نادرست است");
+
+  const codes = plan.marks.map((mark) => mark.code);
+  assert(new Set(codes).size === codes.length, "نشان تکراری در جدول است");
+  for (const mark of plan.marks) {
+    assert(/^[BT]\d+$/.test(mark.code), `قالب نشان: ${mark.code}`);
+    assert(mark.spacingM === SLAB_SPACING, "فاصلهٔ شبکه با ثابت برگه نمی‌خواند");
+    const weight = mark.totalLengthM * barWeightPerMetre(SLAB_BAR_DIA);
+    assert(Math.abs(mark.weightKg - weight) < 0.6, `وزن ${mark.code}: ${mark.weightKg} ≠ ${weight.toFixed(1)}`);
+    assert(Math.abs(mark.totalLengthM - mark.lengthM * mark.count) < 0.03, `طول کل ${mark.code} با تعداد نمی‌خواند`);
+    assert(mark.lengthM > 0.5 && mark.lengthM < 30, `طول شاخهٔ ${mark.code} غیرمنطقی است: ${mark.lengthM}`);
+  }
+  // هر دهانه باید دست‌کم دو نشان پایین (دو جهت) داشته باشد
+  const bottomFields = new Set(plan.marks.filter((mark) => mark.layer === "bottom").flatMap((mark) => mark.fields));
+  for (const field of plan.fields) assert(bottomFields.has(field.label), `دهانهٔ «${field.label}» نشان پایین ندارد`);
+  // شبکهٔ بالا فقط دو نشان (دو جهت لبه)
+  assert(plan.marks.filter((mark) => mark.layer === "top").length === 2, "نشان‌های شبکهٔ بالا باید دو مورد باشند");
+  const sum = plan.marks.reduce((total, mark) => total + mark.weightKg, 0);
+  assert(Math.abs(plan.totalWeightKg - sum) < 0.2, "جمع وزن با ردیف‌ها نمی‌خواند");
+  return `${plan.marks.length} نشان · ${plan.totalWeightKg} kg · ${plan.outline.w}×${plan.outline.h} m`;
+});
+
+test("studio/slab-rebar", "برگهٔ پلان آرماتور سقف: همهٔ نشان‌ها روی کاغذ، بدون سرریز، SVG و PDF", () => {
+  const doc = sampleDesign();
+  const scene = slabRebarScene(doc);
+  const frame = sheetFrame(doc);
+  const right = (prim: (typeof scene.prims)[number]): number =>
+    "x" in prim && "w" in prim ? prim.x + prim.w : "x" in prim ? prim.x : "cx" in prim ? prim.cx + prim.r : "x1" in prim ? Math.max(prim.x1, prim.x2) : 0;
+  const bottom = (prim: (typeof scene.prims)[number]): number =>
+    "y" in prim && "h" in prim ? prim.y + prim.h : "y" in prim ? prim.y : "cy" in prim ? prim.cy + prim.r : "y1" in prim ? Math.max(prim.y1, prim.y2) : 0;
+  const overflow = scene.prims.filter(
+    (prim) => right(prim) > frame.sheet.w - MARGIN + 0.5 || bottom(prim) > frame.sheet.h - MARGIN + 0.5 || ("x" in prim && prim.x < MARGIN - 0.5),
+  );
+  assert(overflow.length === 0, `${overflow.length} نقش از کادر برگه بیرون زده است`);
+  // هیچ ترسیمی نباید وارد نوار کتیبه شود
+  const footerTop = frame.sheet.h - MARGIN - FOOTER_H;
+  // کادر برگه عمداً از نوار کتیبه هم می‌گذرد؛ بقیه نباید
+  const intoFooter = scene.prims.filter(
+    (prim) => bottom(prim) > footerTop && prim.kind !== "text" && prim.kind !== "line" && !(prim.data ?? "").includes("frame"),
+  );
+  assert(intoFooter.length === 0, `${intoFooter.length} ترسیم وارد کتیبه شده است`);
+
+  const plan = slabRebarPlan(doc);
+  const svg = renderStudioSlabRebarSheet(doc);
+  assert(svg.startsWith("<?xml"), "SVG معتبر نیست");
+  for (const mark of plan.marks) {
+    assert(svg.includes(`>${mark.code}<`), `نشان ${mark.code} روی برگه نیست`);
+    // همان نشان باید در جدول هم باشد (ارجاع نقشه ↔ جدول)
+    const row = svg.split(mark.code).length - 1;
+    assert(row >= 2, `نشان ${mark.code} فقط یک بار آمده (نقشه یا جدول جا افتاده)`);
+  }
+  for (const keyword of ["پلان آرماتور سقف", "جدول میلگرد سقف", "دهانه‌های دال", "یادداشت‌های فنی", "شمال"]) {
+    assert(svg.includes(keyword), `کلیدواژهٔ «${keyword}» در برگه نیست`);
+  }
+  const pdf = renderStudioSlabRebarPdf(doc);
+  assert(Buffer.from(pdf.slice(0, 5)).toString("latin1") === "%PDF-", "PDF معتبر نیست");
+  assert(pdf.length > 60_000, `حجم PDF کم است: ${pdf.length}`);
+  const file = exportStudio(doc, "slab-rebar");
+  assert(file.filename.endsWith("-slab-rebar.svg"), `نام فایل: ${file.filename}`);
+  const filePdf = exportStudio(doc, "slab-rebar-pdf");
+  assert(filePdf.filename.endsWith("-slab-rebar.pdf") && filePdf.mime === "application/pdf", "خروجی PDF برگهٔ سقف نادرست است");
+  return `${scene.prims.length} نقش · ${plan.marks.length} نشان · ${(pdf.length / 1024).toFixed(0)} KB`;
+});
+
+test("studio/slab-rebar", "برگهٔ سقف در مقیاس‌های مختلف (A4/A1، افقی/عمودی) سرریز نمی‌کند", () => {
+  const doc = sampleDesign();
+  const variants = [
+    { format: "A4" as const, orientation: "portrait" as const },
+    { format: "A4" as const, orientation: "landscape" as const },
+    { format: "A1" as const, orientation: "landscape" as const },
+  ];
+  for (const variant of variants) {
+    const view = { ...doc, sheet: { ...doc.sheet, ...variant } };
+    const scene = slabRebarScene(view);
+    const frame = sheetFrame(view);
+    const out = scene.prims.filter((prim) => {
+      const r = "x" in prim && "w" in prim ? prim.x + prim.w : "x" in prim ? prim.x : "cx" in prim ? prim.cx + prim.r : "x1" in prim ? Math.max(prim.x1, prim.x2) : 0;
+      const b = "y" in prim && "h" in prim ? prim.y + prim.h : "y" in prim ? prim.y : "cy" in prim ? prim.cy + prim.r : "y1" in prim ? Math.max(prim.y1, prim.y2) : 0;
+      return r > frame.sheet.w - MARGIN + 0.5 || b > frame.sheet.h - MARGIN + 0.5 || ("x" in prim && prim.x < MARGIN - 0.5);
+    });
+    assert(out.length === 0, `${variant.format}/${variant.orientation}: ${out.length} نقش بیرون کادر`);
+    assert(renderStudioSlabRebarSheet(view).includes("پلان آرماتور سقف"), `${variant.format}: عنوان برگه نیست`);
+  }
+  return "A4 عمودی/افقی و A1 افقی بدون سرریز";
 });
