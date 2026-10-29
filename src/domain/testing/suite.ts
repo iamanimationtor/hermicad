@@ -52,3 +52,5 @@ import "./studioAdvanced.test";
 import "./journey.test";
 
 import "./structures.test";
+
+import "./frame.test";

@@ -1,3 +1,4 @@
+import {FRAME_FORMULAS} from "../structures/frame/formulas";
 import { STRUCTURAL_FORMULAS } from "../structures/formulas";
 /**
  * Engineering formula registry (stage 4).
@@ -49,6 +50,7 @@ const R = (record: FormulaRecord): FormulaRecord => record;
 
 export const FORMULAS: Record<string, FormulaRecord> = {
   ...STRUCTURAL_FORMULAS,
+  ...FRAME_FORMULAS,
   "GEO-SHOELACE": R({
     id: "GEO-SHOELACE",
     label: "مساحت چندضلعی (شولیس)",

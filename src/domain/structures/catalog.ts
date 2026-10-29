@@ -1,3 +1,4 @@
+import { frameInputErrors, FRAME_FAMILIES, type FrameModel } from "./frame/model";
 /** مسیرهای تخصصی؛ انتخاب مسیر، گواهی پوشش کامل ضوابط یا وجود حل‌گر اجرایی نیست. */
 export const FAMILIES = [
   {
@@ -110,6 +111,7 @@ export const GROUPS = [
   ["assessment", "ارزیابی محدود"],
 ] as const;
 export interface StructuralProfile {
+  frame?: FrameModel;
   version: 1;
   family: Family;
   step: number;
@@ -293,10 +295,14 @@ export function structuralErrors(value: unknown): string[] {
     !obj(value.references)
   )
     return ["ساختار پروندهٔ تخصصی معتبر نیست."];
-  const errors: string[] = Object.keys(value).some((k) => !["version", "family", "step", "values", "references"].includes(k))
+  const errors: string[] = Object.keys(value).some((k) => !["version", "family", "step", "values", "references", "frame"].includes(k))
     ? ["ویژگی ناشناخته در پروندهٔ تخصصی."]
     : [];
   const family = value.family as Family;
+  if (value.frame !== undefined) {
+    if (!FRAME_FAMILIES.some((f) => f === family)) errors.push("مدل قاب عمومی برای این مسیر فعال نیست؛ مدل تخصصی پیوسته لازم است.");
+    errors.push(...frameInputErrors(value.frame));
+  }
   for (const [key, v] of Object.entries(value.values)) {
     const f = STRUCTURAL_FIELDS.find((f) => f.key === key && (!f.families || f.families.includes(family)));
     if (!f) {

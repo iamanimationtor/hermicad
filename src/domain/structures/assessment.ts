@@ -1,3 +1,5 @@
+import { solveFrame } from "./frame/solver";
+import { FRAME_FORMULAS } from "./frame/formulas";
 import { STRUCTURAL_FORMULAS } from "./formulas";
 import { familyOf, fieldsFor, referenceList, structuralErrors, type StructuralProfile } from "./catalog";
 export interface Metric {
@@ -16,7 +18,7 @@ export interface Comparison {
   criterion: number;
   withinUserCriterion: boolean;
 }
-export function assessStructure(p: StructuralProfile) {
+export function assessStructure(p: StructuralProfile, options: { includeFrame?: boolean } = {}) {
   const errors = structuralErrors(p);
   if (errors.length) throw new Error(errors.join(" "));
   const family = familyOf(p.family)!;
@@ -174,7 +176,8 @@ export function assessStructure(p: StructuralProfile) {
   const references = referenceList(p.family).map((r) => ({ ...r, submitted: p.references[r.id] ?? null, verified: false }));
   const requiredDeliverables = family.deliverables.map((label) => ({ label, status: "not-designed" as const }));
   return {
-    engine: "structural-screening/1.0",
+    engine: "structural-screening/1.1",
+    frame: p.frame && options.includeFrame !== false ? { ...solveFrame(p.frame), formulaRecords: Object.values(FRAME_FORMULAS) } : null,
     family: family.id,
     label: family.name,
     status,

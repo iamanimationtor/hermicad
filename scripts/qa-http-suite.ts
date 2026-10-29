@@ -49,7 +49,7 @@ async function main() {
       await delay(250);
     }
     if (!ready) throw new Error("سرور آزمون در مهلت مقرر آماده نشد.");
-    for (const script of ["qa-access-http.ts", "qa-studio-http.ts", "qa-journey-http.ts", "qa-structures-http.ts"]) {
+    for (const script of ["qa-access-http.ts", "qa-studio-http.ts", "qa-journey-http.ts", "qa-structures-http.ts", "qa-frame-http.ts"]) {
       const child = spawn(process.execPath, ["--import", "tsx", "scripts/" + script], { env, stdio: "inherit" });
       const [code] = await once(child, "exit");
       if (code !== 0) throw new Error(`آزمون ${script} ناموفق بود.`);

@@ -24,3 +24,12 @@ jobs:
       - run: npm run typecheck
       - run: npm audit --omit=dev --audit-level=high
       - run: npm run test:http
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: pip
+          cache-dependency-path: scripts/requirements-frame-qa.txt
+      - run: python -m pip install -r scripts/requirements-frame-qa.txt
+      - run: npx tsx scripts/qa-frame-fixtures.ts
+      - run: python scripts/qa-frame-independent.py
+      - run: npx tsx scripts/qa-frame-capacity.ts

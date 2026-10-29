@@ -1,6 +1,10 @@
 "use client";
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
+import { solveFrame } from "@/domain/structures/frame/solver";
+import { FRAME_FORMULAS } from "@/domain/structures/frame/formulas";
+import { FrameEditor } from "./FrameEditor";
+import { FRAME_FAMILIES } from "@/domain/structures/frame/model";
 import { structuralNumber } from "@/domain/structures/numbers";
 import type { StudioDocument } from "@/domain/studio/document";
 import {
@@ -24,7 +28,12 @@ export function StructuralWorkspace({ initial }: { initial: StudioDocument }) {
     family = familyOf(p.family)!;
   const dirty = JSON.stringify(doc) !== saved;
   const errors = useMemo(() => structuralErrors(p), [p]);
-  const assessment = useMemo(() => (errors.length ? null : assessStructure(p)), [p, errors]);
+  const baseAssessment = useMemo(() => (errors.length ? null : assessStructure(p, { includeFrame: false })), [p, errors]);
+  const frameResult = useMemo(
+    () => (p.frame ? { ...solveFrame(p.frame), formulaRecords: Object.values(FRAME_FORMULAS) } : null),
+    [p.frame],
+  );
+  const assessment = useMemo(() => (baseAssessment ? { ...baseAssessment, frame: frameResult } : null), [baseAssessment, frameResult]);
   const patch = (data: Partial<StructuralProfile>) => {
     setDoc((d) => ({ ...d, brief: { ...d.brief!, structural: { ...d.brief!.structural!, ...data } } }));
     setMessage("");
@@ -198,7 +207,7 @@ export function StructuralWorkspace({ initial }: { initial: StudioDocument }) {
           <p className="mb-5 text-sm leading-7 text-slate-400">
             {family.scope}. پاسخ نامعلوم را خالی بگذارید. همهٔ بازه‌های فرم حدود نرم‌افزارند، نه مجوز یا ضابطهٔ طراحی.
           </p>
-          <fieldset key={reloadKey} disabled={busy} className="space-y-5">
+          <fieldset key={reloadKey} disabled={busy} className="min-w-0 space-y-5">
             {p.step < 4 && (
               <div className="grid gap-5 sm:grid-cols-2">
                 {fieldsFor(p)
@@ -245,6 +254,14 @@ export function StructuralWorkspace({ initial }: { initial: StudioDocument }) {
                   );
                 })}
               </>
+            )}
+            {(p.step === 3 || p.step === 4) && FRAME_FAMILIES.some((f) => f === p.family) && (
+              <FrameEditor
+                model={p.frame}
+                onChange={(frame) => patch({ frame })}
+                result={assessment?.frame ?? null}
+                readOnly={p.step === 4}
+              />
             )}
             {(p.step === 3 || p.step === 4) && assessment && (
               <>

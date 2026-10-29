@@ -1,4 +1,5 @@
 "use client";
+import { FRAME_FAMILIES } from "@/domain/structures/frame/model";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { FAMILIES, type Family } from "@/domain/structures/catalog";
@@ -40,6 +41,9 @@ export function StructureStart() {
                 {f.name}
               </span>
               <span className="mt-2 block text-xs leading-6 text-slate-400">{f.scope}</span>
+              {FRAME_FAMILIES.some((id) => id === f.id) && (
+                <span className="mt-2 block text-xs text-teal-200">امکان ساخت مدل اختیاری قاب دوبعدی با بارها و ترکیب‌های مستقل</span>
+              )}
               <span className="mt-2 block text-xs text-amber-200">
                 {f.calculator === "none"
                   ? "ثبت دامنه و مدارک؛ حل‌گر اختصاصی موجود نیست"
