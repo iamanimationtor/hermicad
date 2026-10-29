@@ -3,6 +3,7 @@ import { ensureSampleDesign, listDesigns } from "@/server/designs";
 import { CATALOG_STATS, CATEGORIES } from "@/domain/studio/catalog";
 import { Panel, Stat } from "@/components/ui";
 import { NewDesignPanel } from "@/components/design/NewDesignPanel";
+import { currentWorkspace } from "@/server/workspace";
 
 export const dynamic = "force-dynamic";
 
@@ -10,8 +11,9 @@ export default async function DesignIndexPage() {
   let designs: Awaited<ReturnType<typeof listDesigns>> = [];
   let error: string | null = null;
   try {
-    await ensureSampleDesign();
-    designs = await listDesigns();
+    const workspace = await currentWorkspace();
+    await ensureSampleDesign(workspace);
+    designs = await listDesigns(workspace);
   } catch (e) {
     error = e instanceof Error ? e.message : "دسترسی به پایگاه داده ناموفق بود.";
   }

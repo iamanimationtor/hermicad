@@ -2,6 +2,7 @@ import { notFound } from "next/navigation";
 import Link from "next/link";
 import { getDesign } from "@/server/designs";
 import { DesignStudio } from "@/components/design/DesignStudio";
+import { currentWorkspace } from "@/server/workspace";
 
 export const dynamic = "force-dynamic";
 
@@ -10,7 +11,7 @@ export default async function DesignPage({ params }: { params: Promise<{ id: str
   let design = null;
   let error: string | null = null;
   try {
-    design = await getDesign(id);
+    design = await getDesign(id, await currentWorkspace());
   } catch (e) {
     error = e instanceof Error ? e.message : "خواندن سند ناموفق بود.";
   }

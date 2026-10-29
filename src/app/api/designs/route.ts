@@ -1,13 +1,15 @@
 import { createDesign, ensureSampleDesign, listDesigns, sampleDesign } from "@/server/designs";
 import { createStudioDocument } from "@/domain/studio/document";
 import { errorResponse, ok, readJson } from "@/server/http";
+import { currentWorkspace } from "@/server/workspace";
 
 export const dynamic = "force-dynamic";
 
 export async function GET() {
   try {
-    await ensureSampleDesign();
-    return ok({ designs: await listDesigns() });
+    const workspace = await currentWorkspace();
+    await ensureSampleDesign(workspace);
+    return ok({ designs: await listDesigns(workspace), workspace });
   } catch (error) {
     return errorResponse(error);
   }
@@ -54,7 +56,7 @@ export async function POST(request: Request) {
             revision: 1,
           }
         : base;
-    return ok({ design: await createDesign(doc) }, 201);
+    return ok({ design: await createDesign(doc, await currentWorkspace()) }, 201);
   } catch (error) {
     return errorResponse(error);
   }

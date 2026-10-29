@@ -37,7 +37,17 @@ import { sampleDesign, sampleDesignItems } from "@/server/designs";
 import { studioIfc, studioXlsx, toPersianWords } from "@/domain/studio/exporters";
 import { renderStudioElevationSheet, renderStudioVertical, viewGeometry } from "@/domain/studio/vertical";
 import { renderStudioElevationsPdf, renderStudioVerticalPdf } from "@/domain/studio/verticalPdf";
-import { barArea, barWeightPerMetre, rebarSchedule, renderStudioDetailPdf, renderStudioDetailSheet } from "@/domain/studio/details";
+import {
+  MARGIN,
+  FOOTER_H,
+  barArea,
+  barWeightPerMetre,
+  detailSheetScene,
+  frameOf,
+  rebarSchedule,
+  renderStudioDetailPdf,
+  renderStudioDetailSheet,
+} from "@/domain/studio/details";
 import { ARCH_DETAILS } from "@/domain/studio/archDetails";
 import {
   faArea,
@@ -925,6 +935,55 @@ test("studio/exporters", "نمای DXF در مقیاس ۱:۱ با لایه‌ه�
   assert(text.split("\nTEXT\n").length > 4, "برچسب تراز در نمای DXF نیست");
   return `${poly} بلوک نما`;
 });
+test("studio/detail-sheet", "ستون L/T: خاموت چندضلعی و میلگرد گوشه‌ای در جدول و برگه", () => {
+  const doc = createStudioDocument({
+    name: "ستون L و T",
+    sheet: { format: "A3", orientation: "landscape", scale: 50 },
+    items: [
+      { id: "cl", catalogId: "column-l", x: 1, y: 1, w: 0.6, d: 0.6, rotationDeg: 0, level: 0 },
+      { id: "ct", catalogId: "column-t", x: 3, y: 1, w: 0.7, d: 0.6, rotationDeg: 0, level: 0 },
+      { id: "b1", catalogId: "beam-concrete", x: 1, y: 5, w: 6, d: 0.4, rotationDeg: 0, level: 0 },
+      { id: "f1", catalogId: "footing-square", x: 1, y: 8, w: 1.6, d: 1.6, rotationDeg: 0, level: 0 },
+    ],
+  });
+  const schedule = rebarSchedule(doc);
+  const l = schedule.members.find((member) => member.kind === "column-l");
+  const t = schedule.members.find((member) => member.kind === "column-t");
+  assert(Boolean(l), "ستون L در جدول میلگرد نیامده");
+  assert(Boolean(t), "ستون T در جدول میلگرد نیامده");
+  // طول خاموت باید از محیط چندضلعی بیاید، نه محیط مستطیل محیطی
+  const rectPerimeter = 2 * (l!.b + l!.h);
+  assert(l!.bars.hoopLength < rectPerimeter, `طول خاموت L بیش از محیط مستطیل است: ${l!.bars.hoopLength}`);
+  assert(l!.bars.hoopLength > rectPerimeter * 0.45, `طول خاموت L غیرمنطقی است: ${l!.bars.hoopLength}`);
+  assert(t!.bars.mainCount > l!.bars.mainCount, "ستون T باید میلگرد بیشتری از L داشته باشد");
+  // برگهٔ جزئیات باید هم عنوان و هم مقطع را داشته باشد
+  const svg = renderStudioDetailSheet(doc);
+  assert(svg.includes("ستون") && svg.includes("polygon"), "برگهٔ جزئیات ستون L/T رسم نشده");
+  return `L: ${l!.bars.mainCount} شاخه · T: ${t!.bars.mainCount} شاخه`;
+});
+
+test("studio/detail-sheet", "محتوای جزئیات از کاغذ بیرون نمی‌زند و کتیبه سر جایش است", () => {
+  const doc = sampleDesign();
+  const { scene, schedule } = detailSheetScene(doc);
+  const { sheet, area } = frameOf(doc);
+  const footerTop = sheet.height - MARGIN - FOOTER_H;
+  const bottomOf = (prim: (typeof scene.prims)[number]): number =>
+    "y" in prim ? prim.y : "cy" in prim ? prim.cy + prim.r : "y1" in prim ? Math.max(prim.y1, prim.y2) : 0;
+  // هیچ نقشی نباید از کاغذ بیرون بزند (سرریز = محتوای گم‌شده در چاپ)
+  const offPaper = scene.prims.filter((prim) => bottomOf(prim) > sheet.height - MARGIN + 1);
+  assert(offPaper.length === 0, `${offPaper.length} نقش از کاغذ بیرون زده است`);
+  // جزئیات باید داخل ناحیهٔ نقش بمانند؛ فقط کتیبه حق دارد در نوار پایین باشد
+  const drawingOverflow = scene.prims.filter(
+    (prim) => bottomOf(prim) > footerTop && prim.kind !== "text" && prim.kind !== "line",
+  );
+  assert(drawingOverflow.length === 0, `${drawingOverflow.length} ترسیم وارد نوار کتیبه شده است`);
+  // کتیبه باید کامل داخل نوار پایین باشد (نه بالاتر و نه بیرون کاغذ)
+  const chromeTexts = scene.prims.filter((prim) => prim.kind === "text" && bottomOf(prim) > footerTop);
+  assert(chromeTexts.length >= 8, `متن‌های کتیبه کم است: ${chromeTexts.length}`);
+  void area;
+  return `${scene.prims.length} نقش · ${schedule.rows.length} ردیف میلگرد`;
+});
+
 test("studio/exporters", "جزئیات سازه DXF: هاشور توپر، لایه‌های برگه و ابعاد کاغذ", () => {
   const doc = sampleDesign();
   const file = exportStudio(doc, "details-dxf");

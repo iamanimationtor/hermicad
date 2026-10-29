@@ -1,5 +1,6 @@
 import { getDesign } from "@/server/designs";
 import { errorResponse } from "@/server/http";
+import { currentWorkspace } from "@/server/workspace";
 import { exportStudio, STUDIO_FORMATS, type StudioFormat } from "@/domain/studio/render";
 import { CLASSIFICATION_LABELS, type StudioDocument } from "@/domain/studio/document";
 
@@ -8,7 +9,7 @@ export const dynamic = "force-dynamic";
 export async function GET(request: Request, context: { params: Promise<{ id: string }> }) {
   try {
     const { id } = await context.params;
-    const design = await getDesign(id);
+    const design = await getDesign(id, await currentWorkspace());
     if (!design) return Response.json({ error: "سند طراحی یافت نشد.", detail: [] }, { status: 404 });
     const url = new URL(request.url);
     const format = (url.searchParams.get("format") ?? "svg") as StudioFormat;

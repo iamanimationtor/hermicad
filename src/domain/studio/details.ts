@@ -519,9 +519,9 @@ export function rebarSchedule(doc: StudioDocument): RebarSchedule {
 
 /* ─────────────────────────── برگهٔ جزئیات ─────────────────────────── */
 
-const MARGIN = 8;
+export const MARGIN = 8;
 const HEADER_H = 12;
-const FOOTER_H = 26;
+export const FOOTER_H = 26;
 
 interface Sheet {
   width: number;

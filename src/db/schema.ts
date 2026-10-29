@@ -150,6 +150,8 @@ export const designDocuments = pgTable("design_documents", {
   name: text("name").notNull(),
   kind: text("kind").notNull().default("architecture"),
   revision: integer("revision").notNull().default(1),
+  /** فضای کار بازدیدکننده (کوکی) — اسناد هر کاربر از بقیه جدا می‌ماند. */
+  workspace: text("workspace").notNull().default("public"),
   data: jsonb("data").$type<StudioDocument>().notNull(),
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),

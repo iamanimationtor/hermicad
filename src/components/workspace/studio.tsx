@@ -340,7 +340,7 @@ export function PlanView(ctx: Ctx) {
           ))}
         </div>
         <p className="mt-2 text-[10px] leading-5 text-slate-400">
-          DXF شامل لایه‌های WALL/DOOR/WINDOW/STAIR/DIM است و در متر صادر می‌شود؛ SVG پلان کامل با برچسب فارسی است. IFC فعلاً فقط فضاها را صادر می‌کند و دیوارها هنوز به IFC منتقل نمی‌شوند.
+          DXF شامل لایه‌های WALL/DOOR/WINDOW/STAIR/DIM است و در متر صادر می‌شود؛ SVG پلان کامل با برچسب فارسی است. IFC با موجودیت‌های نوع‌دار (IFCWALL/IFCCOLUMN/IFCBEAM/IFCDOOR/IFCWINDOW/IFCSPACE) صادر می‌شود و در بلندر/Revit قابل خواندن است.
         </p>
       </Panel>
     </div>

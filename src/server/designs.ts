@@ -1,4 +1,4 @@
-import { desc, eq } from "drizzle-orm";
+import { and, desc, eq } from "drizzle-orm";
 import { getDb } from "@/db";
 import { designDocuments } from "@/db/schema";
 import { CATALOG_BY_ID } from "@/domain/studio/catalog";
@@ -7,6 +7,7 @@ import {
   type StudioDocument,
   type StudioItem,
 } from "@/domain/studio/document";
+import { PUBLIC_WORKSPACE } from "@/server/workspace";
 
 /**
  * Design Studio persistence.
@@ -29,9 +30,20 @@ export interface DesignSummary {
   fingerprint: string;
 }
 
-export async function listDesigns(): Promise<DesignSummary[]> {
+/**
+ * فهرست اسناد یک فضای کار.
+ *
+ * `workspace` پیش‌فرض «public» است تا اسکریپت‌ها/آزمون‌ها بدون کوکی هم کار
+ * کنند؛ مسیرهای HTTP آن را از درخواست می‌خوانند.
+ */
+export async function listDesigns(workspace: string = PUBLIC_WORKSPACE): Promise<DesignSummary[]> {
   const db = await getDb();
-  const rows = await db.select().from(designDocuments).orderBy(desc(designDocuments.updatedAt)).limit(200);
+  const rows = await db
+    .select()
+    .from(designDocuments)
+    .where(eq(designDocuments.workspace, workspace))
+    .orderBy(desc(designDocuments.updatedAt))
+    .limit(200);
   return rows.map((row) => ({
     id: row.id,
     name: row.name,
@@ -56,15 +68,27 @@ function fingerprintOf(doc: StudioDocument): string {
   return `hds-${(hash >>> 0).toString(16).padStart(8, "0")}`;
 }
 
-export async function getDesign(id: string): Promise<StudioDocument | null> {
+/**
+ * خواندن سند — با کنترل مالکیت.
+ *
+ * اگر `workspace` داده شود، سندِ فضای دیگری «یافت نشد» برمی‌گرداند (نه ۴۰۳) تا
+ * وجود شناسه هم لو نرود. `PUBLIC_WORKSPACE` برای اسناد نمونه همیشه خوانا است.
+ */
+export async function getDesign(id: string, workspace?: string): Promise<StudioDocument | null> {
   const db = await getDb();
   const rows = await db.select().from(designDocuments).where(eq(designDocuments.id, id)).limit(1);
-  return rows[0]?.data ?? null;
+  const row = rows[0];
+  if (!row) return null;
+  if (workspace && row.workspace !== workspace && row.workspace !== PUBLIC_WORKSPACE) return null;
+  return row.data ?? null;
 }
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
-export async function createDesign(input: Partial<StudioDocument> = {}): Promise<StudioDocument> {
+export async function createDesign(
+  input: Partial<StudioDocument> = {},
+  workspace: string = PUBLIC_WORKSPACE,
+): Promise<StudioDocument> {
   const base = createStudioDocument(input);
   // شناسهٔ دیتابیس باید UUID باشد؛ شناسهٔ داخلی سند با آن هم‌تراز می‌شود.
   const id = base.id && UUID.test(base.id) ? base.id : crypto.randomUUID();
@@ -75,12 +99,17 @@ export async function createDesign(input: Partial<StudioDocument> = {}): Promise
     name: doc.name,
     kind: doc.kind,
     revision: doc.revision,
+    workspace,
     data: doc,
   });
   return doc;
 }
 
-export async function saveDesign(id: string, doc: StudioDocument): Promise<StudioDocument> {
+export async function saveDesign(
+  id: string,
+  doc: StudioDocument,
+  workspace: string = PUBLIC_WORKSPACE,
+): Promise<StudioDocument> {
   const next: StudioDocument = {
     ...doc,
     id,
@@ -88,21 +117,57 @@ export async function saveDesign(id: string, doc: StudioDocument): Promise<Studi
     updatedAt: new Date().toISOString(),
   };
   const db = await getDb();
-  const rows = await db.select({ id: designDocuments.id }).from(designDocuments).where(eq(designDocuments.id, id)).limit(1);
+  const rows = await db
+    .select({ id: designDocuments.id, workspace: designDocuments.workspace })
+    .from(designDocuments)
+    .where(eq(designDocuments.id, id))
+    .limit(1);
   if (rows.length === 0) {
-    await db.insert(designDocuments).values({ id, name: next.name, kind: next.kind, revision: next.revision, data: next });
-  } else {
-    await db
-      .update(designDocuments)
-      .set({ name: next.name, kind: next.kind, revision: next.revision, data: next, updatedAt: new Date() })
-      .where(eq(designDocuments.id, id));
+    await db.insert(designDocuments).values({
+      id,
+      name: next.name,
+      kind: next.kind,
+      revision: next.revision,
+      workspace,
+      data: next,
+    });
+    return next;
   }
+  // سند فضای دیگر قابل بازنویسی نیست (نمونهٔ عمومی استثناست)
+  if (rows[0].workspace !== workspace && rows[0].workspace !== PUBLIC_WORKSPACE) {
+    throw new WorkspaceMismatchError(id);
+  }
+  // ویرایش سند عمومی، مالکیت آن را به ویرایشگر منتقل نمی‌کند
+  await db
+    .update(designDocuments)
+    .set({ name: next.name, kind: next.kind, revision: next.revision, data: next, updatedAt: new Date() })
+    .where(eq(designDocuments.id, id));
   return next;
 }
 
-export async function deleteDesign(id: string): Promise<void> {
+/** خطای دسترسی به سندِ فضای کار دیگر. */
+export class WorkspaceMismatchError extends Error {
+  constructor(id: string) {
+    super(`سند ${id} در فضای کار دیگری است.`);
+    this.name = "WorkspaceMismatchError";
+  }
+}
+
+/**
+ * حذف سند. اسناد نمونهٔ عمومی محافظت می‌شوند: با یک درخواست نمی‌توان نمونهٔ
+ * مرجع را برای همهٔ بازدیدکننده‌ها پاک کرد.
+ */
+export async function deleteDesign(id: string, workspace: string = PUBLIC_WORKSPACE): Promise<boolean> {
   const db = await getDb();
-  await db.delete(designDocuments).where(eq(designDocuments.id, id));
+  const rows = await db
+    .select({ workspace: designDocuments.workspace })
+    .from(designDocuments)
+    .where(eq(designDocuments.id, id))
+    .limit(1);
+  if (rows.length === 0) return false;
+  if (rows[0].workspace !== workspace) return false;
+  await db.delete(designDocuments).where(and(eq(designDocuments.id, id), eq(designDocuments.workspace, workspace)));
+  return true;
 }
 
 /* ─────────────────────── سند نمونهٔ آماده ─────────────────────── */
@@ -419,15 +484,31 @@ export function sampleDesign(): StudioDocument {
   });
 }
 
-/** اگر هیچ سندی وجود ندارد، نمونه را می‌سازد (فقط یک بار). */
-export async function ensureSampleDesign(): Promise<StudioDocument> {
+/**
+ * اگر فضای کار هیچ سندی ندارد، یک **نسخهٔ شخصی** از نمونهٔ مرجع می‌سازد.
+ *
+ * چرا نسخهٔ شخصی: بازدیدکنندهٔ تازه اول باید چیزی ببیند که از آن شروع کند، اما
+ * نباید همان سند مشترک را ویرایش کند (وگرنه نمونهٔ همه عوض می‌شود).
+ */
+export async function ensureSampleDesign(workspace: string = PUBLIC_WORKSPACE): Promise<StudioDocument> {
   const db = await getDb();
-  const rows = await db.select({ id: designDocuments.id }).from(designDocuments).limit(1);
+  const rows = await db
+    .select({ id: designDocuments.id })
+    .from(designDocuments)
+    .where(eq(designDocuments.workspace, workspace))
+    .limit(1);
   if (rows.length > 0) {
-    const doc = await getDesign(rows[0].id);
+    const doc = await getDesign(rows[0].id, workspace);
     if (doc) return doc;
   }
-  return createDesign(sampleDesign());
+  const template = sampleDesign();
+  const fresh: StudioDocument = {
+    ...template,
+    id: crypto.randomUUID(),
+    name: workspace === PUBLIC_WORKSPACE ? template.name : `${template.name} — کارگاه من`,
+    revision: 1,
+  };
+  return createDesign(fresh, workspace);
 }
 
 export const SAMPLE_TEMPLATE_NAME = "آپارتمان نمونه — سه خوابه (۱۲×۱۰)";

@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 
 import { CLASSIFICATION_LABELS } from "@/domain/studio/document";
 import { getDesign } from "@/server/designs";
+import { currentWorkspace } from "@/server/workspace";
 
 export const dynamic = "force-dynamic";
 
@@ -18,7 +19,7 @@ const DISCIPLINES = CLASSIFICATION_LABELS.filter((entry) => entry.id !== "all");
 
 export default async function DesignGalleryPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  const design = await getDesign(id).catch(() => null);
+  const design = await getDesign(id, await currentWorkspace()).catch(() => null);
   if (!design) notFound();
 
   const base = `/api/designs/${design.id}/export`;
