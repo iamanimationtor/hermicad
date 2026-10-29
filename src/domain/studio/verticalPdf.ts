@@ -165,14 +165,15 @@ function drawViewOnCanvas(canvas: PdfCanvas, doc: StudioDocument, view: ViewGeom
     });
   }
 
-  // جان‌پناه بام
+  // جان‌پناه بام: حجم توپر + کفسنگی (همان زبان برگهٔ SVG)
   const parapetA = map(minX - 0.3, doc.levels * DEFAULT_FLOOR_HEIGHT);
   const parapetB = map(maxX + 0.3, doc.levels * DEFAULT_FLOOR_HEIGHT + 0.9);
-  canvas.rect(Math.min(parapetA.x, parapetB.x), Math.min(parapetA.y, parapetB.y), Math.abs(parapetA.x - parapetB.x), Math.abs(parapetA.y - parapetB.y), {
-    strokeGray: 0.15,
-    widthMm: 0.35,
-    dash: [2, 1.2],
-  });
+  const pxp = Math.min(parapetA.x, parapetB.x);
+  const pyp = Math.min(parapetA.y, parapetB.y);
+  const pwp = Math.abs(parapetA.x - parapetB.x);
+  const php = Math.abs(parapetA.y - parapetB.y);
+  canvas.rect(pxp, pyp, pwp, php, { fillGray: 0.8, strokeGray: 0.15, widthMm: 0.35 });
+  canvas.rect(pxp - 0.8, pyp - 1.1, pwp + 1.6, 1.1, { fillGray: 0.9, strokeGray: 0.15, widthMm: 0.3 });
 
   // اجزای نما
   for (const block of ordered) {
@@ -184,8 +185,35 @@ function drawViewOnCanvas(canvas: PdfCanvas, doc: StudioDocument, view: ViewGeom
     const w = Math.max(Math.abs(p1.x - p0.x), 0.3);
     const h = Math.max(Math.abs(p1.y - p0.y), 0.3);
     if (block.kind === "opening") {
-      canvas.rect(x, y, w, h, { fillGray: 1, strokeGray: style.stroke, widthMm: 0.3 });
-      canvas.line({ x, y: y + h / 2 }, { x: x + w, y: y + h / 2 }, 0.18, style.stroke);
+      // همان نماد SVG: کادر + لنگهٔ داخلی؛ پنجره با آستانه و تقسیم لنگه‌ها، در با
+      // لنگه و دستگیره.
+      const isDoor = (block.catalogId ?? "").startsWith("door");
+      canvas.rect(x, y, w, h, { fillGray: 1, strokeGray: style.stroke, widthMm: 0.35 });
+      canvas.rect(x + 0.6, y + 0.6, Math.max(w - 1.2, 0.4), Math.max(h - 1.2, 0.4), {
+        strokeGray: style.stroke,
+        widthMm: 0.18,
+      });
+      if (isDoor) {
+        canvas.line({ x: x + w / 2, y: y + 0.6 }, { x: x + w / 2, y: y + h - 0.6 }, 0.15, style.stroke);
+        // دستگیره: دایرهٔ کوچک توپر (تقریب با دایرهٔ ۸ضلعی)
+        const hx = x + w / 2 - 0.8;
+        const hy = y + h / 2;
+        const r = 0.28;
+        for (let corner = 0; corner < 8; corner += 1) {
+          const a0 = (corner / 8) * Math.PI * 2;
+          const a1 = ((corner + 1) / 8) * Math.PI * 2;
+          canvas.line(
+            { x: hx + r * Math.cos(a0), y: hy + r * Math.sin(a0) },
+            { x: hx + r * Math.cos(a1), y: hy + r * Math.sin(a1) },
+            0.25,
+            style.stroke,
+          );
+        }
+      } else {
+        canvas.line({ x: x - 0.9, y: y + h }, { x: x + w + 0.9, y: y + h }, 0.35, style.stroke);
+        canvas.line({ x: x + w / 2, y: y + 0.6 }, { x: x + w / 2, y: y + h - 0.6 }, 0.15, style.stroke);
+        canvas.line({ x: x + 0.6, y: y + h * 0.62 }, { x: x + w - 0.6, y: y + h * 0.62 }, 0.15, style.stroke);
+      }
       continue;
     }
     // در برش، اجزای بریده‌شده تیره‌تر (poché) رسم می‌شوند
