@@ -1,3 +1,4 @@
+import { slabConfig } from "@/domain/studio/slabConfig";
 import { WorkspaceMismatchError, deleteDesign, getDesign, saveDesign } from "@/server/designs";
 import { currentWorkspace } from "@/server/workspace";
 import { errorResponse, ok, readJson } from "@/server/http";
@@ -35,6 +36,7 @@ export async function PUT(request: Request, context: { params: Promise<{ id: str
         { status: 422 },
       );
     }
+    if (doc.slabRebar !== undefined) doc.slabRebar = slabConfig(doc.slabRebar);
     return ok({ design: await saveDesign(id, doc, await currentWorkspace()) });
   } catch (error) {
     if (error instanceof WorkspaceMismatchError) {

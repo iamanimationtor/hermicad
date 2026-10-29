@@ -174,12 +174,13 @@ export class DxfWriter {
    * دلخواه بی‌استفاده است. HATCH با مسیر مرزی (polyline path) در اتوکد، ب‌ریک‌کد
    * و لیبره‌کد به‌درستی پر می‌شود و در DXF R2000 مجاز است.
    */
-  solidHatch(points: [number, number][], layer: string): void {
+  solidHatch(points: [number, number][], layer: string, color?: number): void {
     if (points.length < 3) return;
     this.entityStart("HATCH", this.nextHandle(), layer, "AcDbHatch");
+    if (color != null) this.push(420, color);
     this.hatchHead();
     this.push(91, 1);
-    this.push(92, 1); // polyline boundary path
+    this.push(92, 2); // polyline boundary path
     this.push(72, 0); // no bulge
     this.push(73, 1); // closed
     this.push(93, points.length);
@@ -191,14 +192,15 @@ export class DxfWriter {
   }
 
   /** هاشور توپر با مرز دایره (edge path / circular arc). */
-  circleHatch(cx: number, cy: number, r: number, layer: string): void {
+  circleHatch(cx: number, cy: number, r: number, layer: string, color?: number): void {
     if (r <= 0) return;
     this.entityStart("HATCH", this.nextHandle(), layer, "AcDbHatch");
+    if (color != null) this.push(420, color);
     this.hatchHead();
     this.push(91, 1);
-    this.push(92, 2); // edge boundary path
+    this.push(92, 0); // edge boundary path
     this.push(93, 1); // one edge
-    this.push(72, 3); // circular arc
+    this.push(72, 2); // circular arc
     this.push(10, f(cx));
     this.push(20, f(cy));
     this.push(40, f(r));
@@ -229,7 +231,7 @@ export class DxfWriter {
     this.push(70, 0); // pattern fill (نه solid)
     this.push(71, 0);
     this.push(91, 1);
-    this.push(92, 1);
+    this.push(92, 2);
     this.push(72, 0);
     this.push(73, 1);
     this.push(93, points.length);
@@ -237,6 +239,7 @@ export class DxfWriter {
       this.push(10, f(x));
       this.push(20, f(y));
     }
+    this.push(97, 0); // هیچ شیء مرزی وابسته‌ای وجود ندارد
     this.push(75, 0);
     this.push(76, 1);
     this.push(52, def.angle);

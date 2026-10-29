@@ -8,7 +8,8 @@
     "lint": "eslint .",
     "typecheck": "tsc --noEmit",
     "test": "tsx scripts/quality.ts",
-    "preview:design": "tsx scripts/preview.ts"
+    "preview:design": "tsx scripts/preview.ts",
+    "test:studio-http": "tsx scripts/qa-studio-http.ts"
   },
   "dependencies": {
     "@electric-sql/pglite": "^0.5.13",

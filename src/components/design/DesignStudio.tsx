@@ -19,6 +19,7 @@ import {
   type StudioDocument,
   type StudioItem,
 } from "@/domain/studio/document";
+import { SLAB_REBAR_DEFAULTS, SLAB_PARAM_RANGES } from "@/domain/studio/slabConfig";
 import { ItemChip, ItemPreview } from "./ItemPreview";
 
 type Mode = "select" | "pan" | "place";
@@ -902,6 +903,29 @@ export function DesignStudio({ initialDesign }: { initialDesign: StudioDocument 
               <option key={entry.id} value={entry.id}>{entry.label}</option>
             ))}
           </select>
+          <details className="mt-2 text-[11px]">
+            <summary className="cursor-pointer text-teal-200">فرض‌های برآورد آرماتور سقف</summary>
+            <p className="my-2 text-amber-200">ویژهٔ دال توپر مستطیلی؛ این تنظیمات طراحی یا تأیید آیین‌نامه‌ای نیستند. با سند ذخیره می‌شوند.</p>
+            {Object.entries(SLAB_PARAM_RANGES).map(([key, [min, max, label]]) => {
+              const name = key as keyof typeof SLAB_PARAM_RANGES;
+              return <label key={key} className="mb-2 block">{label}
+                <input aria-label={label} type="number" min={min} max={max} step={name.includes("Diameter") || name === "diameterMm" || name === "anchorageFactor" ? 1 : 0.01}
+                  className="field mt-1" value={doc.slabRebar?.[name] ?? SLAB_REBAR_DEFAULTS[name]}
+                  onChange={event => {
+                    const value = event.target.valueAsNumber;
+                    if (Number.isFinite(value)) commit({ ...doc, slabRebar: { ...doc.slabRebar, [name]: value } }, "فرض‌های مترهٔ سقف");
+                  }} />
+              </label>;
+            })}
+            <label className="block">نوار بالا
+              <select className="field mt-1" value={doc.slabRebar?.topMode ?? "all"}
+                onChange={event => commit({ ...doc, slabRebar: { ...doc.slabRebar, topMode: event.target.value as "all" | "perimeter" } }, "نوار بالای سقف")}>
+                <option value="all">همهٔ لبه‌های دهانه‌ها (فرضی)</option>
+                <option value="perimeter">پیرامونی؛ بدون لبه‌های مشترک</option>
+              </select>
+            </label>
+            <button type="button" className="btn mt-2" onClick={() => commit({ ...doc, slabRebar: { ...SLAB_REBAR_DEFAULTS } }, "بازنشانی فرض‌های سقف")}>بازنشانی فرض‌ها</button>
+          </details>
           <div className="mt-2 grid grid-cols-2 gap-1">
             {[
               { id: "svg", label: "SVG نقشه" },
@@ -918,6 +942,7 @@ export function DesignStudio({ initialDesign }: { initialDesign: StudioDocument 
               { id: "section-dxf", label: "برش DXF (۱:۱)" },
               { id: "slab-rebar", label: "پلان آرماتور سقف (SVG)" },
               { id: "slab-rebar-pdf", label: "پلان آرماتور سقف (PDF)" },
+              { id: "slab-rebar-csv", label: "جدول میلگرد سقف (CSV)" },
               { id: "schedules", label: "جداول و کیپلان (SVG)" },
               { id: "schedules-pdf", label: "جداول و کیپلان (PDF)" },
               { id: "details", label: "جزئیات سازه و میلگرد (SVG)" },

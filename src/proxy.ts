@@ -10,7 +10,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { WORKSPACE_COOKIE, WORKSPACE_HEADER, isValidWorkspace, newWorkspaceId } from "@/server/workspace";
 
-export function middleware(request: NextRequest): NextResponse {
+export function proxy(request: NextRequest): NextResponse {
   const existing = request.cookies.get(WORKSPACE_COOKIE)?.value;
   if (isValidWorkspace(existing)) {
     const requestHeaders = new Headers(request.headers);

@@ -1,3 +1,4 @@
+import { slabConfig, SLAB_REBAR_DEFAULTS, type SlabRebarConfig } from "./slabConfig";
 /**
  * HERMICAD Studio — مدل سند طراحی و عملیات خالص
  *
@@ -65,6 +66,8 @@ export interface StudioDocument {
   currentLevel: number;
   layers: Record<StudioLayerId, boolean>;
   classification: DisciplineId | "all";
+  /** فرض‌های ذخیره‌شوندهٔ مترهٔ سقف؛ نه محاسبات سازه */
+  slabRebar?: Partial<SlabRebarConfig>;
   items: StudioItem[];
   revision: number;
   createdAt: string;
@@ -123,6 +126,7 @@ export function createStudioDocument(input: Partial<StudioDocument> = {}): Studi
     currentLevel: input.currentLevel ?? 0,
     layers: { ...emptyLayers(), ...(input.layers ?? {}) },
     classification: input.classification ?? "all",
+    ...(input.slabRebar === undefined ? {} : { slabRebar: slabConfig(input.slabRebar) }),
     items: input.items ?? [],
     revision: input.revision ?? 1,
     createdAt: input.createdAt ?? now,
@@ -444,6 +448,7 @@ export function documentFingerprint(doc: StudioDocument): string {
   const payload = JSON.stringify({
     sheet: doc.sheet,
     levels: doc.levels,
+    slabRebar: { ...SLAB_REBAR_DEFAULTS, ...doc.slabRebar },
     items: [...doc.items]
       .sort((a, b) => a.id.localeCompare(b.id))
       .map((item) => [item.catalogId, item.x, item.y, item.w, item.d, item.rotationDeg, item.level]),

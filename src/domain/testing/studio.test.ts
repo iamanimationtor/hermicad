@@ -1,11 +1,8 @@
+import { Scene } from "@/domain/studio/draw";
+import { sceneToDxf } from "@/domain/studio/sceneDxf";
+import { slabConfig } from "@/domain/studio/slabConfig";
 import { assert, test } from "./harness";
-import {
-  CATALOG,
-  CATALOG_BY_ID,
-  CATEGORIES,
-  STUDIO_LAYERS,
-  searchCatalog,
-} from "@/domain/studio/catalog";
+import { CATALOG, CATALOG_BY_ID, CATEGORIES, STUDIO_LAYERS, searchCatalog } from "@/domain/studio/catalog";
 import {
   addItem,
   createStudioDocument,
@@ -49,23 +46,17 @@ import {
   renderStudioDetailSheet,
 } from "@/domain/studio/details";
 import { ARCH_DETAILS } from "@/domain/studio/archDetails";
+import { faArea, faMeter, faNumber, faPercent, sheetFrame } from "@/domain/studio/sheetKit";
+import { renderStudioSchedulePdf, renderStudioScheduleSheet, studioSchedules } from "@/domain/studio/schedules";
 import {
-  faArea,
-  faMeter,
-  faNumber,
-  faPercent,
-  sheetFrame,
-} from "@/domain/studio/sheetKit";
-import {
-  renderStudioSchedulePdf,
-  renderStudioScheduleSheet,
-  studioSchedules,
-} from "@/domain/studio/schedules";
-import {
+  SLAB_REBAR_DEFAULTS,
+  fieldStrip,
   renderStudioSlabRebarPdf,
   renderStudioSlabRebarSheet,
+  slabOpenings,
   slabRebarPlan,
   slabRebarScene,
+  slabRebarScenes,
   SLAB_BAR_DIA,
   SLAB_SPACING,
 } from "@/domain/studio/slabRebar";
@@ -1028,7 +1019,7 @@ test("studio/slab-rebar", "نشان‌های میلگرد دال: هندسه، �
   assert(new Set(codes).size === codes.length, "نشان تکراری در جدول است");
   for (const mark of plan.marks) {
     assert(/^[BT]\d+$/.test(mark.code), `قالب نشان: ${mark.code}`);
-    assert(mark.spacingM === SLAB_SPACING, "فاصلهٔ شبکه با ثابت برگه نمی‌خواند");
+    assert(mark.spacingM === SLAB_SPACING || mark.layer === "trim", "فاصلهٔ شبکه با ثابت برگه نمی‌خواند");
     const weight = mark.totalLengthM * barWeightPerMetre(SLAB_BAR_DIA);
     assert(Math.abs(mark.weightKg - weight) < 0.6, `وزن ${mark.code}: ${mark.weightKg} ≠ ${weight.toFixed(1)}`);
     assert(Math.abs(mark.totalLengthM - mark.lengthM * mark.count) < 0.03, `طول کل ${mark.code} با تعداد نمی‌خواند`);
@@ -1037,8 +1028,17 @@ test("studio/slab-rebar", "نشان‌های میلگرد دال: هندسه، �
   // هر دهانه باید دست‌کم دو نشان پایین (دو جهت) داشته باشد
   const bottomFields = new Set(plan.marks.filter((mark) => mark.layer === "bottom").flatMap((mark) => mark.fields));
   for (const field of plan.fields) assert(bottomFields.has(field.label), `دهانهٔ «${field.label}» نشان پایین ندارد`);
-  // شبکهٔ بالا فقط دو نشان (دو جهت لبه)
-  assert(plan.marks.filter((mark) => mark.layer === "top").length === 2, "نشان‌های شبکهٔ بالا باید دو مورد باشند");
+  // شبکهٔ بالا: دست‌کم یک نشان در هر جهت، و همان عرض نوار در طول شاخه
+  const topMarks = plan.marks.filter((mark) => mark.layer === "top");
+  assert(topMarks.length >= 2, `نشان‌های شبکهٔ بالا کم است: ${topMarks.length}`);
+  assert(
+    topMarks.some((mark) => mark.direction === "x") && topMarks.some((mark) => mark.direction === "y"),
+    "شبکهٔ بالا در یکی از جهت‌ها نشان ندارد",
+  );
+  for (const mark of topMarks) {
+    const strip = Math.max(...plan.fields.map((field) => fieldStrip(field)));
+    assert(mark.lengthM >= 0.6 && mark.lengthM <= strip + 2 * 0.24 + 0.05, `طول شاخهٔ بالا غیرمنطقی: ${mark.lengthM}`);
+  }
   const sum = plan.marks.reduce((total, mark) => total + mark.weightKg, 0);
   assert(Math.abs(plan.totalWeightKg - sum) < 0.2, "جمع وزن با ردیف‌ها نمی‌خواند");
   return `${plan.marks.length} نشان · ${plan.totalWeightKg} kg · ${plan.outline.w}×${plan.outline.h} m`;
@@ -1049,18 +1049,38 @@ test("studio/slab-rebar", "برگهٔ پلان آرماتور سقف: همهٔ �
   const scene = slabRebarScene(doc);
   const frame = sheetFrame(doc);
   const right = (prim: (typeof scene.prims)[number]): number =>
-    "x" in prim && "w" in prim ? prim.x + prim.w : "x" in prim ? prim.x : "cx" in prim ? prim.cx + prim.r : "x1" in prim ? Math.max(prim.x1, prim.x2) : 0;
+    "x" in prim && "w" in prim
+      ? prim.x + prim.w
+      : "x" in prim
+        ? prim.x
+        : "cx" in prim
+          ? prim.cx + prim.r
+          : "x1" in prim
+            ? Math.max(prim.x1, prim.x2)
+            : 0;
   const bottom = (prim: (typeof scene.prims)[number]): number =>
-    "y" in prim && "h" in prim ? prim.y + prim.h : "y" in prim ? prim.y : "cy" in prim ? prim.cy + prim.r : "y1" in prim ? Math.max(prim.y1, prim.y2) : 0;
+    "y" in prim && "h" in prim
+      ? prim.y + prim.h
+      : "y" in prim
+        ? prim.y
+        : "cy" in prim
+          ? prim.cy + prim.r
+          : "y1" in prim
+            ? Math.max(prim.y1, prim.y2)
+            : 0;
   const overflow = scene.prims.filter(
-    (prim) => right(prim) > frame.sheet.w - MARGIN + 0.5 || bottom(prim) > frame.sheet.h - MARGIN + 0.5 || ("x" in prim && prim.x < MARGIN - 0.5),
+    (prim) =>
+      right(prim) > frame.sheet.w - MARGIN + 0.5 ||
+      bottom(prim) > frame.sheet.h - MARGIN + 0.5 ||
+      ("x" in prim && prim.x < MARGIN - 0.5),
   );
   assert(overflow.length === 0, `${overflow.length} نقش از کادر برگه بیرون زده است`);
   // هیچ ترسیمی نباید وارد نوار کتیبه شود
   const footerTop = frame.sheet.h - MARGIN - FOOTER_H;
   // کادر برگه عمداً از نوار کتیبه هم می‌گذرد؛ بقیه نباید
   const intoFooter = scene.prims.filter(
-    (prim) => bottom(prim) > footerTop && prim.kind !== "text" && prim.kind !== "line" && !(prim.data ?? "").includes("frame"),
+    (prim) =>
+      bottom(prim) > footerTop && prim.kind !== "text" && prim.kind !== "line" && !(prim.data ?? "").includes("frame"),
   );
   assert(intoFooter.length === 0, `${intoFooter.length} ترسیم وارد کتیبه شده است`);
 
@@ -1082,7 +1102,10 @@ test("studio/slab-rebar", "برگهٔ پلان آرماتور سقف: همهٔ �
   const file = exportStudio(doc, "slab-rebar");
   assert(file.filename.endsWith("-slab-rebar.svg"), `نام فایل: ${file.filename}`);
   const filePdf = exportStudio(doc, "slab-rebar-pdf");
-  assert(filePdf.filename.endsWith("-slab-rebar.pdf") && filePdf.mime === "application/pdf", "خروجی PDF برگهٔ سقف نادرست است");
+  assert(
+    filePdf.filename.endsWith("-slab-rebar.pdf") && filePdf.mime === "application/pdf",
+    "خروجی PDF برگهٔ سقف نادرست است",
+  );
   return `${scene.prims.length} نقش · ${plan.marks.length} نشان · ${(pdf.length / 1024).toFixed(0)} KB`;
 });
 
@@ -1098,9 +1121,29 @@ test("studio/slab-rebar", "برگهٔ سقف در مقیاس‌های مختلف
     const scene = slabRebarScene(view);
     const frame = sheetFrame(view);
     const out = scene.prims.filter((prim) => {
-      const r = "x" in prim && "w" in prim ? prim.x + prim.w : "x" in prim ? prim.x : "cx" in prim ? prim.cx + prim.r : "x1" in prim ? Math.max(prim.x1, prim.x2) : 0;
-      const b = "y" in prim && "h" in prim ? prim.y + prim.h : "y" in prim ? prim.y : "cy" in prim ? prim.cy + prim.r : "y1" in prim ? Math.max(prim.y1, prim.y2) : 0;
-      return r > frame.sheet.w - MARGIN + 0.5 || b > frame.sheet.h - MARGIN + 0.5 || ("x" in prim && prim.x < MARGIN - 0.5);
+      const r =
+        "x" in prim && "w" in prim
+          ? prim.x + prim.w
+          : "x" in prim
+            ? prim.x
+            : "cx" in prim
+              ? prim.cx + prim.r
+              : "x1" in prim
+                ? Math.max(prim.x1, prim.x2)
+                : 0;
+      const b =
+        "y" in prim && "h" in prim
+          ? prim.y + prim.h
+          : "y" in prim
+            ? prim.y
+            : "cy" in prim
+              ? prim.cy + prim.r
+              : "y1" in prim
+                ? Math.max(prim.y1, prim.y2)
+                : 0;
+      return (
+        r > frame.sheet.w - MARGIN + 0.5 || b > frame.sheet.h - MARGIN + 0.5 || ("x" in prim && prim.x < MARGIN - 0.5)
+      );
     });
     assert(out.length === 0, `${variant.format}/${variant.orientation}: ${out.length} نقش بیرون کادر`);
     assert(renderStudioSlabRebarSheet(view).includes("پلان آرماتور سقف"), `${variant.format}: عنوان برگه نیست`);
@@ -1127,4 +1170,258 @@ test("studio/exporters", "هاشور الگودار DXF: الگوی ANSI31 بر�
   const ansi = (details.match(/\nANSI31\n/g) ?? []).length;
   assert(solid > 20 && ansi >= 3, `ترکیب هاشور نامتوازن: SOLID=${solid} ANSI31=${ansi}`);
   return `${ansi} هاشور ANSI31 · ${solid} توپر`;
+});
+
+test("studio/slab-rebar", "بازشوی دال: قطع شبکه، میلگرد تقویتی ۱۶ و نشان O روی برگه", () => {
+  const base = sampleDesign();
+  // بازشوی ۱٫۲۰×۱٫۲۰ در وسط پذیرایی/نشیمن
+  const withOpening = addItem(base, "slab-opening", { x: 2.8, y: 3.2 }, { w: 1.2, d: 1.2, label: "چاهک آسانسور" });
+  const openings = slabOpenings(withOpening);
+  assert(openings.length === 1, `تعداد بازشو: ${openings.length}`);
+
+  const plain = slabRebarPlan(base);
+  const plan = slabRebarPlan(withOpening);
+  assert(plan.openings.length === 1, "بازشو در پلان نیامده است");
+
+  // شبکهٔ پایینِ داخل بازشو باید حذف شود ⇒ طول کل کم می‌شود
+  const bottom = (value: typeof plan) =>
+    value.marks.filter((mark) => mark.layer === "bottom").reduce((sum, mark) => sum + mark.totalLengthM, 0);
+  assert(bottom(plan) < bottom(plain) - 1, `طول شبکهٔ پایین با بازشو کم نشد: ${bottom(plan)} ≥ ${bottom(plain)}`);
+
+  // نشان تقویتی: قطر ۱۶، ۴ شاخه در هر جهت، طول = ابعاد بازشو + ۲×۱ متر
+  const trim = plan.marks.filter((mark) => mark.layer === "trim");
+  assert(trim.length === 2, `نشان تقویتی باید دو مورد باشد: ${trim.length}`);
+  for (const mark of trim) {
+    assert(mark.diameterMm === 16, `قطر تقویتی: ${mark.diameterMm}`);
+    assert(mark.count === 4, `تعداد شاخهٔ تقویتی: ${mark.count}`);
+    assert(mark.lengthM >= 3.1 && mark.lengthM <= 3.3, `طول تقویتی: ${mark.lengthM}`);
+    assert(mark.code.startsWith("O"), `کد تقویتی: ${mark.code}`);
+  }
+
+  // SVG و PDF باید هم نشان‌ها و هم برچسب بازشو را داشته باشند
+  const svg = renderStudioSlabRebarSheet(withOpening);
+  for (const mark of plan.marks) assert(svg.includes(`>${mark.code}<`), `نشان ${mark.code} روی برگه نیست`);
+  assert(svg.includes("چاهک آسانسور"), "برچسب بازشو روی برگه نیست");
+  const pdf = renderStudioSlabRebarPdf(withOpening);
+  assert(pdf.length > 60_000, `حجم PDF کم است: ${pdf.length}`);
+
+  // وزن کل با ردیف‌ها می‌خواند
+  const sum = plan.marks.reduce((total, mark) => total + mark.weightKg, 0);
+  assert(Math.abs(plan.totalWeightKg - sum) < 0.5, "جمع وزن با ردیف‌ها نمی‌خواند");
+  return `${plan.marks.length} نشان · ${plan.totalWeightKg} kg · ${openings[0].label}`;
+});
+
+test("studio/slab-rebar", "پیکربندی آرماتور دال: قطر، فاصله و نوار بالا روی نشان‌ها و وزن اثر می‌گذارند", () => {
+  const doc = sampleDesign();
+  const base = slabRebarPlan(doc);
+  const dense = slabRebarPlan(doc, { ...SLAB_REBAR_DEFAULTS, spacingM: 0.15 });
+  const coarse = slabRebarPlan(doc, { ...SLAB_REBAR_DEFAULTS, spacingM: 0.25 });
+  const thick = slabRebarPlan(doc, { ...SLAB_REBAR_DEFAULTS, diameterMm: 16 });
+
+  const bottomCount = (plan: typeof base) =>
+    plan.marks.filter((mark) => mark.layer === "bottom").reduce((sum, mark) => sum + mark.count, 0);
+
+  assert(bottomCount(dense) > bottomCount(base), "کاهش فاصله تعداد شاخه را زیاد نکرد");
+  assert(bottomCount(coarse) < bottomCount(base), "افزایش فاصله تعداد شاخه را کم نکرد");
+  // قطر بزرگ‌تر ⇒ وزن بیشتر (هم قطر و هم طول گیرش)
+  assert(thick.totalWeightKg > base.totalWeightKg * 1.5, `وزن با قطر ۱۶ بالا نرفت: ${thick.totalWeightKg}`);
+  for (const mark of thick.marks.filter((entry) => entry.layer !== "trim")) {
+    assert(mark.diameterMm === 16, `قطر نشان ${mark.code}: ${mark.diameterMm}`);
+  }
+  // روی برگه، فاصلهٔ ۱۵ سانتی‌متر باید در جدول دیده شود
+  const denseSheet = renderStudioSlabRebarSheet(doc, { spacingM: 0.15 });
+  assert(denseSheet.includes("۱۵"), "فاصلهٔ ۱۵ سانتی‌متر روی برگه نوشته نشده است");
+
+  // نوار بالا فقط پیرامونی: تکیه‌گاه داخلی متره نمی‌شود ⇒ وزن کمتر از حالت «همه»
+  let adjacent: typeof doc = { ...doc, items: [] };
+  adjacent = addItem(adjacent, "slab-solid", { x: 2, y: 2 }, { w: 4, d: 4 });
+  adjacent = addItem(adjacent, "slab-solid", { x: 6, y: 2 }, { w: 4, d: 4 });
+  const all = slabRebarPlan(adjacent);
+  const perimeter = slabRebarPlan(adjacent, { ...SLAB_REBAR_DEFAULTS, topMode: "perimeter" });
+  assert(perimeter.totalWeightKg < all.totalWeightKg, "حالت پیرامونی وزن را کم نکرد");
+
+  // پارامترهای برگه با همان پیکربندی هم‌خوان‌اند
+  assert(base.config.spacingM === SLAB_REBAR_DEFAULTS.spacingM, "پیکربندی پیش‌فرض در پلان نیامده است");
+  assert(
+    dense.config.spacingM === 0.15 && dense.config.diameterMm === SLAB_REBAR_DEFAULTS.diameterMm,
+    "پیکربندی بازنویسی‌شده نادرست است",
+  );
+  return `${base.totalWeightKg} kg · فاصلهٔ ۱۵ ⇒ ${dense.totalWeightKg} kg`;
+});
+
+test("studio/slab-rebar", "هندسهٔ دال: اولویت دال توپر، شفت و مبلمان دهانه نیستند", () => {
+  let doc = createStudioDocument();
+  doc = addItem(doc, "space-shaft", { x: 10, y: 10 }, { w: 2, d: 2 });
+  assert(slabRebarPlan(doc).fields.length === 0, "شفت دال فرض شده است");
+  doc = addItem(doc, "slab-solid", { x: 2, y: 2 }, { w: 4, d: 4 });
+  doc = addItem(doc, "space-room", { x: 2, y: 2 }, { w: 3, d: 3 });
+  const plan = slabRebarPlan(doc);
+  assert(plan.fields.length === 1 && plan.fields[0].source === "slab", "اولویت دال رعایت نشده");
+  assert(plan.openings.length === 0, "بازشوی بیرون دال متره شده");
+  assert(plan.bars.filter((b) => b.layer === "bottom").length === 42, "تعداد شبکهٔ ۴×۴ با پوشش و فاصلهٔ ۲۰ نادرست است");
+  for (const axis of ["x", "y"] as const) {
+    const bars = plan.bars.filter((b) => b.layer === "bottom" && b.direction === axis);
+    for (let i = 1; i < bars.length; i++)
+      assert(bars[i].fixed - bars[i - 1].fixed <= 0.200001, "فاصله از مقدار تعیین‌شده بیشتر است");
+  }
+});
+
+test("studio/slab-rebar", "بازشو: هر قطعه نشان مستقل دارد؛ طول×تعداد و وزن دقیقاً هم‌خوان‌اند", () => {
+  let doc = createStudioDocument();
+  doc = addItem(doc, "slab-solid", { x: 4, y: 4 }, { w: 8, d: 8 });
+  doc = addItem(doc, "slab-opening", { x: 3, y: 3 }, { w: 1.2, d: 1.2, label: "بازشوی اول" });
+  doc = addItem(doc, "slab-opening", { x: 6, y: 6 }, { w: 1.6, d: 1.4, label: "بازشوی دوم" });
+  const plan = slabRebarPlan(doc),
+    svg = renderStudioSlabRebarSheet(doc);
+  for (const mark of plan.marks) {
+    const bars = plan.bars.filter((b) => b.code === mark.code);
+    assert(mark.count === bars.length, `تعداد ${mark.code}`);
+    assert(
+      bars.every((b) => b.lengthM === mark.lengthM),
+      `طول‌های متفاوت در ${mark.code}`,
+    );
+    assert(Math.abs(mark.totalLengthM - mark.lengthM * mark.count) < 0.001, `طول کل ${mark.code}`);
+    assert(
+      Math.abs(mark.weightKg - mark.totalLengthM * barWeightPerMetre(mark.diameterMm)) <= 0.051,
+      `وزن ${mark.code}`,
+    );
+    assert(svg.includes(`data-bar-label="${mark.code}"`), `ارجاع نقشه برای ${mark.code} نیست`);
+  }
+  for (const b of plan.bars)
+    for (const hole of plan.openings) {
+      const crosses =
+        b.direction === "x"
+          ? b.fixed > hole.y0 && b.fixed < hole.y1 && b.to > hole.x0 && b.from < hole.x1
+          : b.fixed > hole.x0 && b.fixed < hole.x1 && b.to > hole.y0 && b.from < hole.y1;
+      assert(!crosses, "میلگرد از بازشو عبور کرده است");
+    }
+  assert(plan.marks.filter((m) => m.layer === "trim").length >= 4, "تقویت بازشوهای متفاوت ادغام شده");
+});
+
+test("studio/slab-rebar", "تکیه‌گاه مشترک فقط از تماس واقعی؛ امتداد تقویتی در مرز کوتاه می‌شود", () => {
+  let doc = createStudioDocument();
+  doc = addItem(doc, "slab-solid", { x: 2, y: 2 }, { w: 4, d: 4 });
+  doc = addItem(doc, "slab-solid", { x: 6, y: 2 }, { w: 4, d: 4 });
+  assert(Math.abs(slabRebarPlan(doc).interiorSupportM - 4) < 0.001, "لبهٔ مشترک دوباره شمرده شده");
+  const detached = { ...doc, items: doc.items.map((item, i) => (i ? { ...item, y: 10 } : item)) };
+  assert(slabRebarPlan(detached).interiorSupportM === 0, "لبهٔ هم‌راستا ولی جدا تکیه‌گاه فرض شده");
+  const opening = addItem(doc, "slab-opening", { x: 0.5, y: 0.5 }, { w: 0.4, d: 0.4 });
+  const plan = slabRebarPlan(opening);
+  assert(
+    plan.notes.some((n) => n.includes("کوتاه شده")),
+    "مهار ناکافی بدون هشدار مانده",
+  );
+  for (const b of plan.bars.filter((b) => b.layer === "trim")) {
+    assert(b.from >= 0.03 - 1e-6 && b.to <= 4 - 0.03 + 1e-6, "تقویتی بیرون دال رسم شده");
+  }
+});
+
+test("studio/slab-rebar", "پارامتر و هندسهٔ نامعتبر رد می‌شوند؛ تنظیمات در سند می‌مانند", () => {
+  const rejects = (fn: () => unknown) => {
+    let rejected = false;
+    try {
+      fn();
+    } catch {
+      rejected = true;
+    }
+    assert(rejected, "ورودی نامعتبر پذیرفته شد");
+  };
+  for (const input of [
+    { spacingM: 0 },
+    { spacingM: NaN },
+    { diameterMm: 12.5 },
+    { spacingM: true },
+    { topMode: "bad" },
+    { unknown: 1 },
+    null,
+    [],
+  ])
+    rejects(() => slabConfig(input));
+  assert(slabConfig({ spacingM: "۰٫۱۵", diameterMm: "١٦" }).spacingM === 0.15, "اعداد فارسی پذیرفته نشدند");
+  let doc = addItem(createStudioDocument(), "slab-solid", { x: 2, y: 2 }, { w: 4, d: 4 });
+  rejects(() => slabRebarPlan({ ...doc, items: doc.items.map((i) => ({ ...i, rotationDeg: 30 })) }));
+  rejects(() => slabRebarPlan(addItem(doc, "slab-solid", { x: 2, y: 2 }, { w: 3, d: 3 })));
+  rejects(() => slabRebarPlan(addItem(doc, "slab-opening", { x: 0, y: 2 }, { w: 1, d: 1 })));
+  rejects(() => slabRebarPlan(addItem(doc, "slab-joist", { x: 8, y: 2 })));
+  doc = createStudioDocument({ ...doc, slabRebar: { diameterMm: 16, spacingM: 0.15 } });
+  const restored = createStudioDocument(JSON.parse(JSON.stringify(doc)));
+  assert(slabRebarPlan(restored).config.diameterMm === 16, "قطر ذخیره نشده");
+  assert(slabRebarPlan(restored, { spacingM: 0.25 }).config.diameterMm === 16, "بازنویسی جزئی قطر را بازنشانی کرد");
+});
+
+test("studio/slab-rebar", "جدول بلند چندبرگی: تمام نشان‌ها حفظ می‌شوند و وارد کتیبه نمی‌شوند", () => {
+  let doc = createStudioDocument();
+  for (let i = 0; i < 24; i++)
+    doc = addItem(
+      doc,
+      "slab-solid",
+      { x: (i % 6) * 12, y: Math.floor(i / 6) * 12 },
+      { w: 3 + i * 0.12, d: 4 + i * 0.09 },
+    );
+  const plan = slabRebarPlan(doc),
+    scenes = slabRebarScenes(doc);
+  assert(scenes.length > 1, "جدول بلند صفحه‌بندی نشده");
+  const all = scenes.flatMap((s) => s.prims);
+  for (const m of plan.marks) {
+    assert(
+      all.some((p) => p.kind === "text" && p.value === m.code && p.data === `data-bar-label="${m.code}"`),
+      `نشان نقشه ${m.code} حذف شده`,
+    );
+    assert(
+      all.filter((p) => p.kind === "text" && p.value === m.code && !p.data).length === 1,
+      `ردیف ${m.code} حذف یا تکرار شده`,
+    );
+  }
+  const { area } = sheetFrame(doc);
+  for (const scene of scenes)
+    for (const p of scene.prims)
+      if (p.kind === "rect" && !p.data) assert(p.y + p.h <= area.y + area.h + 0.01, "جدول وارد کتیبه شده");
+  const pdf = renderStudioSlabRebarPdf(doc);
+  assert(
+    (
+      Buffer.from(pdf)
+        .toString("latin1")
+        .match(/\/Type \/Page /g) ?? []
+    ).length === scenes.length,
+    "تعداد برگ PDF نادرست است",
+  );
+});
+
+test("studio/exporters", "DXF برگه: بلوک، مختصات مشترک هاشور و هندسه، مسیر دایرهٔ استاندارد", () => {
+  const scene = new Scene();
+  scene.rect(10, 20, 30, 40, { fill: 0.6, width: 0.3 });
+  scene.circle(80, 40, 5, { fill: 0.2 });
+  const block = sceneToDxf(scene, { widthMm: 210, heightMm: 297 });
+  const flat = sceneToDxf(scene, { widthMm: 210, heightMm: 297, block: false });
+  assert((block.match(/\nINSERT\n/g) ?? []).length === 1, "برگه باید یک بلوک درج‌شده داشته باشد");
+  assert(block.includes("HERMICAD_SHEET"), "تعریف بلوک نیست");
+  assert(!flat.includes("\nINSERT\n"), "حالت مسطح بلوک دارد");
+  for (const dxf of [block, flat]) {
+    const hatches = dxf.split("\n0\nHATCH\n").slice(1);
+    assert(hatches.length === 2, "پرشدگی حذف شده");
+    assert(hatches[0].includes("\n92\n2\n72\n0\n73\n1\n93\n4\n"), "مرز پلی‌لاین استاندارد نیست");
+    assert(hatches[0].includes("\n20\n0.277\n") && hatches[0].includes("\n20\n0.237\n"), "هاشور در محور Y با هندسه منطبق نیست");
+    assert(hatches[1].includes("\n92\n0\n93\n1\n72\n2\n"), "مسیر دایره باید edge/arc باشد");
+    assert(hatches[1].includes("\n20\n0.257\n"), "مرکز هاشور دایره آینه نشده");
+    assert(hatches[0].includes("\n420\n10066329\n"), "خاکستری واقعی پرشدگی حفظ نشده");
+  }
+});
+
+test("studio/slab-rebar", "CSV میلگرد سقف: همهٔ ردیف‌ها، اعداد قابل محاسبه و جمع شاخه‌ها", () => {
+  const doc=sampleDesign();const plan=slabRebarPlan(doc);
+  const result=exportStudio(doc,"slab-rebar-csv");const csv=result.data.toString("utf8");
+  assert(csv.startsWith("\uFEFF"),"BOM لازم برای اکسل نیست");
+  for(const mark of plan.marks) assert(csv.includes(`"${mark.code}",`),`ردیف ${mark.code} حذف شده`);
+  assert(csv.split("\r\n").length===plan.marks.length+3,"تعداد ردیف‌های CSV نادرست است");
+  assert(csv.includes(`"${plan.bars.length}"`),"جمع شاخه‌ها نوشته نشده");
+});
+
+
+test("studio/slab-rebar", "اثر انگشت برگه با فرض‌های میلگرد تغییر می‌کند", () => {
+  const doc=sampleDesign();
+  const changed={...doc,slabRebar:{diameterMm:16}};
+  assert(documentFingerprint(doc)!==documentFingerprint(changed),"تغییر قطر در اثر انگشت نیامده است");
+  assert(documentFingerprint(doc)===documentFingerprint({...doc,slabRebar:{...SLAB_REBAR_DEFAULTS}}),"پیش‌فرض صریح و ضمنی متفاوت‌اند");
+  const svg=renderStudioSlabRebarSheet(doc,{diameterMm:16});
+  assert(svg.includes(documentFingerprint({...doc,slabRebar:{...SLAB_REBAR_DEFAULTS,diameterMm:16}})),"بازنویسی موقت API در شناسهٔ برگه نیامده است");
 });

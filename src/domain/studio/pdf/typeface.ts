@@ -23,12 +23,6 @@ import { join } from "node:path";
 import { LIGATURE_BASES, PRESENTATION_TO_BASE, shapeForDisplay } from "./arabic";
 import { PdfWriter } from "./writer";
 
-/** مسیرهای ممکن فونت، به ترتیب اولویت (توسعه و اجرای تولیدی). */
-function fontCandidates(file: string): string[] {
-  const roots = [process.cwd(), join(process.cwd(), ".."), join(process.cwd(), "..", "..")];
-  return roots.map((root) => join(root, "public", "fonts", file));
-}
-
 interface FontTables {
   [tag: string]: { offset: number; length: number };
 }
@@ -238,24 +232,18 @@ const cache = new Map<string, Typeface | null>();
 
 export type FontWeight = "regular" | "bold";
 
-const FILES: Record<FontWeight, string> = {
-  regular: "Vazirmatn-Regular.ttf",
-  bold: "Vazirmatn-Bold.ttf",
-};
-
-/** فونت جاسازی‌شدنی را می‌خواند؛ در صورت نبود/عدم مجوز `null`. */
+/** مسیرهای ثابت برای ردیابی دقیق دو فایل فونت در ساخت تولیدی. اجرا از ریشهٔ برنامه. */
 export function loadTypeface(weight: FontWeight = "regular"): Typeface | null {
   if (cache.has(weight)) return cache.get(weight) ?? null;
   let typeface: Typeface | null = null;
-  for (const path of fontCandidates(FILES[weight])) {
-    try {
-      const data = readFileSync(path);
-      const parsed = new Typeface(data);
-      typeface = parsed.embeddable ? parsed : null;
-      break;
-    } catch {
-      // مسیر بعدی را امتحان کن
-    }
+  try {
+    const data = weight === "bold"
+      ? readFileSync(join(process.cwd(), "public/fonts/Vazirmatn-Bold.ttf"))
+      : readFileSync(join(process.cwd(), "public/fonts/Vazirmatn-Regular.ttf"));
+    const parsed = new Typeface(data);
+    typeface = parsed.embeddable ? parsed : null;
+  } catch {
+    // نبود فونت یا عدم امکان خواندن: مسیر جایگزین PDF طبق قرارداد قبلی.
   }
   cache.set(weight, typeface);
   return typeface;

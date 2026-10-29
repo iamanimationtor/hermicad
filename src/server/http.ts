@@ -1,6 +1,8 @@
+import { SlabInputError } from "@/domain/studio/slabConfig";
 import { DomainError } from "@/domain/layout";
 
 export function errorResponse(error: unknown): Response {
+  if (error instanceof SlabInputError) return Response.json({ error: error.message, detail: [] }, { status: 422 });
   if (error instanceof DomainError) {
     return Response.json({ error: error.message, detail: error.detail }, { status: 422 });
   }

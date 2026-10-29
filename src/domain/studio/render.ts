@@ -28,7 +28,7 @@ import {
 } from "./archDetails";
 import { renderStudioDetailDxf, renderStudioDetailPdf, renderStudioDetailSheet } from "./details";
 import { renderStudioSchedulePdf, renderStudioScheduleSheet } from "./schedules";
-import { renderStudioSlabRebarPdf, renderStudioSlabRebarSheet } from "./slabRebar";
+import { renderStudioSlabRebarCsv, renderStudioSlabRebarPdf, renderStudioSlabRebarSheet, type SlabRebarConfig } from "./slabRebar";
 import {
   documentBounds,
   documentFingerprint,
@@ -116,6 +116,8 @@ export interface RenderOptions {
   /** مختصات خط برش برای خروجی «section» (متر) */
   sectionAt?: number;
   sectionWidth?: number;
+  /** بازنویسی پارامترهای آرماتور دال (خروجی‌های slab-rebar) */
+  slabRebar?: Partial<SlabRebarConfig>;
 }
 
 export function sheetLayout(doc: StudioDocument, options: RenderOptions = {}): SheetLayout {
@@ -1199,6 +1201,7 @@ export const STUDIO_FORMATS = [
   "arch-details-dxf",
   "slab-rebar",
   "slab-rebar-pdf",
+  "slab-rebar-csv",
   "schedules",
   "schedules-pdf",
   "elevations-dxf",
@@ -1211,6 +1214,7 @@ export function exportStudio(
   format: StudioFormat,
   options: RenderOptions = {},
 ): { filename: string; mime: string; data: Buffer } {
+  if (format.startsWith("slab-rebar") && options.onlyLevel != null) doc = { ...doc, currentLevel: options.onlyLevel };
   const base = `${doc.project.code || "hermicad"}-${doc.sheet.format}-${doc.currentLevel + 1}`;
   switch (format) {
     case "svg":
@@ -1277,13 +1281,15 @@ export function exportStudio(
       return {
         filename: `${base}-slab-rebar.svg`,
         mime: "image/svg+xml; charset=utf-8",
-        data: Buffer.from(renderStudioSlabRebarSheet(doc), "utf8"),
+        data: Buffer.from(renderStudioSlabRebarSheet(doc, options.slabRebar), "utf8"),
       };
+    case "slab-rebar-csv":
+      return { filename: `${base}-slab-rebar.csv`, mime: "text/csv; charset=utf-8", data: Buffer.from(renderStudioSlabRebarCsv(doc, options.slabRebar), "utf8") };
     case "slab-rebar-pdf":
       return {
         filename: `${base}-slab-rebar.pdf`,
         mime: "application/pdf",
-        data: Buffer.from(renderStudioSlabRebarPdf(doc)),
+        data: Buffer.from(renderStudioSlabRebarPdf(doc, options.slabRebar)),
       };
     case "details":
       return {

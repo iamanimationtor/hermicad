@@ -40,6 +40,8 @@ export interface SceneDxfOptions {
   /** عرض و ارتفاع برگه (میلی‌متر) برای آینه‌کردن محور Y. */
   widthMm: number;
   heightMm: number;
+  /** پیش‌فرض: یک بلوک قابل انتخاب برای برگه؛ false برای موجودیت‌های منفرد */
+  block?: boolean;
 }
 
 const LAYER_NAMES = new Set([...SHEET_LAYERS, ...MODEL_LAYERS].map((layer) => layer.name));
@@ -60,15 +62,15 @@ function layerOf(prim: Prim): string {
 }
 
 /** نقش‌هایی که باید ضمن حفظ، پرشدگی هم بگیرند (قاب هاشور و خط دور). */
-function pushFill(writer: DxfWriter, prim: Prim): void {
+function pushFill(writer: DxfWriter, prim: Prim, flip: (y: number) => number): void {
   // ناحیهٔ بافت: هاشور الگودار (بتن/بنایی) به‌جای پرشدگی توپر
   if (prim.pattern && prim.kind === "rect") {
     writer.patternHatch(
       [
-        [prim.x / MM, prim.y / MM],
-        [(prim.x + prim.w) / MM, prim.y / MM],
-        [(prim.x + prim.w) / MM, (prim.y + prim.h) / MM],
-        [prim.x / MM, (prim.y + prim.h) / MM],
+        [prim.x / MM, flip(prim.y)],
+        [(prim.x + prim.w) / MM, flip(prim.y)],
+        [(prim.x + prim.w) / MM, flip(prim.y + prim.h)],
+        [prim.x / MM, flip(prim.y + prim.h)],
       ],
       "HATCH",
       prim.pattern,
@@ -76,23 +78,27 @@ function pushFill(writer: DxfWriter, prim: Prim): void {
     return;
   }
   if (!("fill" in prim) || prim.fill == null) return;
+  const gray = Math.round(Math.max(0, Math.min(1, prim.fill)) * 255);
+  const color = gray * 0x010101;
   if (prim.kind === "rect") {
     writer.solidHatch(
       [
-        [prim.x / MM, prim.y / MM],
-        [(prim.x + prim.w) / MM, prim.y / MM],
-        [(prim.x + prim.w) / MM, (prim.y + prim.h) / MM],
-        [prim.x / MM, (prim.y + prim.h) / MM],
+        [prim.x / MM, flip(prim.y)],
+        [(prim.x + prim.w) / MM, flip(prim.y)],
+        [(prim.x + prim.w) / MM, flip(prim.y + prim.h)],
+        [prim.x / MM, flip(prim.y + prim.h)],
       ],
       "HATCH",
+      color,
     );
   } else if (prim.kind === "poly" && prim.points.length >= 3) {
     writer.solidHatch(
-      prim.points.map(([x, y]) => [x / MM, y / MM] as [number, number]),
+      prim.points.map(([x, y]) => [x / MM, flip(y)] as [number, number]),
       "HATCH",
+      color,
     );
   } else if (prim.kind === "circle") {
-    writer.circleHatch(prim.cx / MM, prim.cy / MM, prim.r / MM, "HATCH");
+    writer.circleHatch(prim.cx / MM, flip(prim.cy), prim.r / MM, "HATCH", color);
   }
 }
 
@@ -106,13 +112,15 @@ export function sceneToDxf(scene: Scene, options: SceneDxfOptions): string {
 
   const writer = new DxfWriter([...SHEET_LAYERS, ...MODEL_LAYERS]);
 
-  // هاشورها اول نوشته می‌شوند تا خطوط روی آن‌ها بیفتند (ترتیب رسم در CAD).
-  for (const prim of scene.prims) pushFill(writer, prim);
-
+  const blockName = "HERMICAD_SHEET";
+  if (options.block !== false) writer.beginBlock(blockName);
+  // ترتیب صحنه حفظ می‌شود تا زمینهٔ سفید متن روی خطوط قبلی بنشیند.
   for (const prim of scene.prims) {
+    pushFill(writer, prim, flip);
     // خطوط هاشور الگودار و کادر ناحیهٔ بافت در DXF نوشته نمی‌شوند:
     // الگوی HATCH همان نقش را با موجودیت استاندارد بازی می‌کند.
     if (prim.pattern || (prim.data ?? "").includes("data-hatch-line")) continue;
+    if (prim.kind !== "text" && prim.width === 0) continue;
     const layer = layerOf(prim);
     switch (prim.kind) {
       case "line":
@@ -155,6 +163,10 @@ export function sceneToDxf(scene: Scene, options: SceneDxfOptions): string {
     }
   }
 
+  if (options.block !== false) {
+    writer.endBlock();
+    writer.insert(blockName, 0, 0, 1, 1, 0, "SHEET");
+  }
   return writer.build({ minX: 0, minY: 0, maxX: options.widthMm / MM, maxY: options.heightMm / MM });
 }
 
