@@ -16,7 +16,7 @@
 | `/design` | فهرست سندها، آمار کتابخانه، ساخت سند نو (خالی یا نمونه) |
 | `/design/[id]` | محیط ترسیم: بوم، پالت اشیا، جدول اشیا، کنترل کیفیت، نوار خروجی |
 | `/design/[id]/gallery` | گالری رندرهای طبقه‌بندی‌شده: پلان ترکیبی + هر رشته + نماها + برش، همه کنار هم |
-| `POST /api/designs` | ساخت سند (`{ kind: "empty" \| "sample" }`) |
+| `POST /api/designs` | ساخت سند: `{ kind: "architecture" \| "structure" \| …, template: "empty" \| "sample" }` — با `template:"sample"` همان واحد نمونه (۱۸۷ شیء) ساخته می‌شود |
 | `GET/PUT/DELETE /api/designs/[id]` | خواندن/ذخیره/حذف سند |
 | `GET /api/designs/[id]/export?format=…` | خروجی سند ذخیره‌شده |
 | `POST /api/designs/export` | خروجی سندِ ذخیره‌نشده (همان بدنهٔ ویرایشگر) |
