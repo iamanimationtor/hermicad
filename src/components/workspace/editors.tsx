@@ -363,7 +363,7 @@ export function RequirementsView(ctx: Ctx) {
                   const d = draft.dwellings.find((x) => x.type === type);
                   return (
                     <tr key={type}>
-                      <td className="font-semibold text-slate-100">{DWELLING_LABEL[type]}</td>
+                      <td className="font-semibold text-white">{DWELLING_LABEL[type]}</td>
                       <td>
                         <input type="number" min={0} className="field mono w-20" aria-label={`تعداد ${DWELLING_LABEL[type]}`} value={d?.count ?? 0} onChange={(e) => setDwelling(type, { count: Number(e.target.value) })} />
                       </td>

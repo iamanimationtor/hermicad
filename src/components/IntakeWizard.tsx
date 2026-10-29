@@ -291,7 +291,7 @@ export function IntakeWizard() {
           <div className="space-y-3">
             <div className="grid gap-2 sm:grid-cols-2">
               <div className="panel-soft p-3">
-                <h3 className="text-[0.8125rem] font-bold text-slate-100">زمین و برنامه</h3>
+                <h3 className="text-[0.8125rem] font-bold text-white">زمین و برنامه</h3>
                 <ul className="mt-1 space-y-1 text-xs leading-5 text-slate-300">
                   <li>مساحت زمین: <span className="mono">{review.plotAreaM2.toFixed(1)} m²</span></li>
                   <li>شکل: {PARCEL_SHAPE_LABEL[answers.parcelShape]} · ابعاد {answers.widthM}×{answers.depthM} m</li>
@@ -372,14 +372,14 @@ export function IntakeWizard() {
 
       <section className="space-y-4">
         <div className="panel p-5">
-          <h2 className="text-sm font-bold text-slate-100">پیش‌نمایش زمین و پلان فرضی</h2>
+          <h2 className="text-sm font-bold text-white">پیش‌نمایش زمین و پلان فرضی</h2>
           <p className="mt-1 text-xs leading-5 text-slate-400">
             مرز زمین و محدوده پس از عقب‌نشینی (برش نیم‌صفحه) بلافاصله محاسبه می‌شود. پلان واقعی پس از تولید در کارگاه با دیوار، بازشو و ابعاد نمایش داده می‌شود.
           </p>
           <IntakeSketch boundary={boundary} setbacks={answers.setbacks} />
         </div>
         <div className="panel p-5">
-          <h3 className="text-[0.8125rem] font-bold text-slate-100">این مرحله چه چیزی می‌سازد؟</h3>
+          <h3 className="text-[0.8125rem] font-bold text-white">این مرحله چه چیزی می‌سازد؟</h3>
           <ul className="mt-1 space-y-1 text-xs leading-5 text-slate-300">
             <li>• مرز زمین از ابعاد/شکل انتخابی و عقب‌نشینی جهت‌دار → محدوده واقعی ساخت‌پذیر</li>
             <li>• برنامه واحدها و سقف‌های تراکم/اشغال به مدل مرکزی (CEM) منتقل می‌شود</li>

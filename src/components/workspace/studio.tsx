@@ -277,7 +277,7 @@ export function PlanView(ctx: Ctx) {
         </div>
         {scheme.layoutDecision && (
           <div className="mt-2 rounded border border-white/10 bg-white/5 p-2 text-xs leading-5 text-slate-300">
-            <span className="font-bold text-slate-100">تصمیم تعداد واحد در طبقه:</span>{" "}
+            <span className="font-bold text-white">تصمیم تعداد واحد در طبقه:</span>{" "}
             {scheme.layoutDecision.candidates
               .map((c) => `${c.unitsPerFloor} واحد → امتیاز ${c.adjusted}`)
               .join(" · ")}{" "}
@@ -439,7 +439,7 @@ export function SchemesView(ctx: Ctx) {
             >
               <div className="flex items-center justify-between">
                 <span className="mono text-xs text-teal-200">{stored.model.code}</span>
-                <span className="mono text-[0.8125rem] font-bold text-slate-100">{fmt(rank?.score ?? stored.score, 1)}{rank && !rank.comparisonComplete ? " (جزئی)" : ""}</span>
+                <span className="mono text-[0.8125rem] font-bold text-white">{fmt(rank?.score ?? stored.score, 1)}{rank && !rank.comparisonComplete ? " (جزئی)" : ""}</span>
               </div>
               <div className="mt-1 text-[0.8125rem] font-semibold leading-5 text-slate-100">{stored.model.strategyLabel}</div>
               <div className="mt-1 flex flex-wrap gap-1">
@@ -555,7 +555,7 @@ export function SchemesView(ctx: Ctx) {
                   : null;
                 return (
                   <tr key={criterion.id}>
-                    <td className="font-semibold text-slate-100">{criterion.label}</td>
+                    <td className="font-semibold text-white">{criterion.label}</td>
                     <td className="mono text-xs text-slate-400">{criterion.unit}</td>
                     {values.map((value, i) => (
                       <td key={schemes[i].rowId} className={`mono ${value !== null && best !== null && Math.abs(value - best) < 1e-9 ? "text-teal-300" : "text-slate-300"}`}>
@@ -566,7 +566,7 @@ export function SchemesView(ctx: Ctx) {
                 );
               })}
               <tr>
-                <td className="font-semibold text-slate-100">امتیاز مشورتی (پس از جریمه)</td>
+                <td className="font-semibold text-white">امتیاز مشورتی (پس از جریمه)</td>
                 <td className="mono text-xs text-slate-400">0-100</td>
                 {schemes.map((s) => {
                   const rank = rankingById.get(s.model.id);
@@ -579,7 +579,7 @@ export function SchemesView(ctx: Ctx) {
                 })}
               </tr>
               <tr>
-                <td className="font-semibold text-slate-100">جبهه پارتو</td>
+                <td className="font-semibold text-white">جبهه پارتو</td>
                 <td />
                 {schemes.map((s) => (
                   <td key={s.rowId}>{rankingById.get(s.model.id)?.pareto === true ? <StatusBadge status="pass" /> : <span className="text-[0.8125rem] text-slate-500">{rankingById.get(s.model.id)?.pareto === null ? "نامشخص" : "—"}</span>}</td>
@@ -618,7 +618,7 @@ export function ValidationView(ctx: Ctx) {
       </div>
 
       <div className="panel-soft p-3">
-        <h3 className="text-[0.8125rem] font-bold text-slate-100">تفکیک سطوح شواهد</h3>
+        <h3 className="text-[0.8125rem] font-bold text-white">تفکیک سطوح شواهد</h3>
         <div className="mt-1 flex flex-wrap gap-1">
           {Object.entries(report.evidenceSummary ?? {}).map(([tier, count]) => (
             <span key={tier} className="chip">
@@ -713,7 +713,7 @@ export function ValidationView(ctx: Ctx) {
                 <tr key={evaluation.ruleId}>
                   <td className="mono text-xs text-teal-200">{evaluation.ruleId}</td>
                   <td>
-                    <span className="font-semibold text-slate-100">{evaluation.title}</span>
+                    <span className="font-semibold text-white">{evaluation.title}</span>
                     <details className="mt-1">
                       <summary className="cursor-pointer text-xs text-slate-400">پیام و ردیابی</summary>
                       <p className="mt-1 text-[0.8125rem] leading-5 text-slate-300">{evaluation.message}</p>
@@ -851,7 +851,7 @@ export function AnalysisView(ctx: Ctx) {
             حد آستانه نسبت شیشه ۸٪ سطح کف است. این معیار «برآورد جایگزین» است و تحلیل دقیق نور روز (DF/DA) نیست.
           </p>
           <div className="mt-3">
-            <h3 className="mb-1 text-[0.8125rem] font-bold text-slate-100">معیارهای کامل طرح</h3>
+            <h3 className="mb-1 text-[0.8125rem] font-bold text-white">معیارهای کامل طرح</h3>
             <div className="max-h-64 overflow-y-auto scroll-thin">
               <div className="overflow-x-auto scroll-thin -mx-1 px-1">
                 <table className="table-eng">
@@ -930,7 +930,7 @@ export function ExportsView(ctx: Ctx) {
               className="panel-soft block p-3 transition hover:border-teal-400/50"
             >
               <div className="flex items-center justify-between">
-                <span className="text-xs font-bold text-slate-100">{format.label}</span>
+                <span className="text-xs font-bold text-white">{format.label}</span>
                 <span className="mono text-xs text-teal-200">.{format.id}</span>
               </div>
               <p className="mt-1 text-xs leading-5 text-slate-400">{format.note}</p>

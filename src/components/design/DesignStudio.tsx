@@ -569,7 +569,7 @@ export function DesignStudio({ initialDesign }: { initialDesign: StudioDocument 
       {/* ─────────── کتابخانه ─────────── */}
       <aside className="panel flex max-h-[calc(100vh-120px)] flex-col overflow-hidden p-3">
         <div className="flex items-center justify-between">
-          <h2 className="text-sm font-bold text-slate-100">کتابخانهٔ اشیا</h2>
+          <h2 className="text-sm font-bold text-white">کتابخانهٔ اشیا</h2>
           <span className="chip">{CATALOG.length} شیء</span>
         </div>
         <input

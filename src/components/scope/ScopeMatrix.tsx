@@ -27,7 +27,7 @@ const stateStyle: Record<StageState, string> = {
 function TextList({ title, values }: { title: string; values: readonly string[] }) {
   return (
     <section>
-      <h4 className="text-sm font-bold text-slate-100">{title}</h4>
+      <h4 className="text-sm font-bold text-white">{title}</h4>
       <ul className="mt-2 list-disc space-y-1 pr-5 text-xs leading-6 text-slate-300">
         {values.map((value) => <li key={value}>{value}</li>)}
       </ul>
@@ -74,7 +74,7 @@ function RowDetail({ row }: { row: ScopeRow }) {
           ))}
         </dl>
         <section>
-          <h4 className="mb-2 text-sm font-bold text-slate-100">شش وضعیت مستقل</h4>
+          <h4 className="mb-2 text-sm font-bold text-white">شش وضعیت مستقل</h4>
           <div className="overflow-x-auto">
             <table className="table-eng min-w-[620px]">
               <thead><tr><th>مرحله</th><th>وضعیت</th><th>معنا و محدودیت</th></tr></thead>
@@ -98,7 +98,7 @@ function RowDetail({ row }: { row: ScopeRow }) {
         </div>
         {row.inputs.length > 0 && (
           <section>
-            <h4 className="text-sm font-bold text-slate-100">ورودی‌های اصلی</h4>
+            <h4 className="text-sm font-bold text-white">ورودی‌های اصلی</h4>
             <p className="mt-1 text-xs leading-6 text-slate-400">این فهرست لزوماً همهٔ داده‌های لازم پروژه نیست. بازه‌های عددی زیر فقط محدودیت نرم‌افزارند.</p>
             <ul className="mt-2 grid gap-2 sm:grid-cols-2">
               {row.inputs.map((input) => (

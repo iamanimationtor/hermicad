@@ -47,7 +47,7 @@ export function NewDesignPanel() {
 
   return (
     <section className="panel p-5">
-      <h2 className="text-sm font-bold text-slate-100">سند طراحی جدید</h2>
+      <h2 className="text-sm font-bold text-white">سند طراحی جدید</h2>
       <p className="mt-1 text-[0.8125rem] leading-5 text-slate-400">
         کار مهمان رایگان است. سند خصوصی ذخیره می‌شود؛ برای اشتراک، لینک فقط‌خواندنی بسازید.
       </p>

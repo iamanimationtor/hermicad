@@ -179,7 +179,7 @@ export function KeyValue({ items }: { items: { label: string; value: ReactNode; 
       {items.map((item) => (
         <div key={item.label} className="flex items-baseline justify-between gap-3 border-b border-white/5 py-2">
           <dt className="text-xs text-slate-400">{item.label}</dt>
-          <dd className={`text-sm font-semibold text-slate-100 ${item.mono ? "mono" : ""}`}>{item.value}</dd>
+          <dd className={`text-sm font-semibold text-white ${item.mono ? "mono" : ""}`}>{item.value}</dd>
         </div>
       ))}
     </dl>
