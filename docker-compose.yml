@@ -1,0 +1,78 @@
+# HERMICAD — استقرار با Docker Compose
+#
+# دو حالت:
+#   1) تولید (پیشنهادی): پایگاه Postgres جداگانه، داده در volume.
+#        docker compose up -d --build
+#   2) پیش‌نمایش سریع بدون Postgres (فقط آزمون، نه تولید):
+#        docker compose --profile preview up -d --build hermicad-preview
+#
+# پیش از استفاده، HERMICAD_PUBLIC_URL را به دامنهٔ واقعی و POSTGRES_PASSWORD را
+# به یک گذرواژهٔ قوی تغییر دهید.
+
+services:
+  db:
+    image: postgres:17-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-hermicad}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-hermicad}
+      POSTGRES_DB: ${POSTGRES_DB:-hermicad}
+      # همسانی مرتب‌سازی برای متن فارسی
+      POSTGRES_INITDB_ARGS: "--encoding=UTF8 --locale=C.UTF-8"
+    volumes:
+      - db-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-hermicad} -d ${POSTGRES_DB:-hermicad}"]
+      interval: 10s
+      timeout: 5s
+      retries: 6
+      start_period: 15s
+    # پایگاه از بیرون قابل دسترس نیست؛ فقط شبکهٔ داخلی.
+    expose:
+      - "5432"
+
+  hermicad:
+    build:
+      context: .
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      NODE_ENV: production
+      DATABASE_URL: postgresql://${POSTGRES_USER:-hermicad}:${POSTGRES_PASSWORD:-hermicad}@db:5432/${POSTGRES_DB:-hermicad}
+      HERMICAD_PUBLIC_URL: ${HERMICAD_PUBLIC_URL:-http://localhost:3000}
+      HERMICAD_RUN_RETENTION: ${HERMICAD_RUN_RETENTION:-20}
+      HERMICAD_QUOTA_PROJECTS: ${HERMICAD_QUOTA_PROJECTS:-200}
+      HERMICAD_QUOTA_DESIGNS: ${HERMICAD_QUOTA_DESIGNS:-300}
+    ports:
+      - "${HERMICAD_PORT:-3000}:3000"
+    # فایل‌سیستم فقط‌خواندنی؛ فقط مسیرهای نوشتنی لازم به‌صورت tmpfs سوار می‌شوند.
+    # ‎/app/.next/cache را Next برای بهینه‌سازی تصویر و کش ISR می‌نویسد.
+    read_only: true
+    tmpfs:
+      - /tmp
+      - /app/.next/cache
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+
+  # فقط برای پیش‌نمایش محلی: بدون پایگاه بیرونی، PGlite روی volume.
+  hermicad-preview:
+    profiles: ["preview"]
+    build:
+      context: .
+    environment:
+      NODE_ENV: production
+      PGLITE_DATA_DIR: /app/.data/hermicad
+      HERMICAD_ALLOW_PGLITE_IN_PRODUCTION: "1"
+      HERMICAD_PUBLIC_URL: http://localhost:3001
+    ports:
+      - "3001:3000"
+    volumes:
+      - pglite-data:/app/.data
+
+volumes:
+  db-data:
+  pglite-data:

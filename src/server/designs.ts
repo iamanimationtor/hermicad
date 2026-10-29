@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import { AccessError } from "./accessError";
 import { and, desc, eq } from "drizzle-orm";
 import { getDb } from "@/db";
@@ -5,6 +6,7 @@ import { designDocuments } from "@/db/schema";
 import { CATALOG_BY_ID } from "@/domain/studio/catalog";
 import { createStudioDocument, documentFingerprint, type StudioDocument, type StudioItem } from "@/domain/studio/document";
 import { PUBLIC_WORKSPACE } from "@/server/workspace";
+import { assertWorkspaceDesignQuota } from "./quota";
 
 /**
  * Design Studio persistence.
@@ -76,6 +78,7 @@ export async function getDesign(id: string, workspace?: string): Promise<StudioD
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 export async function createDesign(input: Partial<StudioDocument> = {}, workspace: string = PUBLIC_WORKSPACE): Promise<StudioDocument> {
+  await assertWorkspaceDesignQuota(workspace);
   const base = createStudioDocument(input);
   // شناسهٔ دیتابیس باید UUID باشد؛ شناسهٔ داخلی سند با آن هم‌تراز می‌شود.
   const id = base.id && UUID.test(base.id) ? base.id : crypto.randomUUID();
@@ -449,21 +452,69 @@ export function sampleDesign(): StudioDocument {
  * چرا نسخهٔ شخصی: بازدیدکنندهٔ تازه اول باید چیزی ببیند که از آن شروع کند، اما
  * نباید همان سند مشترک را ویرایش کند (وگرنه نمونهٔ همه عوض می‌شود).
  */
-export async function ensureSampleDesign(workspace: string = PUBLIC_WORKSPACE): Promise<StudioDocument> {
+/**
+ * شناسهٔ قطعیِ سند نمونه برای هر فضای کار.
+ *
+ * چرا قطعی: اگر دو درخواست هم‌زمان (پیش‌بارگذاری صفحه + فراخوانی API) هر دو
+ * «فضای کار خالی» را ببینند، نسخهٔ قبلی دو سندِ نمونهٔ جدا می‌ساخت. با شناسهٔ
+ * مشتق از نام فضای کار، هر دو درج روی کلید اصلی یکی می‌شوند و دومی بی‌اثر است.
+ */
+function sampleDesignId(workspace: string): string {
+  const hex = createHash("sha256").update(`hermicad:sample-design:v1:${workspace}`).digest("hex").slice(0, 32).split("");
+  hex[12] = "4";
+  hex[16] = ((Number.parseInt(hex[16], 16) & 0x3) | 0x8).toString(16);
+  const value = hex.join("");
+  return `${value.slice(0, 8)}-${value.slice(8, 12)}-${value.slice(12, 16)}-${value.slice(16, 20)}-${value.slice(20, 32)}`;
+}
+
+/**
+ * ساخت سند نمونه برای فضای کار خالی — بی‌درج تکراری و بدون خواندن کل سند.
+ *
+ * مسیرهای فهرست (`/design`، `/guide`، `GET /api/designs`) فقط به «وجود حداقل یک
+ * سند» نیاز دارند و مقدار بازگشتی را استفاده نمی‌کنند؛ بنابراین خواندن و پارس
+ * کل سند در این مسیر حذف شده است.
+ */
+export async function seedSampleDesign(workspace: string = PUBLIC_WORKSPACE): Promise<void> {
   const db = await getDb();
-  const rows = await db.select({ id: designDocuments.id }).from(designDocuments).where(eq(designDocuments.workspace, workspace)).limit(1);
-  if (rows.length > 0) {
-    const doc = await getDesign(rows[0].id, workspace);
-    if (doc) return doc;
-  }
+  const [existing] = await db
+    .select({ id: designDocuments.id })
+    .from(designDocuments)
+    .where(eq(designDocuments.workspace, workspace))
+    .limit(1);
+  if (existing) return;
   const template = sampleDesign();
+  const id = sampleDesignId(workspace);
   const fresh: StudioDocument = {
     ...template,
-    id: crypto.randomUUID(),
+    id,
     name: workspace === PUBLIC_WORKSPACE ? template.name : `${template.name} — کارگاه من`,
     revision: 1,
   };
-  return createDesign(fresh, workspace);
+  await db
+    .insert(designDocuments)
+    .values({
+      id: fresh.id,
+      name: fresh.name,
+      kind: fresh.kind,
+      revision: fresh.revision,
+      workspace,
+      data: fresh,
+    })
+    .onConflictDoNothing();
+}
+
+export async function ensureSampleDesign(workspace: string = PUBLIC_WORKSPACE): Promise<StudioDocument> {
+  await seedSampleDesign(workspace);
+  const db = await getDb();
+  const [row] = await db
+    .select({ id: designDocuments.id })
+    .from(designDocuments)
+    .where(eq(designDocuments.workspace, workspace))
+    .limit(1);
+  const doc = row ? await getDesign(row.id, workspace) : null;
+  // سندِ نمونهٔ ساخته‌شده همیشه وجود دارد؛ این شاخهٔ ایمنی فقط برای حذف هم‌زمان است.
+  if (doc) return doc;
+  return createDesign(sampleDesign(), workspace);
 }
 
 export const SAMPLE_TEMPLATE_NAME = "آپارتمان نمونه — سه خوابه (۱۲×۱۰)";

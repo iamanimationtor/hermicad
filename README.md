@@ -27,6 +27,17 @@ cp .env.example .env
 npm run dev
 ```
 
+### استقرار با Docker
+
+```bash
+docker compose up -d --build        # برنامه + Postgres، هر دو با healthcheck
+HERMICAD_PUBLIC_URL=https://example.com POSTGRES_PASSWORD=... docker compose up -d --build
+```
+
+تصویر با کاربر غیر ریشه، فایل‌سیستم فقط‌خواندنی و `HEALTHCHECK` روی `/api/health`
+اجرا می‌شود؛ چیدمان تصویر و دلیل نبودِ `output: standalone` در
+[`docs/OPERATIONS.fa.md`](docs/OPERATIONS.fa.md).
+
 پروژهٔ نمایشی مرجع را با دکمهٔ «ساخت پروژهٔ نمایشی» در `/projects` یا با:
 
 ```bash
@@ -35,6 +46,28 @@ curl -c hermicad.cookies -H 'Origin: http://localhost:3000' -X POST http://local
 ```
 
 بسازید؛ فایل کوکی را مانند گذرواژه محرمانه نگه دارید و در مخزن ثبت نکنید.
+
+### استقرار پشت پراکسی TLS (ضروری برای انتشار عمومی)
+
+اگر برنامه پشت پراکسیِ https اجرا می‌شود (پیش‌نمایش ابری، Nginx، CDN)، پراکسی باید
+`Host` (یا `X-Forwarded-Host`) را بر اساس اتصال بیرونی بازنویسی کند. برنامه مبدأ
+درخواست را با **هم‌میزانی** و نشانهٔ مرورگر (`Sec-Fetch-Site`) می‌سنجد و طرح‌واره
+را فقط وقتی سخت می‌گیرد که پراکسی صریحاً https اعلام کند؛ جزئیات و دلیل در
+[`docs/OPERATIONS.fa.md`](docs/OPERATIONS.fa.md).
+
+سقف مصرف هر فضای کار با `HERMICAD_QUOTA_PROJECTS` (۲۰۰) و `HERMICAD_QUOTA_DESIGNS`
+(۳۰۰) قابل تنظیم است تا یک بازدیدکننده نتواند پایگاه را پر کند. تاریخچهٔ اجراهای هر
+پروژه هم با `HERMICAD_RUN_RETENTION` (۲۰) محدود می‌شود؛ اجرای فعال و رکوردهای پیش از
+مهاجرت هرگز حذف نمی‌شوند. `HERMICAD_PUBLIC_URL` دامنهٔ `robots.txt`/`sitemap.xml` را
+تعیین می‌کند. فهرست کامل متغیرها در [`.env.example`](.env.example).
+
+| متغیر | پیش‌فرض | کار |
+| --- | --- | --- |
+| `DATABASE_URL` | — | پایگاه Postgres؛ در production الزامی (بدون آن ۵۰۳) |
+| `HERMICAD_PUBLIC_URL` | میزبان درخواست | دامنهٔ عمومی برای robots/sitemap/متادیتا |
+| `HERMICAD_QUOTA_PROJECTS` / `HERMICAD_QUOTA_DESIGNS` | ۲۰۰ / ۳۰۰ | سقف مصرف هر فضای کار |
+| `HERMICAD_RUN_RETENTION` | ۲۰ | حداکثر اجراهای نگه‌داشته‌شدهٔ هر پروژه |
+| `HERMICAD_QUALITY_TTL_MS` | ۱۵۰۰۰ | مدت کش نمایشی دروازهٔ کیفیت |
 
 ## اسکریپت‌ها
 
@@ -46,6 +79,7 @@ curl -c hermicad.cookies -H 'Origin: http://localhost:3000' -X POST http://local
 | `npm run lint` | ESLint |
 | `npm run test` | اجرای دروازهٔ کیفیت (بدون نیاز به دیتابیس) |
 | `npm run test:http` | آزمون HTTP با سرور و پایگاه موقت؛ ابتدا `npm run build` اجرا شود |
+| `npm run test:smoke` | دود-تست جریان کامل کاربر روی سرور در حال اجرا (`BASE=...`) |
 | `npm run preview:design` | رندر همهٔ برگه‌های استودیو به PNG در `.preview/` برای بازبینی چشمی |
 
 ## نقشهٔ مسیرها
@@ -62,6 +96,8 @@ curl -c hermicad.cookies -H 'Origin: http://localhost:3000' -X POST http://local
 | `/scope` | پیش‌نویس دامنه، محدودیت‌ها و شواهد نرم‌افزاری؛ بدون ادعای تأیید یا انتشار |
 | `/api/scope` | نسخهٔ JSON فقط‌خواندنی همین دفتر |
 | `/api/*` | API پروژه، تولید، اصلاح، کنترل اولیه، نقشه، خروجی |
+| `/robots.txt` | سیاست خزش: فقط مسیرهای عمومی، بدون `/api/`، `/share` و زیرمسیرهای فضای کار |
+| `/sitemap.xml` | هشت مسیر عمومی با نشانی مطلق |
 
 ## ساختار کد
 

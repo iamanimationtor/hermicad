@@ -527,12 +527,49 @@ export function DesignStudio({ initialDesign }: { initialDesign: StudioDocument 
     });
   };
 
+  const kindLabel = ({ architecture: "معماری", structure: "سازه", mep: "تأسیسات", site: "محوطه" } as const)[doc.kind];
+
   return (
-    <div className="grid gap-3 px-3 py-3 xl:grid-cols-[280px_minmax(0,1fr)_310px]">
+    <div className="pb-6">
+      {/* ─────────── نوار سند: همیشه می‌گوید کجایید و ذخیره شده یا نه ─────────── */}
+      <header className="shell-wide flex flex-wrap items-center gap-x-4 gap-y-2 border-b border-white/8 py-3">
+        <Link
+          href="/design"
+          className="inline-flex items-center gap-1.5 text-xs text-slate-400 transition-colors hover:text-teal-200"
+        >
+          <svg width="12" height="12" viewBox="0 0 16 16" aria-hidden="true" className="rotate-180">
+            <path d="M13 8H4M7.5 4.5 4 8l3.5 3.5" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
+          </svg>
+          استودیو
+        </Link>
+        <div className="min-w-0">
+          <h1 className="truncate text-sm font-bold text-white sm:text-base">{doc.name}</h1>
+          <p className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[0.7rem] text-slate-500">
+            <span>{kindLabel}</span>
+            <span aria-hidden="true">·</span>
+            <span>برگهٔ {doc.sheet.format}</span>
+            <span aria-hidden="true">·</span>
+            <span>نسخهٔ {doc.revision}</span>
+          </p>
+        </div>
+        <div className="ms-auto flex flex-wrap items-center gap-2">
+          <span role="status" aria-live="polite" className="max-w-[16rem] truncate text-xs text-slate-400">
+            {status}
+          </span>
+          <button type="button" onClick={save} disabled={busy === "save"} className="btn">
+            {busy === "save" ? "در حال ذخیره…" : "ذخیره"}
+          </button>
+          <button type="button" onClick={print} disabled={busy === "print"} className="btn btn-primary">
+            {busy === "print" ? "در حال آماده‌سازی…" : "چاپ / PDF"}
+          </button>
+        </div>
+      </header>
+
+      <div className="grid gap-3 px-3 py-3 xl:grid-cols-[280px_minmax(0,1fr)_310px]">
       {/* ─────────── کتابخانه ─────────── */}
       <aside className="panel flex max-h-[calc(100vh-120px)] flex-col overflow-hidden p-3">
         <div className="flex items-center justify-between">
-          <h2 className="text-sm font-bold text-slate-100">کتابخانهٔ اشیا</h2>
+          <h2 className="text-sm font-bold text-white">کتابخانهٔ اشیا</h2>
           <span className="chip">{CATALOG.length} شیء</span>
         </div>
         <input
@@ -561,7 +598,7 @@ export function DesignStudio({ initialDesign }: { initialDesign: StudioDocument 
             </button>
           ))}
         </div>
-        <p className="mt-2 text-[10px] leading-5 text-slate-500">روی شیء کلیک کنید، سپس روی بوم بگذارید. {filtered.length} نتیجه.</p>
+        <p className="mt-2 text-xs leading-5 text-slate-500">روی شیء کلیک کنید، سپس روی بوم بگذارید. {filtered.length} نتیجه.</p>
         <div className="mt-2 flex-1 space-y-1 overflow-y-auto pl-1">
           {filtered.map((item) => (
             <ItemChip
@@ -579,7 +616,7 @@ export function DesignStudio({ initialDesign }: { initialDesign: StudioDocument 
 
       {/* ─────────── بوم ─────────── */}
       <section className="panel flex min-h-[70vh] flex-col overflow-hidden">
-        <div className="flex flex-wrap items-center gap-1.5 border-b border-white/10 px-2 py-2 text-[11px]">
+        <div className="flex flex-wrap items-center gap-1.5 border-b border-white/10 px-2 py-2 text-[0.8125rem]">
           <button
             type="button"
             onClick={() => {
@@ -614,7 +651,7 @@ export function DesignStudio({ initialDesign }: { initialDesign: StudioDocument 
             جذب {snapOn ? "روشن" : "خاموش"}
           </button>
           <select
-            className="field w-auto py-1 text-[11px]"
+            className="field w-auto py-1 text-[0.8125rem]"
             value={doc.grid}
             onChange={(event) => commit({ ...doc, grid: Number(event.target.value) })}
           >
@@ -812,24 +849,24 @@ export function DesignStudio({ initialDesign }: { initialDesign: StudioDocument 
             </g>
           </svg>
 
-          <div className="pointer-events-none absolute bottom-2 left-2 rounded-lg border border-white/10 bg-black/60 px-2 py-1 text-[10px] text-slate-400">
+          <div className="pointer-events-none absolute bottom-2 left-2 rounded-lg border border-white/10 bg-black/60 px-2 py-1 text-xs text-slate-400">
             {selectedDef
               ? `${selectedDef.nameFa} · ${selected!.w.toFixed(2)}×${selected!.d.toFixed(2)} m · ${selected!.rotationDeg}°`
               : "برای انتخاب، روی شیء کلیک کنید"}
           </div>
           {pendingCatalog && (
-            <div className="pointer-events-none absolute inset-x-0 top-2 mx-auto w-max rounded-lg border border-teal-300/40 bg-teal-400/10 px-3 py-1 text-[11px] text-teal-100">
+            <div className="pointer-events-none absolute inset-x-0 top-2 mx-auto w-max rounded-lg border border-teal-300/40 bg-teal-400/10 px-3 py-1 text-[0.8125rem] text-teal-100">
               حالت درج: {CATALOG_BY_ID[pendingCatalog]?.nameFa} — روی بوم کلیک کنید
             </div>
           )}
           {status && (
-            <div className="pointer-events-none absolute bottom-2 right-2 rounded-lg border border-white/10 bg-black/60 px-2 py-1 text-[10px] text-slate-300">
+            <div className="pointer-events-none absolute bottom-2 right-2 rounded-lg border border-white/10 bg-black/60 px-2 py-1 text-xs text-slate-300">
               {status}
             </div>
           )}
         </div>
 
-        <div className="flex flex-wrap items-center gap-2 border-t border-white/10 px-2 py-1.5 text-[10px] text-slate-400">
+        <div className="flex flex-wrap items-center gap-2 border-t border-white/10 px-2 py-1.5 text-xs text-slate-400">
           <span>اشیا: {doc.items.length}</span>
           <span>·</span>
           <span>قابل‌مشاهده: {itemGroups.length}</span>
@@ -845,7 +882,7 @@ export function DesignStudio({ initialDesign }: { initialDesign: StudioDocument 
       {/* ─────────── تنظیمات ─────────── */}
       <aside className="panel max-h-[calc(100vh-120px)] space-y-3 overflow-y-auto p-3 text-xs">
         <section>
-          <h3 className="text-[11px] font-bold text-teal-200">شیء انتخاب‌شده</h3>
+          <h3 className="text-[0.8125rem] font-bold text-teal-200">شیء انتخاب‌شده</h3>
           {selected && selectedDef ? (
             <div className="mt-2 space-y-2">
               <div className="flex items-center gap-2">
@@ -993,7 +1030,7 @@ export function DesignStudio({ initialDesign }: { initialDesign: StudioDocument 
               </div>
             </div>
           ) : (
-            <p className="mt-2 text-[10px] leading-5 text-slate-500">
+            <p className="mt-2 text-xs leading-5 text-slate-500">
               با انتخاب یک شیء، ابعاد، چرخش و طبقهٔ آن را اینجا تغییر دهید. دسته‌های تغییر اندازه روی بوم هم فعال‌اند.
             </p>
           )}
@@ -1002,7 +1039,7 @@ export function DesignStudio({ initialDesign }: { initialDesign: StudioDocument 
         <SharePanel designId={doc.id} />
 
         <section>
-          <h3 className="text-[11px] font-bold text-teal-200">خروجی بر اساس رشته</h3>
+          <h3 className="text-[0.8125rem] font-bold text-teal-200">خروجی بر اساس رشته</h3>
           <select
             className="field mt-1"
             value={doc.classification}
@@ -1014,7 +1051,7 @@ export function DesignStudio({ initialDesign }: { initialDesign: StudioDocument 
               </option>
             ))}
           </select>
-          <details className="mt-2 text-[11px]">
+          <details className="mt-2 text-[0.8125rem]">
             <summary className="cursor-pointer text-teal-200">فرض‌های برآورد آرماتور سقف</summary>
             <p className="my-2 text-amber-200">
               ویژهٔ دال توپر مستطیلی؛ این تنظیمات طراحی یا تأیید آیین‌نامه‌ای نیستند. با سند ذخیره می‌شوند.
@@ -1105,15 +1142,15 @@ export function DesignStudio({ initialDesign }: { initialDesign: StudioDocument 
 
         <section>
           <div className="flex items-center justify-between">
-            <h3 className="text-[11px] font-bold text-teal-200">لایه‌ها</h3>
-            <button type="button" className="text-[10px] text-slate-400" onClick={() => setShowLayers((value) => !value)}>
+            <h3 className="text-[0.8125rem] font-bold text-teal-200">لایه‌ها</h3>
+            <button type="button" className="text-xs text-slate-400" onClick={() => setShowLayers((value) => !value)}>
               {showLayers ? "بستن" : "باز کردن"}
             </button>
           </div>
           {showLayers && (
             <div className="mt-1 space-y-1">
               {STUDIO_LAYERS.map((layer) => (
-                <label key={layer.id} className="flex items-center gap-2 text-[10px] text-slate-300">
+                <label key={layer.id} className="flex items-center gap-2 text-xs text-slate-300">
                   <input
                     type="checkbox"
                     checked={doc.layers[layer.id]}
@@ -1128,7 +1165,7 @@ export function DesignStudio({ initialDesign }: { initialDesign: StudioDocument 
         </section>
 
         <section>
-          <h3 className="text-[11px] font-bold text-teal-200">برگه و طبقات</h3>
+          <h3 className="text-[0.8125rem] font-bold text-teal-200">برگه و طبقات</h3>
           <div className="mt-1 grid grid-cols-2 gap-2">
             <label className="block">
               <span className="label">اندازهٔ برگه</span>
@@ -1223,8 +1260,8 @@ export function DesignStudio({ initialDesign }: { initialDesign: StudioDocument 
         </section>
 
         <section>
-          <h3 className="text-[11px] font-bold text-teal-200">جدول اشیا</h3>
-          <div className="mt-1 max-h-40 space-y-0.5 overflow-y-auto text-[10px]">
+          <h3 className="text-[0.8125rem] font-bold text-teal-200">جدول اشیا</h3>
+          <div className="mt-1 max-h-40 space-y-0.5 overflow-y-auto text-xs">
             {summary.length === 0 && <p className="text-slate-500">هنوز شیئی اضافه نشده است.</p>}
             {summary.map((row) => (
               <div key={row.catalogId} className="flex items-center justify-between gap-2 border-b border-white/5 py-0.5">
@@ -1237,8 +1274,8 @@ export function DesignStudio({ initialDesign }: { initialDesign: StudioDocument 
 
         {issues.length > 0 && (
           <section>
-            <h3 className="text-[11px] font-bold text-amber-200">هشدارهای یکپارچگی</h3>
-            <ul className="mt-1 space-y-1 text-[10px] leading-5 text-amber-100/80">
+            <h3 className="text-[0.8125rem] font-bold text-amber-200">هشدارهای یکپارچگی</h3>
+            <ul className="mt-1 space-y-1 text-xs leading-5 text-amber-100/80">
               {issues.map((issue) => (
                 <li key={issue.code}>• {issue.message}</li>
               ))}
@@ -1246,7 +1283,7 @@ export function DesignStudio({ initialDesign }: { initialDesign: StudioDocument 
           </section>
         )}
 
-        <section className="border-t border-white/10 pt-2 text-[10px] leading-5 text-slate-500">
+        <section className="border-t border-white/10 pt-2 text-xs leading-5 text-slate-500">
           <p>
             {doc.project.name} · {doc.project.code}
           </p>
@@ -1262,6 +1299,7 @@ export function DesignStudio({ initialDesign }: { initialDesign: StudioDocument 
           </Link>
         </section>
       </aside>
+      </div>
     </div>
   );
 }

@@ -170,15 +170,15 @@ export function SiteView(ctx: Ctx) {
             </div>
           </div>
           <div className="mt-3 flex flex-wrap gap-2">
-            <button className="btn btn-primary" onClick={save} disabled={ctx.busy !== null || !validation.ok || coordinateErrors.length > 0}>
+            <button className="btn btn-primary" onClick={save} disabled={ctx.busy !== null || !validation.ok || coordinateErrors.length > 0} type="button">
               {ctx.busy === "site" ? "در حال ذخیره…" : "ذخیره زمین و نسخه جدید"}
             </button>
-            <button className="btn" onClick={() => { setDraft(DEFAULT_PROJECT_SITE); setText(boundaryToText(DEFAULT_PROJECT_SITE.boundary)); setSpotText(DEFAULT_PROJECT_SITE.spotLevels.map((s) => `${s.x}, ${s.y}, ${s.z}`).join("\n")); }}>
+            <button className="btn" onClick={() => { setDraft(DEFAULT_PROJECT_SITE); setText(boundaryToText(DEFAULT_PROJECT_SITE.boundary)); setSpotText(DEFAULT_PROJECT_SITE.spotLevels.map((s) => `${s.x}, ${s.y}, ${s.z}`).join("\n")); }} type="button">
               بازیابی هندسهٔ نمونه (خاک و لرزه نامشخص)
             </button>
           </div>
           {(errors.length > 0 || validation.errors.length > 0 || coordinateErrors.length > 0) && (
-            <ul className="mt-2 space-y-1 rounded border border-rose-400/40 bg-rose-500/10 p-2 text-[11px] text-rose-200">
+            <ul className="mt-2 space-y-1 rounded border border-rose-400/40 bg-rose-500/10 p-2 text-[0.8125rem] text-rose-200">
               {[...coordinateErrors, ...validation.errors, ...errors].map((e, index) => <li key={`${index}-${e}`}>• {e}</li>)}
             </ul>
           )}
@@ -201,9 +201,9 @@ export function SiteView(ctx: Ctx) {
           />
           <div className="mt-3 space-y-1">
             {analysis.warnings.map((w) => (
-              <p key={w} className="rounded border border-amber-400/30 bg-amber-400/10 px-2 py-1 text-[10px] leading-5 text-amber-200">• {w}</p>
+              <p key={w} className="rounded border border-amber-400/30 bg-amber-400/10 px-2 py-1 text-xs leading-5 text-amber-200">• {w}</p>
             ))}
-            <p className="rounded border border-white/10 bg-white/5 px-2 py-1 text-[10px] leading-5 text-slate-300">
+            <p className="rounded border border-white/10 bg-white/5 px-2 py-1 text-xs leading-5 text-slate-300">
               روش: عقب‌نشینی جهت‌دار با برش نیم‌صفحه و سپس جست‌وجوی بیشینه مستطیل محاطی روی شبکه ۱×۱ متر. برای زمین مقعر،
               نتیجه محدب و محافظه‌کارانه است.
             </p>
@@ -218,7 +218,7 @@ function SiteSketch({ site }: { site: SiteModel }) {
   const analysis = useMemo(() => analyzeSite(site), [site]);
   const points = site.boundary;
   if (points.length < 3) {
-    return <p className="panel-soft p-6 text-center text-[11px] text-slate-400">برای پیش‌نمایش، حداقل سه رأس معتبر لازم است.</p>;
+    return <p className="panel-soft p-6 text-center text-[0.8125rem] text-slate-400">برای پیش‌نمایش، حداقل سه رأس معتبر لازم است.</p>;
   }
   const xs = points.map((p) => p.x);
   const ys = points.map((p) => p.y);
@@ -327,57 +327,59 @@ export function RequirementsView(ctx: Ctx) {
     <div className="grid gap-4 xl:grid-cols-[1.05fr_0.95fr]">
       <div className="space-y-4">
         <Panel title="متن نیازمندی و ساختاری‌سازی قطعی" subtitle="استخراج قاعده‌محور: هر مقدار با الگوی متن و اطمینان ثبت می‌شود؛ متن بدون الگو حدس زده نمی‌شود.">
-          <textarea aria-label="متن نیازمندی" maxLength={100000} className="field h-24 resize-y text-[11px]" value={raw} onChange={(e) => {
+          <textarea aria-label="متن نیازمندی" maxLength={100000} className="field h-24 resize-y text-[0.8125rem]" value={raw} onChange={(e) => {
             setRaw(e.target.value);
             setParse({ confidence: 0, warnings: ["متن تغییر کرده و هنوز استخراج مجدد نشده است؛ مقادیر ساختاریافتهٔ فعلی بدون تغییر می‌مانند."], trace: [], matched: [] });
           }} />
           <div className="mt-2 flex flex-wrap items-center gap-2">
-            <button className="btn" onClick={runParse}>استخراج و اعمال پیش‌نویس</button>
+            <button className="btn" onClick={runParse} type="button">استخراج و اعمال پیش‌نویس</button>
             <span className="chip">اطمینان پارس: {fmt(parse.confidence * 100, 0)}٪</span>
             <span className="chip">{parse.matched.length} تطبیق</span>
           </div>
           <div className="mt-2 space-y-1">
             <Bar value={parse.confidence * 100} max={100} tone={parse.confidence > 0.6 ? "teal" : "amber"} />
             {parse.trace.map((t) => (
-              <p key={t} className="text-[10px] leading-5 text-slate-400">• {t}</p>
+              <p key={t} className="text-xs leading-5 text-slate-400">• {t}</p>
             ))}
             {parse.warnings.map((w) => (
-              <p key={w} className="rounded border border-amber-400/30 bg-amber-400/10 px-2 py-1 text-[10px] leading-5 text-amber-200">• {w}</p>
+              <p key={w} className="rounded border border-amber-400/30 bg-amber-400/10 px-2 py-1 text-xs leading-5 text-amber-200">• {w}</p>
             ))}
           </div>
         </Panel>
 
         <Panel title="برنامه واحدها" subtitle="تعداد، زیربنای هدف و حداقل زیربنای هر گونه واحد (خالص).">
-          <table className="table-eng">
-            <thead>
-              <tr>
-                <th>گونه</th>
-                <th>تعداد</th>
-                <th>هدف (m²)</th>
-                <th>حداقل (m²)</th>
-              </tr>
-            </thead>
-            <tbody>
-              {TYPES.map((type) => {
-                const d = draft.dwellings.find((x) => x.type === type);
-                return (
-                  <tr key={type}>
-                    <td className="font-semibold text-slate-100">{DWELLING_LABEL[type]}</td>
-                    <td>
-                      <input type="number" min={0} className="field mono w-20" aria-label={`تعداد ${DWELLING_LABEL[type]}`} value={d?.count ?? 0} onChange={(e) => setDwelling(type, { count: Number(e.target.value) })} />
-                    </td>
-                    <td>
-                      <input type="number" min={20} className="field mono w-24" aria-label={`مساحت هدف ${DWELLING_LABEL[type]}`} value={d?.targetAreaM2 ?? 80} onChange={(e) => setDwelling(type, { targetAreaM2: Number(e.target.value) })} />
-                    </td>
-                    <td>
-                      <input type="number" min={20} className="field mono w-24" aria-label={`حداقل مساحت ${DWELLING_LABEL[type]}`} value={d?.minAreaM2 ?? 65} onChange={(e) => setDwelling(type, { minAreaM2: Number(e.target.value) })} />
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-          <div className="mt-2 flex items-center justify-between text-[11px]">
+          <div className="overflow-x-auto scroll-thin -mx-1 px-1">
+            <table className="table-eng">
+              <thead>
+                <tr>
+                  <th>گونه</th>
+                  <th>تعداد</th>
+                  <th>هدف (m²)</th>
+                  <th>حداقل (m²)</th>
+                </tr>
+              </thead>
+              <tbody>
+                {TYPES.map((type) => {
+                  const d = draft.dwellings.find((x) => x.type === type);
+                  return (
+                    <tr key={type}>
+                      <td className="font-semibold text-white">{DWELLING_LABEL[type]}</td>
+                      <td>
+                        <input type="number" min={0} className="field mono w-20" aria-label={`تعداد ${DWELLING_LABEL[type]}`} value={d?.count ?? 0} onChange={(e) => setDwelling(type, { count: Number(e.target.value) })} />
+                      </td>
+                      <td>
+                        <input type="number" min={20} className="field mono w-24" aria-label={`مساحت هدف ${DWELLING_LABEL[type]}`} value={d?.targetAreaM2 ?? 80} onChange={(e) => setDwelling(type, { targetAreaM2: Number(e.target.value) })} />
+                      </td>
+                      <td>
+                        <input type="number" min={20} className="field mono w-24" aria-label={`حداقل مساحت ${DWELLING_LABEL[type]}`} value={d?.minAreaM2 ?? 65} onChange={(e) => setDwelling(type, { minAreaM2: Number(e.target.value) })} />
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+          <div className="mt-2 flex items-center justify-between text-[0.8125rem]">
             <span className="text-slate-400">مجموع واحد درخواستی</span>
             <span className="mono font-bold text-teal-200">{total}</span>
           </div>
@@ -429,18 +431,18 @@ export function RequirementsView(ctx: Ctx) {
                 <option value="balanced">متعادل</option>
               </select>
             </div>
-            <label className="flex items-center gap-2 text-[11px] text-slate-300">
+            <label className="flex items-center gap-2 text-[0.8125rem] text-slate-300">
               <input type="checkbox" checked={draft.includeBasementParking} onChange={(e) => setDraft({ ...draft, includeBasementParking: e.target.checked })} />
               پارکینگ زیرزمینی مجاز است
             </label>
           </div>
           {!validation.ok && (
-            <ul className="mt-2 space-y-1 rounded border border-rose-400/40 bg-rose-500/10 p-2 text-[11px] text-rose-200">
+            <ul className="mt-2 space-y-1 rounded border border-rose-400/40 bg-rose-500/10 p-2 text-[0.8125rem] text-rose-200">
               {validation.errors.map((e) => <li key={e}>• {e}</li>)}
             </ul>
           )}
           <div className="mt-3 flex flex-wrap gap-2">
-            <button className="btn btn-primary" onClick={save} disabled={ctx.busy === "requirements" || !validation.ok}>
+            <button className="btn btn-primary" onClick={save} disabled={ctx.busy === "requirements" || !validation.ok} type="button">
               {ctx.busy === "requirements" ? "در حال ذخیره…" : "ذخیره نیازمندی"}
             </button>
             <span className="chip">نسخه فعلی: {project.requirementRevision}</span>
@@ -450,9 +452,9 @@ export function RequirementsView(ctx: Ctx) {
 
         <Panel title="یادداشت‌های ویژه پروژه" subtitle="در مدل مرکزی و خروجی‌ها ثبت می‌شود.">
           {draft.specialNotes.length === 0 ? (
-            <p className="text-[11px] text-slate-400">یادداشتی ثبت نشده است.</p>
+            <p className="text-[0.8125rem] text-slate-400">یادداشتی ثبت نشده است.</p>
           ) : (
-            <ul className="space-y-1 text-[11px] leading-5 text-slate-300">
+            <ul className="space-y-1 text-[0.8125rem] leading-5 text-slate-300">
               {draft.specialNotes.map((n) => <li key={n}>• {n}</li>)}
             </ul>
           )}

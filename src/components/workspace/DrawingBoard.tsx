@@ -83,16 +83,16 @@ export function DrawingBoard({
   return (
     <div className="space-y-3">
       <div className="flex flex-wrap items-center gap-2">
-        <select className="field w-auto py-1 text-[11px]" value={levelIndex} onChange={(event) => onLevelChange(Number(event.target.value))}>
+        <select className="field w-auto py-1 text-[0.8125rem]" value={levelIndex} onChange={(event) => onLevelChange(Number(event.target.value))}>
           {levelOptions.map((option) => (
             <option key={option.index} value={option.index}>{option.name}</option>
           ))}
         </select>
         <div className="flex items-center gap-1">
-          <button type="button" className="btn px-2 py-1 text-[11px]" onClick={() => setZoom((value) => Math.max(0.5, Number((value - 0.25).toFixed(2))))}>−</button>
+          <button type="button" className="btn px-2 py-1 text-[0.8125rem]" onClick={() => setZoom((value) => Math.max(0.5, Number((value - 0.25).toFixed(2))))}>−</button>
           <span className="mono chip">{Math.round(zoom * 100)}٪</span>
-          <button type="button" className="btn px-2 py-1 text-[11px]" onClick={() => setZoom((value) => Math.min(6, Number((value + 0.25).toFixed(2))))}>+</button>
-          <button type="button" className="btn px-2 py-1 text-[11px]" onClick={() => { setZoom(1); setPan({ x: 0, y: 0 }); }}>بازنشانی نما</button>
+          <button type="button" className="btn px-2 py-1 text-[0.8125rem]" onClick={() => setZoom((value) => Math.min(6, Number((value + 0.25).toFixed(2))))}>+</button>
+          <button type="button" className="btn px-2 py-1 text-[0.8125rem]" onClick={() => { setZoom(1); setPan({ x: 0, y: 0 }); }}>بازنشانی نما</button>
         </div>
         <span className="chip">مقیاس ۱:{scene.sheet.scaleDenominator}</span>
         <span className="chip">{scene.sheet.format}</span>
@@ -101,7 +101,7 @@ export function DrawingBoard({
           {scene.readiness.label}
         </span>
         {activeIssue && (
-          <button type="button" className="btn px-2 py-1 text-[10px]" onClick={() => setActiveIssue(null)}>پاک‌کردن نشانگر مشکل</button>
+          <button type="button" className="btn px-2 py-1 text-xs" onClick={() => setActiveIssue(null)}>پاک‌کردن نشانگر مشکل</button>
         )}
       </div>
 
@@ -148,13 +148,13 @@ export function DrawingBoard({
 
       {scene.issues.length > 0 && (
         <div className="rounded border border-amber-400/30 bg-amber-400/10 p-2">
-          <div className="text-[11px] font-bold text-amber-100">هشدارهای نقشه ({scene.issues.length}) — با کلیک، محل مشکل روی نقشه مشخص می‌شود</div>
+          <div className="text-[0.8125rem] font-bold text-amber-100">هشدارهای نقشه ({scene.issues.length}) — با کلیک، محل مشکل روی نقشه مشخص می‌شود</div>
           <ul className="mt-1 space-y-1">
             {scene.issues.map((issue) => (
               <li key={issue.id}>
                 <button
                   type="button"
-                  className={`w-full rounded px-2 py-1 text-right text-[10px] leading-5 ${activeIssue === issue.id ? "bg-rose-500/20 text-rose-100" : "text-amber-100 hover:bg-white/5"}`}
+                  className={`w-full rounded px-2 py-1 text-right text-xs leading-5 ${activeIssue === issue.id ? "bg-rose-500/20 text-rose-100" : "text-amber-100 hover:bg-white/5"}`}
                   onClick={() => setActiveIssue(issue.id)}
                 >
                   <span className="font-semibold">{issue.title}</span> — {issue.detail}
@@ -168,7 +168,7 @@ export function DrawingBoard({
         </div>
       )}
 
-      <div className="flex flex-wrap gap-2 text-[10px]">
+      <div className="flex flex-wrap gap-2 text-xs">
         <span className="chip">مساحت زمین {scene.meta.plotAreaM2.toFixed(1)} m²</span>
         <span className="chip">سطح اشغال {scene.meta.plateAreaM2.toFixed(1)} m²</span>
         <span className="chip">ضخامت دیوار پیرامونی {scene.meta.exteriorThicknessM} m</span>
@@ -183,7 +183,7 @@ export function DrawingBoard({
         </a>}
       </div>
 
-      <p className="rounded border border-rose-400/30 bg-rose-500/10 p-2 text-[10px] leading-5 text-rose-100">{scene.readiness.disclaimer}</p>
+      <p className="rounded border border-rose-400/30 bg-rose-500/10 p-2 text-xs leading-5 text-rose-100">{scene.readiness.disclaimer}</p>
     </div>
   );
 }

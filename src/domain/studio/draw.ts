@@ -238,21 +238,24 @@ export function sceneSvg(scene: Scene): string {
         }
         case "text": {
           /*
-           * لنگر متن در SVG به «جهت پایه» وابسته است: با direction="rtl" مقدار
-           * start یعنی «لبهٔ راست» و end یعنی «لبهٔ چپ». لنگرهای صحنه دیداری‌اند
-           * (start = متن از x به راست، end = متن به چپِ x)، پس برای متن راست‌به‌چپ
-           * باید start/end جابه‌جا نوشته شوند؛ وگرنه در مرورگر همهٔ برچسب‌ها به
-           * اندازهٔ عرض خودشان جابه‌جا می‌شوند.
+           * لنگر متن در صحنه «مطلق» است: start یعنی متن از x به راست، end یعنی متن
+           * به چپِ x کشیده می‌شود، middle یعنی x مرکز متن است. نقاش PDF و رندرگر
+           * PNG همین قرارداد را دارند.
+           *
+           * چرا `direction` صریح نوشته نمی‌شود: در SVG، مقدار start/end نسبت به
+           * «جهت پایه» تعبیر می‌شود؛ مرورگرها با direction="rtl" آن را آینه
+           * می‌کنند ولی رندرگرهای غیرمرورگری (resvg و نویسندهٔ PDF) آن را مطلق
+           * می‌گیرند. نتیجهٔ قبلی این بود که نقشهٔ روی صفحه با فایل PDF یکی نبود و
+           * برچسب‌ها روی خط راهنما می‌افتادند. ترتیب داخلی حروف فارسی به‌کمک
+           * الگوریتم دوسویه (bidi) انجام می‌شود و به direction نیاز ندارد؛
+           * unicode-bidi="plaintext" هم ترتیبِ رشته‌های ترکیبی فارسی/لاتین را
+           * بر پایهٔ نخستین نویسهٔ قوی تعیین می‌کند.
            */
-          const visual = prim.anchor ?? "start";
-          const rtl = (prim.direction ?? "rtl") === "rtl";
-          const anchorValue = rtl && visual !== "middle" ? (visual === "start" ? "end" : "start") : visual;
-          const anchor = ` text-anchor="${anchorValue}"`;
+          const anchor = ` text-anchor="${prim.anchor ?? "start"}"`;
           const weight = prim.bold ? ' font-weight="700"' : "";
-          const direction = ` direction="${prim.direction ?? "rtl"}"`;
           const rotate = prim.rotate ? ` transform="rotate(${num(prim.rotate)} ${num(prim.x)} ${num(prim.y)})"` : "";
           const escaped = prim.value.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
-          return `<text x="${num(prim.x)}" y="${num(prim.y)}" font-size="${num(prim.size)}" fill="${stroke}" font-family="Vazirmatn, Tahoma, sans-serif"${anchor}${weight}${direction}${rotate}${opacity}${data}>${escaped}</text>`;
+          return `<text x="${num(prim.x)}" y="${num(prim.y)}" font-size="${num(prim.size)}" fill="${stroke}" font-family="Vazirmatn, Tahoma, sans-serif"${anchor}${weight} unicode-bidi="plaintext"${rotate}${opacity}${data}>${escaped}</text>`;
         }
       }
     })

@@ -9,7 +9,7 @@ export function SeedButton() {
   return (
     <button
       type="button"
-      className="btn w-full text-[11px]"
+      className="btn btn-block"
       disabled={busy}
       onClick={async () => {
         setBusy(true);
@@ -26,7 +26,7 @@ export function SeedButton() {
         }
       }}
     >
-      {busy ? "در حال ساخت پروژه نمایشی…" : "ساخت / ورود به پروژه نمایشی"}
+      {busy ? "در حال ساخت پروژهٔ نمایشی…" : "ساخت / ورود به پروژهٔ نمایشی"}
     </button>
   );
 }

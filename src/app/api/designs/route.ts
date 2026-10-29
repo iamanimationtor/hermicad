@@ -2,7 +2,7 @@ import { familyOf, emptyStructure } from "@/domain/structures/catalog";
 import { emptyBrief } from "@/domain/journey/model";
 import { createDesignTemplate, isDesignTemplate } from "@/domain/studio/templates";
 import { AccessError } from "@/server/accessError";
-import { createDesign, ensureSampleDesign, listDesigns, sampleDesign } from "@/server/designs";
+import { createDesign, listDesigns, sampleDesign, seedSampleDesign } from "@/server/designs";
 import { createStudioDocument } from "@/domain/studio/document";
 import { errorResponse, ok, readJson } from "@/server/http";
 import { currentWorkspace } from "@/server/workspace";
@@ -12,7 +12,7 @@ export const dynamic = "force-dynamic";
 export async function GET() {
   try {
     const workspace = await currentWorkspace();
-    await ensureSampleDesign(workspace);
+    await seedSampleDesign(workspace);
     return ok({ designs: await listDesigns(workspace) });
   } catch (error) {
     return errorResponse(error);

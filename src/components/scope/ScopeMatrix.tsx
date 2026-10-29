@@ -27,7 +27,7 @@ const stateStyle: Record<StageState, string> = {
 function TextList({ title, values }: { title: string; values: readonly string[] }) {
   return (
     <section>
-      <h4 className="text-sm font-bold text-slate-100">{title}</h4>
+      <h4 className="text-sm font-bold text-white">{title}</h4>
       <ul className="mt-2 list-disc space-y-1 pr-5 text-xs leading-6 text-slate-300">
         {values.map((value) => <li key={value}>{value}</li>)}
       </ul>
@@ -41,7 +41,7 @@ function RowDetail({ row }: { row: ScopeRow }) {
       <summary className="cursor-pointer list-none p-4 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-teal-300 sm:p-5">
         <span className="flex flex-wrap items-start justify-between gap-3">
           <span>
-            <span className="mb-2 block text-[11px] text-slate-400">{kindLabel[row.kind]} · {row.discipline}</span>
+            <span className="mb-2 block text-[0.8125rem] text-slate-400">{kindLabel[row.kind]} · {row.discipline}</span>
             <span className="block text-sm font-bold leading-7 text-white">{row.title}</span>
           </span>
           <span className="chip border-amber-400/30 bg-amber-400/5 text-amber-100">تأیید نشده</span>
@@ -49,7 +49,7 @@ function RowDetail({ row }: { row: ScopeRow }) {
         <span className="mt-3 block text-xs leading-6 text-slate-400">{row.system}</span>
         <span className="mt-3 flex flex-wrap gap-1.5" aria-label="خلاصهٔ وضعیت‌ها">
           {STAGES.map(([key, label]) => (
-            <span key={key} className={`rounded-md border px-2 py-1 text-[10px] ${stateStyle[row.stages[key].state]}`}>
+            <span key={key} className={`rounded-md border px-2 py-1 text-xs ${stateStyle[row.stages[key].state]}`}>
               {label}: {STAGE_STATE_LABELS[row.stages[key].state]}
             </span>
           ))}
@@ -74,7 +74,7 @@ function RowDetail({ row }: { row: ScopeRow }) {
           ))}
         </dl>
         <section>
-          <h4 className="mb-2 text-sm font-bold text-slate-100">شش وضعیت مستقل</h4>
+          <h4 className="mb-2 text-sm font-bold text-white">شش وضعیت مستقل</h4>
           <div className="overflow-x-auto">
             <table className="table-eng min-w-[620px]">
               <thead><tr><th>مرحله</th><th>وضعیت</th><th>معنا و محدودیت</th></tr></thead>
@@ -98,13 +98,13 @@ function RowDetail({ row }: { row: ScopeRow }) {
         </div>
         {row.inputs.length > 0 && (
           <section>
-            <h4 className="text-sm font-bold text-slate-100">ورودی‌های اصلی</h4>
+            <h4 className="text-sm font-bold text-white">ورودی‌های اصلی</h4>
             <p className="mt-1 text-xs leading-6 text-slate-400">این فهرست لزوماً همهٔ داده‌های لازم پروژه نیست. بازه‌های عددی زیر فقط محدودیت نرم‌افزارند.</p>
             <ul className="mt-2 grid gap-2 sm:grid-cols-2">
               {row.inputs.map((input) => (
                 <li key={input.key} className="rounded-lg border border-white/5 bg-white/[0.02] px-3 py-2 text-xs leading-6 text-slate-300">
                   {input.label}{input.unit ? ` (${input.unit})` : ""}
-                  {input.min !== null && input.max !== null && <span className="block text-[11px] text-slate-500">بازهٔ فرم: {input.min} تا {input.max}</span>}
+                  {input.min !== null && input.max !== null && <span className="block text-[0.8125rem] text-slate-500">بازهٔ فرم: {input.min} تا {input.max}</span>}
                 </li>
               ))}
             </ul>

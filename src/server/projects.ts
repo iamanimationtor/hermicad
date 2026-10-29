@@ -1,5 +1,6 @@
 import { createHash, randomUUID } from "node:crypto";
 import { currentWorkspace } from "./workspace";
+import { assertWorkspaceProjectQuota } from "./quota";
 import { AccessError } from "./accessError";
 import { and, desc, eq, inArray, lt, not, or, sql } from "drizzle-orm";
 import { getDb, type Db } from "@/db";
@@ -152,6 +153,7 @@ export async function createProject(input: {
 }): Promise<ProjectDocument> {
   await ensureCodeSet();
   const workspace = await currentWorkspace();
+  await assertWorkspaceProjectQuota(workspace);
   const id = randomUUID();
   const code = `HMC-P-${id}`; // وابسته به تعداد پروژه‌های موجود نیست و پس از حذف تکرار نمی‌شود.
   const site = normalizeSeismicSite(input.site ?? DEFAULT_PROJECT_SITE);
@@ -260,6 +262,50 @@ export interface GenerateOptions {
   expectedRequirementRevision?: number;
 }
 
+/**
+ * سقف تعداد اجراهای نگه‌داشته‌شده برای هر پروژه.
+ *
+ * چرا لازم است: اندازه‌گیری واقعی نشان داد هر اجرای پنج‌طرحی حدود ۱٫۱ مگابایت
+ * (طرح + گزارش + تصویر نسخه) به پایگاه اضافه می‌کند. بدون سقف، صد بار تولید
+ * مجدد روی یک پروژه حدود ۱۱۰ مگابایت می‌شود و در یک سامانهٔ رایگان و عمومی
+ * می‌توان پایگاه را از یک حساب پر کرد. با سقف پیش‌فرض ۲۰، تاریخچهٔ اخیر برای
+ * مقایسه و ردیابی باقی می‌ماند و رشد محدود می‌شود.
+ *
+ * دو استثنا هرگز حذف نمی‌شوند:
+ *  ۱. اجرای فعالِ پروژه؛ حذفش یعنی از دست رفتن طرحی که کاربر می‌بیند.
+ *  ۲. اجراهای پیش از مهاجرت (بدون اثر انگشت مجموعه قواعد). این رکوردها منشأ
+ *     کامل ندارند، بازتولیدشدنی نیستند و تنها نسخهٔ آن تاریخ‌اند؛ حذفشان با
+ *     تضمین «تولید مجدد دادهٔ قدیمی را حذف نمی‌کند» در تضاد است. نگهداشت فقط
+ *     اجراهایی را می‌شمارد و حذف می‌کند که همین نسخهٔ برنامه با منشأ کامل ساخته
+ *     است.
+ *
+ * حذف با آبشار پایگاه داده انجام می‌شود: schemes → validation_runs /
+ * scheme_snapshots / export_artifacts همه ON DELETE CASCADE دارند.
+ *
+ * توجه: `created_at` ردیف‌های هم‌تراکنش یکسان است؛ برای همین ترتیب با شناسه
+ * شکسته می‌شود تا نتیجه در هر بار اجرا قطعی (deterministic) بماند.
+ */
+const RUN_RETENTION = Math.max(1, Number(process.env.HERMICAD_RUN_RETENTION ?? 20));
+
+async function pruneOldRuns(tx: Db, projectId: string, keepRunId: string): Promise<void> {
+  await tx.execute(sql`
+    DELETE FROM generation_runs
+    WHERE project_id = ${projectId}::uuid
+      AND ruleset_fingerprint IS NOT NULL
+      AND id <> ${keepRunId}::uuid
+      AND id NOT IN (
+        SELECT id FROM generation_runs
+        WHERE project_id = ${projectId}::uuid
+        ORDER BY created_at DESC, id DESC
+        LIMIT ${RUN_RETENTION}
+      )
+      AND id NOT IN (
+        SELECT active_run_id FROM projects
+        WHERE id = ${projectId}::uuid AND active_run_id IS NOT NULL
+      )
+  `);
+}
+
 export async function generateForProject(projectId: string, options: GenerateOptions): Promise<GenerationResponse> {
   const project = await getProject(projectId);
   if (!project) throw new AccessError(404, "پروژه یافت نشد.");
@@ -306,6 +352,7 @@ export async function generateForProject(projectId: string, options: GenerateOpt
     await tx.insert(auditEvents).values({ projectId, action: "schemes.generated", payload: {
       runId: run.id, seed, variants: pipeline.schemes.length, engine: ENGINE_VERSION,
     } });
+    await pruneOldRuns(tx, projectId, run.id);
     return run.id;
   });
   const bundle = await getBundle(projectId);

@@ -1,76 +1,137 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import type { ReactNode } from "react";
 import Link from "next/link";
 import "./globals.css";
 import { CODE_SET, ENGINE_VERSION } from "@/domain/constants";
 import { RULE_COUNT } from "@/domain/codes";
+import { SiteNav } from "@/components/site/SiteNav";
+import { BrandMark } from "@/components/site/Brand";
+
+/**
+ * فرادادهٔ سراسری.
+ *
+ * metadataBase از `HERMICAD_PUBLIC_URL` خوانده می‌شود تا نشانی‌های مطلق
+ * (Open Graph، canonical) به دامنهٔ واقعی استقرار اشاره کنند. بدون آن، Next
+ * نشانی نسبی می‌سازد که در اشتراک‌گذاری لینک کار نمی‌کند.
+ */
+const publicUrl = process.env.HERMICAD_PUBLIC_URL?.replace(/\/+$/, "");
 
 export const metadata: Metadata = {
-  title: "HERMICAD — هوش مهندسی ساختمان",
+  ...(publicUrl ? { metadataBase: new URL(publicUrl) } : {}),
+  title: {
+    default: "HERMICAD — از زمین تا چند طرح قابل مقایسه",
+    template: "%s | HERMICAD",
+  },
   description:
-    "HERMICAD: ابزار ترسیم و غربالگری مقدماتی، با مدل‌ها و آستانه‌های داخلی تأییدنشده؛ بدون ادعای انطباق یا آمادگی اجرایی.",
+    "HERMICAD زمین نامنظم را می‌خواند، نیازمندی‌ها را می‌سازد، چند طرح مقدماتی تولید می‌کند و با محاسبه و ردیابی واقعی مقایسه‌شان می‌کند. خروجی‌ها برای بازبینی‌اند، نه تأییدیهٔ مهندسی.",
+  applicationName: "HERMICAD",
+  keywords: ["طراحی معماری", "پلان", "متره", "سازه", "هوش مهندسی", "HERMICAD"],
+  openGraph: {
+    type: "website",
+    siteName: "HERMICAD",
+    locale: "fa_IR",
+    title: "HERMICAD — از زمین تا چند طرح قابل مقایسه",
+    description:
+      "از زمین نامنظم تا چند طرح قابل‌مقایسه، با محاسبه و ردیابی واقعی. خروجی‌ها طرح مقدماتی‌اند، نه تأییدیهٔ مهندسی.",
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "HERMICAD — از زمین تا چند طرح قابل مقایسه",
+    description: "پلتفرم تولید و ترسیم طرح مقدماتی با موتور قطعی و خروجی‌های مهندسی.",
+  },
+  robots: { index: true, follow: true },
 };
 
-const nav = [
-  { href: "/", label: "نمای کلی" },
-  { href: "/guide", label: "شروع گام‌به‌گام" },
-  { href: "/structures", label: "مسیرهای سازه" },
-  { href: "/scope", label: "دامنه و محدودیت‌ها" },
-  { href: "/projects", label: "پروژه‌های مولد" },
-  { href: "/design", label: "استودیو طراحی" },
-  { href: "/architecture", label: "معماری سیستم" },
-  { href: "/quality", label: "دروازه کیفیت" },
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
+  themeColor: "#070b10",
+  colorScheme: "dark",
+};
+
+const FOOTER_LINKS: { title: string; items: { href: string; label: string }[] }[] = [
+  {
+    title: "شروع کنید",
+    items: [
+      { href: "/guide", label: "راهنمای گام‌به‌گام" },
+      { href: "/new", label: "تعریف هدایت‌شدهٔ زمین" },
+      { href: "/projects", label: "کارگاه پروژه‌ها" },
+      { href: "/design", label: "استودیو طراحی" },
+    ],
+  },
+  {
+    title: "شفافیت",
+    items: [
+      { href: "/scope", label: "دامنه و محدودیت‌ها" },
+      { href: "/architecture", label: "معماری سیستم" },
+      { href: "/quality", label: "دروازهٔ کیفیت" },
+      { href: "/api/scope", label: "همین دفتر، به شکل JSON" },
+    ],
+  },
 ];
 
 export default function RootLayout({ children }: { children: ReactNode }) {
   return (
     <html lang="fa" dir="rtl">
       <body className="min-h-screen antialiased">
-        <header className="sticky top-0 z-40 border-b border-white/10 bg-[#05080f]/85 backdrop-blur">
-          <div className="mx-auto flex max-w-[1400px] flex-wrap items-center gap-4 px-5 py-3">
-            <Link href="/" className="flex items-center gap-3">
-              <span className="relative grid h-9 w-9 place-items-center rounded-lg border border-teal-300/40 bg-teal-400/10">
-                <span className="absolute inset-1.5 rounded border border-teal-300/60" />
-                <span className="absolute inset-x-1.5 inset-y-3 border-t border-teal-300/60" />
-                <span className="text-[9px] font-bold tracking-tight text-teal-200">H</span>
-              </span>
-              <span className="leading-tight">
-                <span className="block text-sm font-extrabold tracking-[0.18em] text-white">HERMICAD</span>
-                <span className="block text-[10px] text-slate-400">هوش مهندسی ساختمان · موتور قطعی</span>
-              </span>
-            </Link>
-            <nav className="flex w-full flex-none items-center gap-1 overflow-x-auto whitespace-nowrap text-xs lg:w-auto lg:flex-1 lg:flex-wrap lg:whitespace-normal lg:text-sm">
-              {nav.map((item) => (
-                <Link
-                  key={item.href}
-                  href={item.href}
-                  className="shrink-0 rounded-lg px-3 py-1.5 text-slate-300 transition hover:bg-white/5 hover:text-teal-200"
-                >
-                  {item.label}
-                </Link>
-              ))}
-            </nav>
-            <div className="hidden flex-wrap items-center gap-2 text-[10px] lg:flex">
-              <span className="chip border-teal-400/30 bg-teal-400/10 text-teal-200">
-                <span className="h-1.5 w-1.5 rounded-full bg-teal-300" /> {ENGINE_VERSION}
-              </span>
-              <span className="chip">
-                {RULE_COUNT} کنترل داخلی · تأییدنشده · {CODE_SET.edition}
-              </span>
-            </div>
+        <a href="#content" className="skip-link">
+          رفتن به محتوای اصلی
+        </a>
+
+        <header className="sticky top-0 z-40 border-b border-white/10 bg-[#070b10]/85 backdrop-blur-xl">
+          <div className="shell flex min-h-16 flex-wrap items-center gap-3 py-2">
+            <SiteNav />
           </div>
         </header>
-        {children}
-        <footer className="mt-16 border-t border-white/10 bg-[#04070d]">
-          <div className="mx-auto max-w-[1400px] px-5 py-8 text-xs leading-6 text-slate-400">
-            <p className="font-semibold text-slate-200">HERMICAD — خروجی الگوریتمی، نه تأییدیه مهندسی.</p>
-            <p className="mt-2 max-w-4xl">
-              کنترل‌های فعلی از آستانه‌های داخلی یا اظهاری استفاده می‌کنند؛ متن رسمی و کاربرد آن‌ها برای پروژه احراز نشده است.
-              ثبت مرجع یا تولید فایل به معنی تأیید مهندسی نیست. بازبینی و تأیید پروژه به عهدهٔ متخصص دارای صلاحیت است.
-            </p>
-            <p className="mt-3 text-[11px] text-slate-500">
-              Code set: {CODE_SET.code}@{CODE_SET.edition} · Engine: {ENGINE_VERSION} · JURISDICTION: {CODE_SET.jurisdiction}
-            </p>
+
+        <div id="content">{children}</div>
+
+        <footer className="mt-20 border-t border-white/10 bg-[#05080d]">
+          <div className="shell grid gap-10 py-12 md:grid-cols-[1.4fr_1fr_1fr] md:gap-8">
+            <div>
+              <div className="flex items-center gap-3">
+                <BrandMark />
+                <span className="text-sm font-extrabold tracking-[0.16em] text-white">HERMICAD</span>
+              </div>
+              <p className="mt-4 max-w-sm text-sm leading-7 text-slate-400">
+                ابزاری برای رسیدن سریع‌تر از زمین خالی به چند گزینهٔ قابل مقایسه؛ با محاسبهٔ شفاف،
+                ردیابی هر عدد و خروجی‌هایی که می‌توانید بازبینی کنید.
+              </p>
+              <p className="mt-4 text-xs leading-6 text-slate-500">
+                موتور {ENGINE_VERSION} · {RULE_COUNT} کنترل داخلی · {CODE_SET.code}@{CODE_SET.edition}
+              </p>
+            </div>
+
+            {FOOTER_LINKS.map((group) => (
+              <nav key={group.title} aria-label={group.title}>
+                <h2 className="text-xs font-bold uppercase tracking-wider text-slate-500">{group.title}</h2>
+                <ul className="mt-3 space-y-1">
+                  {group.items.map((item) => (
+                    <li key={item.href}>
+                      <Link
+                        href={item.href}
+                        className="inline-flex min-h-8 items-center text-sm text-slate-300 transition-colors hover:text-teal-200"
+                      >
+                        {item.label}
+                      </Link>
+                    </li>
+                  ))}
+                </ul>
+              </nav>
+            ))}
+          </div>
+
+          <div className="border-t border-white/5">
+            <div className="shell flex flex-col gap-3 py-5 text-xs leading-6 text-slate-500 md:flex-row md:items-center md:justify-between">
+              <p className="max-w-3xl">
+                خروجی‌های HERMICAD <strong className="font-semibold text-slate-300">طرح مقدماتی و غربالگری</strong> است،
+                نه محاسبهٔ اجرایی یا تأییدیهٔ انطباق. کنترل‌ها بر پایهٔ آستانه‌های داخلی یا اظهاری‌اند و بازبینی
+                متخصص دارای صلاحیت الزامی است.
+              </p>
+              <p className="shrink-0 text-slate-600">
+                JURISDICTION {CODE_SET.jurisdiction}
+              </p>
+            </div>
           </div>
         </footer>
       </body>

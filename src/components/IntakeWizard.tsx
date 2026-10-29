@@ -93,19 +93,40 @@ export function IntakeWizard() {
 
   return (
     <div className="grid gap-4 lg:grid-cols-[1.15fr_0.85fr]">
-      <section className="panel p-4">
-        <div className="mb-3 flex flex-wrap gap-1">
-          {STEPS.map((item) => (
-            <button
-              key={item.id}
-              onClick={() => setStep(item.id)}
-              className={`chip ${step === item.id ? "border-teal-400/60 bg-teal-400/15 text-teal-100" : ""}`}
-              type="button"
-            >
-              {item.id + 1}. {item.label}
-            </button>
-          ))}
-        </div>
+      <section className="panel p-5">
+        <ol className="no-scrollbar -mx-1 mb-5 flex items-center gap-1 overflow-x-auto px-1" aria-label="گام‌های تعریف پروژه">
+          {STEPS.map((item, index) => {
+            const active = step === item.id;
+            const done = step > item.id;
+            return (
+              <li key={item.id} className="flex shrink-0 items-center gap-1">
+                <button
+                  type="button"
+                  onClick={() => setStep(item.id)}
+                  aria-current={active ? "step" : undefined}
+                  className={`inline-flex min-h-10 items-center gap-2 rounded-xl px-2.5 text-xs font-semibold transition-colors sm:text-sm ${
+                    active
+                      ? "bg-teal-400/15 text-teal-100 ring-1 ring-teal-400/40"
+                      : done
+                        ? "text-slate-300 hover:bg-white/5"
+                        : "text-slate-500 hover:bg-white/5 hover:text-slate-300"
+                  }`}
+                >
+                  <span
+                    aria-hidden="true"
+                    className={`mono grid h-6 w-6 place-items-center rounded-full text-[0.7rem] font-bold ${
+                      active ? "bg-teal-400 text-[#03211a]" : done ? "bg-teal-400/15 text-teal-200" : "bg-white/[0.06] text-slate-400"
+                    }`}
+                  >
+                    {done ? "✓" : item.id + 1}
+                  </span>
+                  {item.label}
+                </button>
+                {index < STEPS.length - 1 && <span aria-hidden="true" className="h-px w-4 shrink-0 bg-white/12" />}
+              </li>
+            );
+          })}
+        </ol>
 
         {step === 0 && (
           <div className="space-y-3">
@@ -127,7 +148,7 @@ export function IntakeWizard() {
                     key={shape}
                     type="button"
                     onClick={() => update("parcelShape", shape)}
-                    className={`btn text-[11px] ${answers.parcelShape === shape ? "border-teal-400/60 text-teal-200" : ""}`}
+                    className={`btn text-[0.8125rem] ${answers.parcelShape === shape ? "border-teal-400/60 text-teal-200" : ""}`}
                   >
                     {PARCEL_SHAPE_LABEL[shape]}
                   </button>
@@ -146,7 +167,7 @@ export function IntakeWizard() {
             </div>
             <div>
               <span className="label">عقب‌نشینی شمال / جنوب / شرق / غرب (m)</span>
-              <div className="grid grid-cols-4 gap-2">
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
                 {(["north", "south", "east", "west"] as const).map((key) => (
                   <input
                     key={key}
@@ -161,7 +182,7 @@ export function IntakeWizard() {
                 ))}
               </div>
             </div>
-            <p className="text-[10px] leading-5 text-slate-400">
+            <p className="text-xs leading-5 text-slate-400">
               مساحت محاسبه‌شده: <span className="mono text-teal-200">{review.plotAreaM2.toFixed(1)} m²</span> — از مرز تولیدشده با فرمول شولیس، نه از ضرب ابعاد.
               {answers.parcelShape !== "rectangle" && " برای شکل نامنظم، مختصات مرز از الگوی پیش‌فرض متناسب با ابعاد ساخته می‌شود و در کارگاه قابل ویرایش است."}
             </p>
@@ -182,19 +203,21 @@ export function IntakeWizard() {
             </div>
             <div>
               <span className="label">چند واحد و با چند اتاق خواب؟</span>
-              <table className="table-eng">
-                <thead><tr><th>گونه</th><th>تعداد</th><th>زیربنای هدف (m²)</th></tr></thead>
-                <tbody>
-                  {TYPES.map((type) => (
-                    <tr key={type}>
-                      <td className="text-slate-100">{DWELLING_LABEL[type]}</td>
-                      <td><input type="number" min={0} className="field mono w-24" value={answers.units[type]} onChange={(e) => updateUnit(type, Number(e.target.value))} /></td>
-                      <td><input type="number" min={20} className="field mono w-28" value={answers.areas[type]} onChange={(e) => updateArea(type, Number(e.target.value))} /></td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-              <p className="mt-1 text-[10px] text-slate-400">حداقل زیربنا ۸۵٪ مقدار هدف فرض می‌شود و به‌عنوان همین فرض در گزارش ثبت می‌گردد.</p>
+              <div className="overflow-x-auto scroll-thin -mx-1 px-1">
+                <table className="table-eng">
+                  <thead><tr><th>گونه</th><th>تعداد</th><th>زیربنای هدف (m²)</th></tr></thead>
+                  <tbody>
+                    {TYPES.map((type) => (
+                      <tr key={type}>
+                        <td className="text-slate-100">{DWELLING_LABEL[type]}</td>
+                        <td><input type="number" min={0} className="field mono w-24" value={answers.units[type]} onChange={(e) => updateUnit(type, Number(e.target.value))} /></td>
+                        <td><input type="number" min={20} className="field mono w-28" value={answers.areas[type]} onChange={(e) => updateArea(type, Number(e.target.value))} /></td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+              <p className="mt-1 text-xs text-slate-400">حداقل زیربنا ۸۵٪ مقدار هدف فرض می‌شود و به‌عنوان همین فرض در گزارش ثبت می‌گردد.</p>
             </div>
           </div>
         )}
@@ -252,14 +275,14 @@ export function IntakeWizard() {
                   <option value="moderate">معتدل</option>
                 </select>
               </div>
-              <label className="flex items-center gap-2 self-end text-[11px] text-slate-300">
+              <label className="flex items-center gap-2 self-end text-[0.8125rem] text-slate-300">
                 <input type="checkbox" checked={answers.includeBasementParking} onChange={(e) => update("includeBasementParking", e.target.checked)} />
                 پارکینگ زیرزمینی مجاز است
               </label>
             </div>
             <div>
               <span className="label">نیاز یا محدودیت خاص</span>
-              <textarea className="field h-20 resize-none text-[11px]" value={answers.note} onChange={(e) => update("note", e.target.value)} placeholder="مثال: حیاط مرکزی، نور جنوبی، آسانسور، ورودی مهمان…" />
+              <textarea className="field h-20 resize-none text-[0.8125rem]" value={answers.note} onChange={(e) => update("note", e.target.value)} placeholder="مثال: حیاط مرکزی، نور جنوبی، آسانسور، ورودی مهمان…" />
             </div>
           </div>
         )}
@@ -268,8 +291,8 @@ export function IntakeWizard() {
           <div className="space-y-3">
             <div className="grid gap-2 sm:grid-cols-2">
               <div className="panel-soft p-3">
-                <h3 className="text-[11px] font-bold text-slate-100">زمین و برنامه</h3>
-                <ul className="mt-1 space-y-1 text-[10px] leading-5 text-slate-300">
+                <h3 className="text-[0.8125rem] font-bold text-white">زمین و برنامه</h3>
+                <ul className="mt-1 space-y-1 text-xs leading-5 text-slate-300">
                   <li>مساحت زمین: <span className="mono">{review.plotAreaM2.toFixed(1)} m²</span></li>
                   <li>شکل: {PARCEL_SHAPE_LABEL[answers.parcelShape]} · ابعاد {answers.widthM}×{answers.depthM} m</li>
                   <li>عقب‌نشینی: {answers.setbacks.north}/{answers.setbacks.east}/{answers.setbacks.south}/{answers.setbacks.west} m</li>
@@ -284,8 +307,8 @@ export function IntakeWizard() {
                 </ul>
               </div>
               <div className="panel-soft p-3">
-                <h3 className="text-[11px] font-bold text-amber-200">اطلاعات ناقص ({review.missing.length})</h3>
-                <ul className="mt-1 space-y-1 text-[10px] leading-5 text-slate-300">
+                <h3 className="text-[0.8125rem] font-bold text-amber-200">اطلاعات ناقص ({review.missing.length})</h3>
+                <ul className="mt-1 space-y-1 text-xs leading-5 text-slate-300">
                   {review.missing.map((item) => (
                     <li key={item.id}>
                       <span className={item.blocking ? "text-rose-300" : "text-amber-200"}>{item.blocking ? "● الزامی" : "○ اختیاری"}</span> {item.question}
@@ -296,15 +319,15 @@ export function IntakeWizard() {
               </div>
             </div>
             <div className="panel-soft p-3">
-              <h3 className="text-[11px] font-bold text-teal-200">فرضیات صریح (پنهان نمی‌شوند)</h3>
-              <ul className="mt-1 space-y-1 text-[10px] leading-5 text-slate-300">
+              <h3 className="text-[0.8125rem] font-bold text-teal-200">فرضیات صریح (پنهان نمی‌شوند)</h3>
+              <ul className="mt-1 space-y-1 text-xs leading-5 text-slate-300">
                 {review.assumptions.map((a) => (
                   <li key={a.label}>• <span className="text-slate-100">{a.label}:</span> <span className="mono">{a.value}</span> — {a.why}</li>
                 ))}
               </ul>
             </div>
             {(review.errors.length > 0 || error) && (
-              <div className="rounded border border-rose-400/40 bg-rose-500/10 p-2 text-[11px] text-rose-200">
+              <div className="rounded border border-rose-400/40 bg-rose-500/10 p-2 text-[0.8125rem] text-rose-200">
                 {error && <p>{error}</p>}
                 <ul className="list-inside list-disc">
                   {[...review.errors, ...detail].map((item) => <li key={item}>{item}</li>)}
@@ -312,7 +335,7 @@ export function IntakeWizard() {
               </div>
             )}
             {review.warnings.length > 0 && (
-              <ul className="space-y-1 text-[10px] leading-5 text-amber-200">
+              <ul className="space-y-1 text-xs leading-5 text-amber-200">
                 {review.warnings.slice(0, 5).map((w) => <li key={w}>⚠ {w}</li>)}
               </ul>
             )}
@@ -322,41 +345,48 @@ export function IntakeWizard() {
                 <Link href={`/projects/${createdProjectId}`} className="btn mt-2 block text-center">باز کردن پروژهٔ ثبت‌شده</Link>
               </div>
             ) : (
-              <button className="btn btn-primary w-full" onClick={submit} disabled={!review.ready || busy !== "idle" || createdProjectId !== null}>
+              <button className="btn btn-primary w-full" onClick={submit} disabled={!review.ready || busy !== "idle" || createdProjectId !== null} type="button">
                 {busy === "creating" ? "در حال ساخت پروژه…" : busy === "generating" ? "تولید طرح‌ها و اعتبارسنجی…" : "ساخت پروژه و تولید ۵ طرح"}
               </button>
             )}
-            <p className="text-[10px] leading-5 text-slate-500">
+            <p className="text-xs leading-5 text-slate-500">
               پس از ساخت، می‌توانید پلان بازبینی، کنترل‌های محدود، اصلاح و خروجی‌ها را ببینید؛ این‌ها نقشهٔ آمادهٔ اجرا یا تأیید مهندسی نیستند.
             </p>
           </div>
         )}
 
-        <div className="mt-4 flex justify-between">
-          <button className="btn" type="button" onClick={() => setStep((s) => Math.max(0, s - 1))} disabled={step === 0}>قبلی</button>
+        <div className="mt-6 flex flex-wrap items-center justify-between gap-3 border-t border-white/8 pt-5">
+          <button className="btn min-w-24" type="button" onClick={() => setStep((s) => Math.max(0, s - 1))} disabled={step === 0}>
+            مرحلهٔ قبل
+          </button>
+          <span className="order-first w-full text-center text-xs text-slate-500 sm:order-none sm:w-auto">
+            مرحلهٔ {step + 1} از {STEPS.length}
+          </span>
           {step < 3 && (
-            <button className="btn btn-primary" type="button" onClick={() => setStep((s) => Math.min(3, s + 1))}>بعدی</button>
+            <button className="btn btn-primary min-w-24" type="button" onClick={() => setStep((s) => Math.min(3, s + 1))}>
+              مرحلهٔ بعد
+            </button>
           )}
         </div>
       </section>
 
       <section className="space-y-4">
-        <div className="panel p-4">
-          <h2 className="text-sm font-bold text-slate-100">پیش‌نمایش زمین و پلان فرضی</h2>
-          <p className="mt-1 text-[10px] leading-5 text-slate-400">
+        <div className="panel p-5">
+          <h2 className="text-sm font-bold text-white">پیش‌نمایش زمین و پلان فرضی</h2>
+          <p className="mt-1 text-xs leading-5 text-slate-400">
             مرز زمین و محدوده پس از عقب‌نشینی (برش نیم‌صفحه) بلافاصله محاسبه می‌شود. پلان واقعی پس از تولید در کارگاه با دیوار، بازشو و ابعاد نمایش داده می‌شود.
           </p>
           <IntakeSketch boundary={boundary} setbacks={answers.setbacks} />
         </div>
-        <div className="panel p-4">
-          <h3 className="text-[11px] font-bold text-slate-100">این مرحله چه چیزی می‌سازد؟</h3>
-          <ul className="mt-1 space-y-1 text-[10px] leading-5 text-slate-300">
+        <div className="panel p-5">
+          <h3 className="text-[0.8125rem] font-bold text-white">این مرحله چه چیزی می‌سازد؟</h3>
+          <ul className="mt-1 space-y-1 text-xs leading-5 text-slate-300">
             <li>• مرز زمین از ابعاد/شکل انتخابی و عقب‌نشینی جهت‌دار → محدوده واقعی ساخت‌پذیر</li>
             <li>• برنامه واحدها و سقف‌های تراکم/اشغال به مدل مرکزی (CEM) منتقل می‌شود</li>
             <li>• ۵ راهبرد حجمی با دیوار، در، پنجره، پله/آسانسور و اندازه‌گذاری تولید می‌شود</li>
             <li>• اعتبارسنجی ۲۱ قاعده + لایه پلان اجرا و ایرادها نشان داده می‌شود</li>
           </ul>
-          <p className="mt-2 rounded border border-amber-400/30 bg-amber-400/10 p-2 text-[10px] leading-5 text-amber-100">
+          <p className="mt-2 rounded border border-amber-400/30 bg-amber-400/10 p-2 text-xs leading-5 text-amber-100">
             اعداد سازه/تأسیسات همچنان «غربالگری مقدماتی» و ضوابط «تأییدنشده» هستند؛ این مرحله ادعای طراحی اجرایی یا انطباق قانونی نمی‌کند.
           </p>
         </div>
@@ -366,7 +396,7 @@ export function IntakeWizard() {
 }
 
 function IntakeSketch({ boundary, setbacks }: { boundary: { x: number; y: number }[]; setbacks: IntakeAnswers["setbacks"] }) {
-  if (boundary.length < 3) return <p className="text-[11px] text-slate-400">مرز معتبر نیست.</p>;
+  if (boundary.length < 3) return <p className="text-[0.8125rem] text-slate-400">مرز معتبر نیست.</p>;
   const xs = boundary.map((p) => p.x);
   const ys = boundary.map((p) => p.y);
   const minX = Math.min(...xs) - 3;

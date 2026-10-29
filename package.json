@@ -1,6 +1,10 @@
 {
-  "name": "nextjs-postgresql-template",
+  "name": "hermicad",
   "private": true,
+  "version": "1.0.0",
+  "engines": {
+    "node": ">=20.9"
+  },
   "scripts": {
     "dev": "next dev",
     "build": "next build",
@@ -10,10 +14,12 @@
     "test": "tsx scripts/quality.ts",
     "preview:design": "tsx scripts/preview.ts",
     "test:studio-http": "tsx scripts/qa-studio-http.ts",
-    "test:http": "tsx scripts/qa-http-suite.ts"
+    "test:http": "tsx scripts/qa-http-suite.ts",
+    "test:smoke": "node scripts/qa-smoke.mjs"
   },
   "dependencies": {
     "@electric-sql/pglite": "^0.5.13",
+    "@fontsource-variable/vazirmatn": "^5.3.0",
     "dotenv": "17.3.1",
     "drizzle-orm": "0.45.2",
     "next": "16.4.3",

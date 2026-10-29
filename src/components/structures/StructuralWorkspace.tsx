@@ -124,7 +124,7 @@ export function StructuralWorkspace({ initial }: { initial: StudioDocument }) {
     }
   };
   return (
-    <main className="mx-auto max-w-6xl px-4 py-8">
+    <main className="mx-auto w-full max-w-6xl px-4 py-8 sm:px-6">
       <header className="mb-6 flex flex-wrap justify-between gap-4">
         <div>
           <Link
@@ -142,13 +142,13 @@ export function StructuralWorkspace({ initial }: { initial: StudioDocument }) {
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
-          <button disabled={busy} onClick={reload} className="btn">
+          <button disabled={busy} onClick={reload} className="btn" type="button">
             بارگیری آخرین نسخه
           </button>
-          <button onClick={localBackup} className="btn">
+          <button onClick={localBackup} className="btn" type="button">
             پشتیبان محلی
           </button>
-          <button disabled={busy || errors.length > 0} onClick={() => save()} className="btn">
+          <button disabled={busy || errors.length > 0} onClick={() => save()} className="btn" type="button">
             ذخیرهٔ پرونده
           </button>
           {family.building && (
@@ -171,7 +171,7 @@ export function StructuralWorkspace({ initial }: { initial: StudioDocument }) {
         </div>
       )}
       <div className="grid items-start gap-5 lg:grid-cols-[250px_minmax(0,1fr)]">
-        <aside className="panel p-4">
+        <aside className="panel p-5">
           <h2 className="font-bold">مسیر تخصصی</h2>
           <select
             aria-label="مرحلهٔ تخصصی"
@@ -194,6 +194,7 @@ export function StructuralWorkspace({ initial }: { initial: StudioDocument }) {
                 className={`block w-full rounded-lg p-3 text-right text-sm ${i === p.step ? "bg-teal-400/15 text-teal-200" : ""}`}
                 key={s}
                 onClick={() => patch({ step: i })}
+                type="button"
               >
                 {i + 1}. {s}
               </button>
@@ -328,7 +329,7 @@ export function StructuralWorkspace({ initial }: { initial: StudioDocument }) {
                   گزارش PDF فارسی، دادهٔ ورودی، روابط و نتایج JSON و فهرست هش فایل‌ها در ZIP ارائه می‌شود. برای مسیر فاقد حل‌گر، فقط پرونده
                   و کمبودها تحویل می‌شود؛ هیچ نقشهٔ ساختمانی جای نقشهٔ تخصصی نمی‌نشیند.
                 </p>
-                <button disabled={busy || errors.length > 0} className="btn btn-primary w-full justify-center" onClick={download}>
+                <button disabled={busy || errors.length > 0} className="btn btn-primary w-full justify-center" onClick={download} type="button">
                   دریافت گزارش مقدماتی تخصصی
                 </button>
               </>
@@ -345,7 +346,7 @@ export function StructuralWorkspace({ initial }: { initial: StudioDocument }) {
             {message}
           </p>
           <div className="mt-6 flex justify-between border-t border-white/10 pt-4">
-            <button className="btn" disabled={busy || p.step === 0} onClick={() => patch({ step: p.step - 1 })}>
+            <button className="btn" disabled={busy || p.step === 0} onClick={() => patch({ step: p.step - 1 })} type="button">
               مرحلهٔ قبل
             </button>
             {p.step < 4 && (
@@ -353,6 +354,7 @@ export function StructuralWorkspace({ initial }: { initial: StudioDocument }) {
                 className="btn btn-primary"
                 disabled={busy || errors.length > 0}
                 onClick={() => save({ ...doc, brief: { ...doc.brief!, structural: { ...p, step: p.step + 1 } } })}
+                type="button"
               >
                 ذخیره و مرحلهٔ بعد
               </button>

@@ -1,11 +1,23 @@
 import Link from "next/link";
 import { ensureDemoProject, listProjects } from "@/server/projects";
-import { Panel, Stat, EmptyState } from "@/components/ui";
 import { NewProjectForm } from "@/components/NewProjectForm";
 import { SeedButton } from "@/components/SeedButton";
+import { PageHeader } from "@/components/site/PageHeader";
 import { safePageError } from "@/server/http";
 
 export const dynamic = "force-dynamic";
+export const metadata = { title: "کارگاه پروژه‌ها" };
+
+/** برچسب فارسی وضعیت‌های داخلی پروژه؛ کاربر نباید با واژهٔ خام انگلیسی روبه‌رو شود. */
+const STATUS_LABEL: Record<string, string> = {
+  draft: "پیش‌نویس",
+  generated: "طرح تولیدشده",
+  reviewed: "بازبینی‌شده",
+  archived: "بایگانی",
+};
+
+const dateFa = (value: Date | string) =>
+  new Date(value).toLocaleDateString("fa-IR", { year: "numeric", month: "long", day: "numeric" });
 
 export default async function ProjectsPage() {
   let projects: Awaited<ReturnType<typeof listProjects>> = [];
@@ -18,83 +30,109 @@ export default async function ProjectsPage() {
   }
 
   return (
-    <main className="mx-auto max-w-[1400px] px-5 py-10">
-      <header className="mb-6 flex flex-wrap items-end justify-between gap-3">
-        <div>
-          <h1 className="text-2xl font-extrabold text-white">کارگاه پروژه‌ها</h1>
-          <p className="mt-2 max-w-3xl text-sm leading-7 text-slate-300">
-            هر پروژه دارای زمین و نیازمندی نسخه‌بندی‌شده است. تولید، اعتبارسنجی، اصلاح و خروجی همه از یک مدل مرکزی
-            انجام می‌شود و در پایگاه داده با فرضیات و نسخه موتور ثبت می‌گردد.
-          </p>
-        </div>
-        <div className="flex gap-2">
-          <Stat label="پروژه‌های ثبت‌شده" value={projects.length} />
-        </div>
-      </header>
+    <main className="shell py-10 sm:py-14">
+      <PageHeader
+        eyebrow="کارگاه"
+        title="پروژه‌های شما"
+        lede="هر پروژه یک زمین و یک نسخهٔ روشن از نیازمندی‌ها دارد. تولید، اعتبارسنجی، اصلاح و خروجی همه از یک مدل مرکزی می‌آیند و با نسخهٔ موتور ثبت می‌شوند."
+        aside={
+          <div className="panel-soft px-5 py-4 text-center">
+            <div className="mono text-2xl font-extrabold tabular-nums text-white">{projects.length}</div>
+            <div className="mt-1 text-xs text-slate-400">پروژهٔ ثبت‌شده</div>
+          </div>
+        }
+      />
 
       {error && (
-        <div className="mb-4 rounded-lg border border-rose-400/40 bg-rose-500/10 px-4 py-3 text-xs text-rose-200">
-          دسترسی به پایگاه داده یا ایجاد پروژه نمونه ناموفق بود: <span className="mono">{error}</span>
+        <div
+          role="alert"
+          className="mt-6 rounded-xl border border-rose-400/35 bg-rose-500/10 px-4 py-3 text-sm leading-7 text-rose-100"
+        >
+          دسترسی به پایگاه داده ممکن نشد. چند لحظه بعد دوباره تلاش کنید.
+          <span className="mono ms-2 text-xs text-rose-200/70">{error}</span>
         </div>
       )}
 
-      <div className="grid gap-6 lg:grid-cols-[1.25fr_0.75fr]">
-        <div className="space-y-4">
+      <div className="mt-8 grid gap-6 lg:grid-cols-[1.35fr_0.65fr] lg:gap-8">
+        {/* ── فهرست پروژه‌ها ───────────────────────────────────────────── */}
+        <div className="space-y-3">
           {projects.length === 0 ? (
-            <EmptyState
-              title="هیچ پروژه‌ای وجود ندارد"
-              description="از فرم سمت چپ یک پروژه بسازید؛ یا با پروژه نمایشی شروع کنید تا کل جریان تولید، اعتبارسنجی و خروجی را ببینید."
-            />
+            <div className="rounded-2xl border border-dashed border-white/12 bg-white/[0.02] px-6 py-14 text-center">
+              <h2 className="text-base font-bold text-white">هنوز پروژه‌ای نساخته‌اید</h2>
+              <p className="mx-auto mt-2 max-w-md text-sm leading-7 text-slate-400">
+                از فرم کنار یک پروژه بسازید، یا با پروژهٔ نمایشی شروع کنید تا کل جریان تولید، کنترل و خروجی را با
+                دادهٔ واقعی ببینید.
+              </p>
+              <Link href="/new" className="btn btn-primary mt-5">
+                تعریف هدایت‌شدهٔ زمین
+              </Link>
+            </div>
           ) : (
             projects.map((project) => (
-              <Link key={project.id} href={`/projects/${project.id}`} className="panel block p-4 transition hover:border-teal-400/40">
-                <div className="flex flex-wrap items-center justify-between gap-2">
-                  <div>
+              <Link
+                key={project.id}
+                href={`/projects/${project.id}`}
+                className="panel card-link block p-5"
+              >
+                <div className="flex flex-wrap items-start justify-between gap-4">
+                  <div className="min-w-0 flex-1">
                     <div className="flex flex-wrap items-center gap-2">
-                      <span className="mono text-[10px] text-teal-200">{project.code}</span>
-                      <span className="chip">{project.status}</span>
-                      <span className="chip">{project.jurisdiction}</span>
+                      <span className="chip border-teal-400/25 bg-teal-400/10 text-teal-100">
+                        {STATUS_LABEL[project.status] ?? "در جریان"}
+                      </span>
+                      <span className="mono text-xs text-slate-500">{project.code}</span>
                     </div>
-                    <h2 className="mt-1 text-sm font-bold text-slate-100">{project.name}</h2>
-                    {project.client && <p className="mt-0.5 text-[11px] text-slate-400">کارفرما: {project.client}</p>}
-                    {project.description && (
-                      <p className="mt-2 max-w-2xl text-[11px] leading-5 text-slate-400">{project.description}</p>
+                    <h2 className="mt-2.5 text-base font-bold text-white">{project.name}</h2>
+                    {project.client && (
+                      <p className="mt-1 text-sm text-slate-400">کارفرما: {project.client}</p>
                     )}
+                    {project.description && (
+                      <p className="mt-2 line-clamp-2 max-w-2xl text-sm leading-7 text-slate-400">
+                        {project.description}
+                      </p>
+                    )}
+                    <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-slate-500">
+                      <span>ایجاد {dateFa(project.createdAt)}</span>
+                      <span className="h-1 w-1 rounded-full bg-slate-700" aria-hidden="true" />
+                      <span>آخرین تغییر {dateFa(project.updatedAt)}</span>
+                    </div>
                   </div>
-                  <div className="text-left text-[10px] text-slate-500">
-                    <div>ایجاد: {new Date(project.createdAt).toLocaleDateString("fa-IR")}</div>
-                    <div>آخرین تغییر: {new Date(project.updatedAt).toLocaleString("fa-IR")}</div>
-                    <span className="btn mt-2 px-3 py-1.5 text-[11px]">ورود به کارگاه</span>
-                  </div>
+                  <span className="btn btn-primary shrink-0">ورود به کارگاه</span>
                 </div>
               </Link>
             ))
           )}
         </div>
+
+        {/* ── ستون کنش‌ها ──────────────────────────────────────────────── */}
         <div className="space-y-4">
-          <div className="panel p-4">
-            <h2 className="text-sm font-bold text-slate-100">تعریف هدایت‌شده (پیشنهادی)</h2>
-            <p className="mt-1 text-[11px] leading-6 text-slate-300">
-              برای کاربران غیرمتخصص: انتخاب شکل زمین با ابعاد، تعداد واحدها و محدودیت‌ها، سپس تولید و بررسی پلان با
-              دیوار، در، پنجره، پله و اندازه‌گذاری — بدون نیاز به ترسیم.
+          <div className="panel p-5">
+            <h2 className="text-sm font-bold text-white">ساده‌ترین راه شروع</h2>
+            <p className="mt-2 text-sm leading-7 text-slate-400">
+              شکل زمین، ابعاد، تعداد واحدها و محدودیت‌ها را انتخاب کنید؛ بقیه را HERMICAD انجام می‌دهد. برای این مسیر
+              لازم نیست با نرم‌افزار نقشه‌کشی کار کرده باشید.
             </p>
-            <Link href="/new" className="btn btn-primary mt-2 w-full">شروع تعریف هدایت‌شده</Link>
+            <Link href="/new" className="btn btn-primary btn-block mt-4">
+              تعریف هدایت‌شده
+            </Link>
           </div>
+
           <NewProjectForm />
-          <Panel title="پروژه نمایشی مرجع" subtitle="زمین نامنظم شش‌ضلعی ۸۶۸ m²، ۱۴ واحد، ۵ راهبرد حجم">
-            <p className="text-[11px] leading-6 text-slate-300">
-              در اولین بازدید، اگر هیچ پروژه‌ای وجود نداشته باشد، HERMICAD پروژه نمونه را می‌سازد و پایپ‌لاین کامل را
-              اجرا می‌کند. تمام اعداد آن از موتور واقعی (هندسه، تحلیل، ضوابط، بهینه‌سازی) آمده است.
+
+          <div className="panel p-5">
+            <h2 className="text-sm font-bold text-white">پروژهٔ نمایشی مرجع</h2>
+            <p className="mt-2 text-sm leading-7 text-slate-400">
+              یک زمین شش‌ضلعی نامنظم ۸۶۸ متری با ۱۴ واحد؛ همهٔ عددهایش از موتور واقعی همین نسخه آمده‌اند.
             </p>
-            <div className="mt-3">
+            <ul className="mt-3 space-y-1.5 text-xs leading-6 text-slate-400">
+              <li>• ۶ رأس، شیب ۲٫۸ متر</li>
+              <li>• ۸ واحد دوخوابه + ۶ واحد سه‌خوابه</li>
+              <li>• خروجی PDF، DXF، IFC، XLSX، CSV، SVG و JSON</li>
+            </ul>
+            <div className="mt-4">
               <SeedButton />
             </div>
-            <div className="mt-3 space-y-1 text-[10px] leading-5 text-slate-400">
-              <p>• زمین نامنظم با ۶ رأس و شیب ۲.۸ متر</p>
-              <p>• ۸ واحد ۲خوابه + ۶ واحد ۳خوابه</p>
-              <p>• خروجی PDF/DXF/IFC/XLSX/CSV/SVG/JSON</p>
-            </div>
-          </Panel>
+          </div>
         </div>
       </div>
     </main>
