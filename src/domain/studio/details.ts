@@ -503,7 +503,7 @@ function drawFootingDetail(scene: Scene, member: RebarMember, x: number, y: numb
   const top = y + 14;
   scene.text(x + size, y + 5, "جزئیات پی", 2.8, { anchor: "end", bold: true, gray: 0.15 });
   scene.rect(left, top, w, h, { width: 0.5 });
-  scene.hatch(left, top, w, h, 3, { gray: 0.82, width: 0.12 });
+  scene.hatch(left, top, w, h, 3, { gray: 0.55, width: 0.16 });
   // شبکهٔ آرماتور
   const coverMm = Math.max(1.5, w * (CONCRETE_COVER / member.b));
   scene.line(left + coverMm, top + h - coverMm, left + w - coverMm, top + h - coverMm, { width: 0.5, gray: 0.1 });
@@ -591,12 +591,113 @@ function drawWallDetail(scene: Scene, member: RebarMember, x: number, y: number,
   const w = Math.max(20, (size - 24) * 0.5);
   const h = Math.max(30, height - 30);
   scene.rect(x + 10, y + 14, w, h, { width: 0.45 });
-  scene.hatch(x + 10, y + 14, w, h, 3.4, { gray: 0.82, width: 0.12 });
+  scene.hatch(x + 10, y + 14, w, h, 3.4, { gray: 0.55, width: 0.16 });
   for (let gy = y + 18; gy < y + 14 + h; gy += 4) {
     scene.circle(x + 13, gy, 0.6, { fill: 0.25, width: 0.1 });
     scene.circle(x + 10 + w - 3, gy, 0.6, { fill: 0.25, width: 0.1 });
   }
   scene.text(x + 10 + w / 2, y + 14 + h + 7, member.bars.note, 2, { anchor: "middle", gray: 0.35 });
+}
+
+/** جزئیات تیپ دال: مقطع دال دوطرفه با شبکهٔ بالا و پایین روی تیرهای تکیه‌گاه. */
+function drawSlabDetail(
+  scene: Scene,
+  data: { thickness: number; span: number; topNote: string; bottomNote: string },
+  x: number,
+  y: number,
+  size: number,
+): void {
+  // جا برای اندازه‌گذاری ضخامت در سمت راست و برچسب‌ها در پایین
+  const scale = Math.min(70, (size - 52) / data.span);
+  const spanMm = data.span * scale;
+  const thicknessMm = Math.max(6, data.thickness * scale);
+  const beamW = Math.max(5, spanMm * 0.04);
+  const beamH = Math.max(8, thicknessMm * 1.8);
+  const left = x + (size - spanMm) / 2;
+  const top = y + 18;
+  scene.text(x + size, y + 5, "جزئیات تیپ دال", 2.8, { anchor: "end", bold: true, gray: 0.15 });
+  scene.rect(left, top, spanMm, thicknessMm, { width: 0.5 });
+  scene.hatch(left, top, spanMm, thicknessMm, 2.4, { gray: 0.55, width: 0.16 });
+  for (const bx of [left - beamW, left + spanMm]) {
+    scene.rect(bx, top + thicknessMm, beamW, beamH, { width: 0.45 });
+    scene.hatch(bx, top + thicknessMm, beamW, beamH, 2, { gray: 0.62, width: 0.14 });
+  }
+  const cover = Math.max(1.2, thicknessMm * 0.22);
+  for (const barY of [top + cover, top + thicknessMm - cover]) {
+    scene.line(left + 1, barY, left + spanMm - 1, barY, { width: 0.45, gray: 0.05 });
+    const step = Math.max(3.6, spanMm / 16);
+    for (let cx = left + 3; cx <= left + spanMm - 3; cx += step) {
+      scene.circle(cx, barY, 0.55, { fill: 0.2, width: 0.1 });
+    }
+  }
+  // اندازه‌گذاری ضخامت (سمت چپ، تا از کادر بیرون نزند)
+  const dimX = left - beamW - 4;
+  scene.line(dimX, top, dimX, top + thicknessMm, { width: 0.2, gray: 0.4 });
+  scene.line(dimX - 1.2, top, dimX + 1.2, top, { width: 0.2, gray: 0.4 });
+  scene.line(dimX - 1.2, top + thicknessMm, dimX + 1.2, top + thicknessMm, { width: 0.2, gray: 0.4 });
+  // برچسب بالای دال: کنار خط اندازه یا زیر آن، متن از کادر بیرون می‌زد.
+  scene.text(left, top - 3, `ضخامت ${faNumber(data.thickness)} متر`, 2, { gray: 0.35 });
+  const textTop = top + thicknessMm + beamH + 7;
+  scene.text(left + spanMm / 2, textTop, `دهانهٔ تیپ ${faNumber(data.span)} متر`, 2.2, { anchor: "middle", gray: 0.3 });
+  scene.text(left + spanMm / 2, textTop + 5, data.bottomNote, 1.9, { anchor: "middle", gray: 0.35 });
+  scene.text(left + spanMm / 2, textTop + 9.5, data.topNote, 1.9, { anchor: "middle", gray: 0.35 });
+}
+
+/** جزئیات اتصال تیر به ستون: ناحیهٔ اتصال، خاموت متراکم و طول وصله. */
+function drawConnectionDetail(scene: Scene, column: RebarMember, beam: RebarMember, x: number, y: number, size: number): void {
+  const beamDrawLen = Math.min(beam.length, 4);
+  const scale = Math.min(70, (size - 40) / (column.b + beamDrawLen));
+  const colW = Math.max(10, column.b * scale);
+  const colH = Math.max(30, Math.min(size * 0.45, colW * 2.4));
+  const beamH = Math.max(8, beam.h * scale);
+  const beamLen = beamDrawLen * scale;
+  const left = x + (size - (colW + beamLen)) / 2;
+  const top = y + 20;
+  scene.text(x + size, y + 5, "جزئیات اتصال تیر به ستون", 2.8, { anchor: "end", bold: true, gray: 0.15 });
+  scene.rect(left, top, colW, colH, { width: 0.55 });
+  scene.hatch(left, top, colW, colH, 3.2, { gray: 0.62, width: 0.15 });
+  const inset = Math.max(1.2, colW * 0.2);
+  for (const bx of [left + inset, left + colW - inset]) {
+    scene.line(bx, top + 1.5, bx, top + colH - 1.5, { width: 0.5, gray: 0.05 });
+  }
+  // خاموت ستون در ارتفاع طبقه
+  for (let gy = top + 5; gy < top + colH - 2; gy += 4.2) {
+    scene.line(left + inset - 1.4, gy, left + colW - inset + 1.4, gy, { width: 0.25, gray: 0.35 });
+  }
+  // خاموت متراکم در ناحیهٔ اتصال (بالای ستون)
+  for (let gy = top + 2; gy < top + Math.min(14, colH * 0.35); gy += 2) {
+    scene.line(left + inset - 1.4, gy, left + colW - inset + 1.4, gy, { width: 0.35, gray: 0.15 });
+  }
+  // تیر واردشده از سمت راست
+  const beamTop = top + colH * 0.3;
+  scene.rect(left + colW, beamTop, beamLen, beamH, { width: 0.5 });
+  const beamInset = Math.max(1.2, beamH * 0.2);
+  for (const by of [beamTop + beamInset, beamTop + beamH - beamInset]) {
+    scene.line(left + colW + 1, by, left + colW + beamLen - 1, by, { width: 0.5, gray: 0.05 });
+  }
+  for (let gx = left + colW + 4; gx < left + colW + beamLen - 2; gx += 4) {
+    scene.line(gx, beamTop + beamInset - 1.2, gx, beamTop + beamH - beamInset + 1.2, { width: 0.25, gray: 0.35 });
+  }
+  // مقاطع و برچسب‌ها
+  scene.text(left + colW / 2, top - 4, `ستون ${faNumber(column.b)}×${faNumber(column.h)}`, 1.9, {
+    anchor: "middle",
+    gray: 0.3,
+  });
+  scene.text(left + colW + beamLen / 2, beamTop + beamH + 4, `تیر ${faNumber(beam.b)}×${faNumber(beam.h)}`, 1.9, {
+    anchor: "middle",
+    gray: 0.3,
+  });
+  const lap = 40 * (column.bars.mainDia / 1000);
+  const noteTop = top + colH + 8;
+  scene.text(left, noteTop, `طول وصله ${faNumber(lap)} متر (۴۰db)`, 2.1, { gray: 0.3 });
+  scene.text(
+    left,
+    noteTop + 5,
+    `خاموت ستون ${faNumber(column.bars.hoopDia, 0)} هر ${faNumber(COLUMN_HOOP_SPACING * 100, 0)} سانتی‌متر`,
+    2,
+    { gray: 0.35 },
+  );
+  scene.text(left, noteTop + 10, "خاموت متراکم ناحیهٔ اتصال هر ۷٫۵ سانتی‌متر در ناحیهٔ ۲h", 1.9, { gray: 0.4 });
 }
 
 /** ساخت صحنهٔ برگهٔ جزئیات (مشترک SVG و PDF). */
@@ -624,12 +725,22 @@ export function detailSheetScene(doc: StudioDocument): { scene: Scene; schedule:
    * سلول‌ها به تعداد جزئیات موجود وابسته است و آخرین جزئیات اگر فرد باشد، عرض
    * کامل می‌گیرد تا نقشه‌ها بزرگ‌تر و برگه پرتر باشد.
    */
-  const entries: { title: string; member: RebarMember }[] = [
-    { title: "ستون", member: columns[0] },
-    { title: "تیر", member: beams[0] },
-    { title: "پی", member: footings[0] },
-    { title: "دیوار برشی", member: walls[0] },
-  ].filter((entry): entry is { title: string; member: RebarMember } => Boolean(entry.member));
+  type DetailEntry =
+    | { type: "member"; member: RebarMember }
+    | { type: "slab"; thickness: number; span: number }
+    | { type: "connection"; column: RebarMember; beam: RebarMember };
+  const entries: DetailEntry[] = [];
+  for (const member of [columns[0], beams[0], footings[0], walls[0]]) {
+    if (member) entries.push({ type: "member", member });
+  }
+  // جزئیات تیپ اتصال: وقتی هم ستون و هم تیر داریم، اتصال تیر به ستون رسم می‌شود
+  // (طول وصله ۴۰db، خاموت متراکم ناحیهٔ اتصال) — چیزی که برگهٔ سازه بدون آن
+  // ناقص است.
+  if (columns[0] && beams[0]) entries.push({ type: "connection", column: columns[0], beam: beams[0] });
+  // جزئیات تیپ دال: ضخامت از رادیه/پی موجود یا ۰٫۳۰ متر پیش‌فرض، دهانه از تیر.
+  const slabThickness = round(schedule.members.find((member) => member.kind === "raft")?.length ?? 0.3, 2);
+  const slabSpan = round(Math.min(6, beams[0]?.length ?? 5), 1);
+  entries.push({ type: "slab", thickness: slabThickness, span: slabSpan });
 
   if (entries.length === 0) {
     scene.rect(area.x + 2, area.y + 2, detailW - 4, area.h - 8, { width: 0.2, gray: 0.75, dash: [3, 2] });
@@ -649,10 +760,30 @@ export function detailSheetScene(doc: StudioDocument): { scene: Scene; schedule:
       const x = area.x + col * cellW;
       const y = area.y + 4 + row * cellH;
       const width = isLastOdd ? cellW * 2 - 6 : cellW - 6;
-      if (entry.member.kind === "column") drawColumnDetail(scene, entry.member, x, y, width);
-      else if (entry.member.kind === "beam") drawBeamDetail(scene, entry.member, x, y, width);
-      else if (entry.member.kind === "footing" || entry.member.kind === "raft") drawFootingDetail(scene, entry.member, x, y, width);
-      else drawWallDetail(scene, entry.member, x, y, width, cellH - 8);
+      if (entry.type === "slab") {
+        drawSlabDetail(
+          scene,
+          {
+            thickness: entry.thickness,
+            span: entry.span,
+            bottomNote: "شبکهٔ پایین: میلگرد ۱۲ هر ۲۰ دوطرفه",
+            topNote: "شبکهٔ بالا: میلگرد ۱۲ هر ۲۰ دوطرفه (روی تکیه‌گاه‌ها)",
+          },
+          x,
+          y,
+          width,
+        );
+        return;
+      }
+      if (entry.type === "connection") {
+        drawConnectionDetail(scene, entry.column, entry.beam, x, y, width);
+        return;
+      }
+      const member = entry.member;
+      if (member.kind === "column") drawColumnDetail(scene, member, x, y, width);
+      else if (member.kind === "beam") drawBeamDetail(scene, member, x, y, width);
+      else if (member.kind === "footing" || member.kind === "raft") drawFootingDetail(scene, member, x, y, width);
+      else drawWallDetail(scene, member, x, y, width, cellH - 8);
     });
   }
 
