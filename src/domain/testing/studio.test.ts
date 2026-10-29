@@ -348,8 +348,19 @@ test("studio/exporters", "IFC4 معتبر: هدر، موجودیت‌های اس
   const missing = [...referenced].filter((value) => !defined.has(value));
   assert(missing.length === 0, `ارجاع بدون تعریف: ${missing.slice(0, 5).join(", ")}`);
   // هندسهٔ هر جزء باید در متر باشد (ابعاد ۱۲×۱۰)
+  // موجودیت‌های استاندارد باید از نوع خودشان باشند، نه همه Proxy
+  for (const entity of ["IFCWALL(", "IFCCOLUMN(", "IFCBEAM(", "IFCDOOR(", "IFCWINDOW(", "IFCFURNITURE("]) {
+    const count = (text.match(new RegExp(entity.replace("(", "\\("), "g")) ?? []).length;
+    assert(count > 0, `موجودیت ${entity} در IFC نیست`);
+  }
   const proxies = (text.match(/IFCBUILDINGELEMENTPROXY/g) ?? []).length;
-  assert(proxies >= 60, `تعداد اجزا: ${proxies}`);
+  assert(proxies >= 40, `تعداد اجزای عمومی: ${proxies}`);
+  // هر موجودیت باید تعداد ویژگی درست داشته باشد (۹ برای دیوار/دال/ستون/تیر)
+  const wall = text.split("\n").find((line) => line.includes("IFCWALL("));
+  assert(wall != null, "دیوار IFC پیدا نشد");
+  const attrs = wall!.slice(wall!.indexOf("(") + 1, -2).split(",");
+  assert(attrs.length === 9, `تعداد ویژگی IFCWALL: ${attrs.length}`);
+  assert(wall!.includes(".STANDARD."), "نوع دیوار IFC تنظیم نشده");
   return `${defined.size} موجودیت`;
 });
 

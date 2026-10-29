@@ -287,6 +287,33 @@ function latinName(value: string, fallback: string): string {
   return /[A-Za-z]/.test(cleaned) ? cleaned : fallback;
 }
 
+/**
+ * نگاشت کلاس کتابخانه به موجودیت IFC4.
+ *
+ * چرا: اگر همهٔ اشیا IfcBuildingElementProxy باشند، BIM ناظر نمی‌تواند «همهٔ
+ * ستون‌ها» یا «همهٔ دیوارهای برشی» را فیلتر کند و جدول مصالح بی‌معنا می‌شود.
+ *
+ * `trailing` تعداد `$` اضافی است که هر موجودیت بعد از ریپریزنتیشن لازم دارد
+ * (PredefinedType و در درب/پنجره OverallHeight/OverallWidth/OperationType).
+ */
+const IFC_ENTITY_BY_CLASS: Record<string, { entity: string; trailing: string }> = {
+  IfcWall: { entity: "IFCWALL", trailing: ",.STANDARD." },
+  IfcWallStandardCase: { entity: "IFCWALL", trailing: ",.STANDARD." },
+  IfcSlab: { entity: "IFCSLAB", trailing: ",.FLOOR." },
+  IfcColumn: { entity: "IFCCOLUMN", trailing: ",.COLUMN." },
+  IfcBeam: { entity: "IFCBEAM", trailing: ",.BEAM." },
+  IfcMember: { entity: "IFCMEMBER", trailing: ",.BRACE." },
+  IfcCovering: { entity: "IFCCOVERING", trailing: ",.FLOORING." },
+  IfcStair: { entity: "IFCSTAIR", trailing: ",.STRAIGHT_RUN_STAIR." },
+  IfcRamp: { entity: "IFCRAMP", trailing: ",.STRAIGHT_RUN_RAMP." },
+  IfcFurniture: { entity: "IFCFURNITURE", trailing: ",.NOTDEFINED." },
+  IfcFurnishingElement: { entity: "IFCFURNITURE", trailing: ",.NOTDEFINED." },
+  IfcSanitaryTerminal: { entity: "IFCSANITARYTERMINAL", trailing: ",.NOTDEFINED." },
+  // درب/پنجره: Tag، ارتفاع، عرض، نوع، نحوهٔ بازشو، فیلد آزاد
+  IfcDoor: { entity: "IFCDOOR", trailing: ",$,$,.DOOR.,.SINGLE_SWING_LEFT.,$" },
+  IfcWindow: { entity: "IFCWINDOW", trailing: ",$,$,.WINDOW.,.SINGLE_PANEL.,$" },
+};
+
 export function studioIfc(doc: StudioDocument): string {
   const lines: string[] = [];
   let id = 1;
@@ -389,9 +416,22 @@ export function studioIfc(doc: StudioDocument): string {
         `#${product}=IFCSPACE(${ifcGuid("studio-item" + item.id)},#${owner},'${item.label?.replace(/[^\x20-\x7E]/g, "") || "SPACE"}','${item.catalogId}',$,#${productPlacement},#${productShape},$,.ELEMENT.,.INTERNAL.,$);`,
       );
     } else {
-      lines.push(
-        `#${product}=IFCBUILDINGELEMENTPROXY(${ifcGuid("studio-item" + item.id)},#${owner},'${definition.nameEn.replace(/[^\x20-\x7E]/g, "").trim() || item.catalogId}','${definition.ifcClass}',$,#${productPlacement},#${productShape},$,$);`,
-      );
+      // نوع موجودیت IFC از خودِ کتابخانه خوانده می‌شود (نه همه‌چیز Proxy):
+      // دیوار/دال/ستون/تیر/پله/مبلمان/درب/پنجره با موجودیت استاندارد خودشان
+      // صادر می‌شوند تا در Revit/ArchiCAD/BIM Vision قابل فیلتر و اندازه‌گیری
+      // باشند. مواردی که معادل دقیق ندارند همان IfcBuildingElementProxy می‌مانند
+      // (با ObjectType برابر کلاس کتابخانه، طبق قرارداد IFC).
+      const name = definition.nameEn.replace(/[^\x20-\x7E]/g, "").trim() || item.catalogId;
+      const mapping = IFC_ENTITY_BY_CLASS[definition.ifcClass];
+      if (mapping) {
+        lines.push(
+          `#${product}=${mapping.entity}(${ifcGuid("studio-item" + item.id)},#${owner},'${name}',$,'${definition.ifcClass}',#${productPlacement},#${productShape},$${mapping.trailing});`,
+        );
+      } else {
+        lines.push(
+          `#${product}=IFCBUILDINGELEMENTPROXY(${ifcGuid("studio-item" + item.id)},#${owner},'${name}',$,'${definition.ifcClass}',#${productPlacement},#${productShape},$,$);`,
+        );
+      }
     }
     const list = productsByStorey.get(storeyId) ?? [];
     list.push(product);

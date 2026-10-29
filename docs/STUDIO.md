@@ -106,7 +106,7 @@
 | `elevations-dxf` | چهار نما در مدل‌اسپیس، **مقیاس ۱:۱ در متر**، لایه‌های WALLS/STRUCTURE/OPENINGS/LEVELS/LABELS | آزمون‌شده + بازخوانی ezdxf |
 | `section-dxf` | برش با پوشش poché به‌صورت SOLID، مقیاس ۱:۱ | آزمون‌شده + بازخوانی ezdxf |
 | `xlsx` | ۶ برگ: متره، **میلگرد**، در و پنجره، فضاها، اشیا، کنترل | آزمون‌شده (ZIP/XML معتبر) |
-| `ifc` | IFC4: `IfcProject/Site/Building/Storey`، `IfcSpace` و `IfcBuildingElementProxy` با هندسهٔ واقعی | آزمون‌شده (سالم بودن ارجاع‌ها) |
+| `ifc` | IFC4: `IfcProject/Site/Building/Storey`، `IfcSpace`، و موجودیت‌های **واقعی** (`IfcWall`/`IfcSlab`/`IfcColumn`/`IfcBeam`/`IfcDoor`/`IfcWindow`/`IfcFurniture`/`IfcSanitaryTerminal`) با هندسهٔ واقعی؛ موارد بی‌معادل به‌صورت `IfcBuildingElementProxy` با ObjectType | آزمون‌شده (سالم بودن ارجاع‌ها و تعداد ویژگی‌ها) |
 | `elevations` | برگهٔ نماها (SVG): چهار نمای اصلی با تراز طبقات | آزمون‌شده و چشمی بازبینی‌شده |
 | `elevations-pdf` | پنج برگهٔ PDF: چهار نما + برش A-A، با پوشش برش و فونت جاسازی‌شده | آزمون‌شده + رندر و بازبینی چشمی |
 | `section` | برش (SVG) با نوار برش قابل تنظیم | آزمون‌شده |
