@@ -581,6 +581,24 @@ function drawRebarTable(scene: Scene, schedule: RebarSchedule, x: number, y: num
   return totalY;
 }
 
+/** جزئیات دیوار برشی/شمع: نمای آرماتوربندی ساده. */
+function drawWallDetail(scene: Scene, member: RebarMember, x: number, y: number, size: number, height: number): void {
+  scene.text(x + size, y + 5, member.kind === "pile" ? "جزئیات شمع" : "جزئیات دیوار برشی", 2.8, {
+    anchor: "end",
+    bold: true,
+    gray: 0.15,
+  });
+  const w = Math.max(20, (size - 24) * 0.5);
+  const h = Math.max(30, height - 30);
+  scene.rect(x + 10, y + 14, w, h, { width: 0.45 });
+  scene.hatch(x + 10, y + 14, w, h, 3.4, { gray: 0.82, width: 0.12 });
+  for (let gy = y + 18; gy < y + 14 + h; gy += 4) {
+    scene.circle(x + 13, gy, 0.6, { fill: 0.25, width: 0.1 });
+    scene.circle(x + 10 + w - 3, gy, 0.6, { fill: 0.25, width: 0.1 });
+  }
+  scene.text(x + 10 + w / 2, y + 14 + h + 7, member.bars.note, 2, { anchor: "middle", gray: 0.35 });
+}
+
 /** ساخت صحنهٔ برگهٔ جزئیات (مشترک SVG و PDF). */
 export function detailSheetScene(doc: StudioDocument): { scene: Scene; schedule: RebarSchedule } {
   const schedule = rebarSchedule(doc);
@@ -598,33 +616,44 @@ export function detailSheetScene(doc: StudioDocument): { scene: Scene; schedule:
   const footings = schedule.members.filter((member) => member.kind === "footing" || member.kind === "raft");
   const walls = schedule.members.filter((member) => member.kind === "shear-wall" || member.kind === "pile");
 
-  const placeholder = (x: number, y: number, w: number, h: number, message: string) => {
-    scene.rect(x + 2, y + 2, w - 4, h - 4, { width: 0.2, gray: 0.75, dash: [3, 2] });
-    scene.text(x + w / 2, y + h / 2, message, 2.6, { anchor: "middle", gray: 0.55 });
-  };
-  if (columns[0]) drawColumnDetail(scene, columns[0], area.x, area.y + 4, cellW - 6);
-  else placeholder(area.x, area.y + 4, cellW - 6, cellH - 8, "ستون بتنی در سند ثبت نشده است");
-  if (beams[0]) drawBeamDetail(scene, beams[0], area.x + cellW, area.y + 4, cellW - 6);
-  else placeholder(area.x + cellW, area.y + 4, cellW - 6, cellH - 8, "تیر بتنی در سند ثبت نشده است");
-  if (footings[0]) drawFootingDetail(scene, footings[0], area.x, area.y + cellH, cellW - 6);
-  else placeholder(area.x, area.y + cellH, cellW - 6, cellH - 8, "پی در سند ثبت نشده است");
-  if (walls[0]) {
-    // دیوار برشی/شمع: نمای آرماتوربندی ساده
-    const member = walls[0];
-    const x = area.x + cellW;
-    const y = area.y + cellH;
-    scene.text(x + cellW - 6, y + 5, member.kind === "pile" ? "جزئیات شمع" : "جزئیات دیوار برشی", 2.8, { anchor: "end", bold: true, gray: 0.15 });
-    const w = (cellW - 30) * 0.5;
-    const h = cellH - 30;
-    scene.rect(x + 10, y + 14, w, h, { width: 0.45 });
-    scene.hatch(x + 10, y + 14, w, h, 3.4, { gray: 0.82, width: 0.12 });
-    for (let gy = y + 18; gy < y + 14 + h; gy += 4) {
-      scene.circle(x + 13, gy, 0.6, { fill: 0.25, width: 0.1 });
-      scene.circle(x + 10 + w - 3, gy, 0.6, { fill: 0.25, width: 0.1 });
-    }
-    scene.text(x + 10 + w / 2, y + 14 + h + 7, member.bars.note, 2, { anchor: "middle", gray: 0.35 });
+  /**
+   * چیدمان جزئیات: تنها اعضای موجود در سند رسم می‌شوند.
+   *
+   * پیش‌تر چهار سلول ثابت ۲×۲ بود و اگر عضوی (مثلاً دیوار برشی) در سند نبود،
+   * یک کادر خالی بزرگ با پیام «ثبت نشده است» نصف برگه را می‌گرفت. حالا تعداد
+   * سلول‌ها به تعداد جزئیات موجود وابسته است و آخرین جزئیات اگر فرد باشد، عرض
+   * کامل می‌گیرد تا نقشه‌ها بزرگ‌تر و برگه پرتر باشد.
+   */
+  const entries: { title: string; member: RebarMember }[] = [
+    { title: "ستون", member: columns[0] },
+    { title: "تیر", member: beams[0] },
+    { title: "پی", member: footings[0] },
+    { title: "دیوار برشی", member: walls[0] },
+  ].filter((entry): entry is { title: string; member: RebarMember } => Boolean(entry.member));
+
+  if (entries.length === 0) {
+    scene.rect(area.x + 2, area.y + 2, detailW - 4, area.h - 8, { width: 0.2, gray: 0.75, dash: [3, 2] });
+    scene.text(area.x + detailW / 2, area.y + area.h / 2, "اعضای سازه‌ای در سند ثبت نشده است", 2.6, {
+      anchor: "middle",
+      gray: 0.55,
+    });
   } else {
-    placeholder(area.x + cellW, area.y + cellH, cellW - 6, cellH - 8, "دیوار برشی/شمع در سند ثبت نشده است");
+    const cols = entries.length >= 3 ? 2 : 1;
+    const rows = Math.ceil(entries.length / cols);
+    const cellW = detailW / cols;
+    const cellH = (area.h - 10) / Math.max(1, rows);
+    entries.forEach((entry, index) => {
+      const row = Math.floor(index / cols);
+      const col = index % cols;
+      const isLastOdd = entries.length % cols === 1 && index === entries.length - 1;
+      const x = area.x + col * cellW;
+      const y = area.y + 4 + row * cellH;
+      const width = isLastOdd ? cellW * 2 - 6 : cellW - 6;
+      if (entry.member.kind === "column") drawColumnDetail(scene, entry.member, x, y, width);
+      else if (entry.member.kind === "beam") drawBeamDetail(scene, entry.member, x, y, width);
+      else if (entry.member.kind === "footing" || entry.member.kind === "raft") drawFootingDetail(scene, entry.member, x, y, width);
+      else drawWallDetail(scene, entry.member, x, y, width, cellH - 8);
+    });
   }
 
   // جدول میلگرد + یادداشت‌های فنی زیر آن (نه روی جزئیات)

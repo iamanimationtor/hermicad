@@ -31,6 +31,8 @@ export default async function DesignGalleryPage({ params }: { params: Promise<{ 
     })),
     { key: "elevations", label: "برگهٔ نماها (۴ جهت)", url: `${base}?format=elevations` },
     { key: "section", label: "برش A-A", url: `${base}?format=section` },
+    { key: "details", label: "جزئیات اجرایی سازه و جدول میلگرد", url: `${base}?format=details` },
+    { key: "schedules", label: "جداول، کیپلان و بازشوها", url: `${base}?format=schedules` },
   ];
 
   return (
