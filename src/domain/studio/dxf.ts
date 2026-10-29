@@ -1,0 +1,553 @@
+/**
+ * HERMICAD Studio — نویسندهٔ DXF (AC1015 / R2000)
+ *
+ * چرا بازنویسی شد: نسخهٔ پیشین فقط بخش ENTITIES و TABLE لایه‌ها را می‌نوشت و
+ * نشانگرهای زیرکلاس (`AcDbEntity`، `AcDbPolyline`) و دسته (handle) نداشت. اتوکد
+ * گاهی آن را باز می‌کرد، اما خواننده‌های سخت‌گیر (ezdxf، Revit، BricsCAD) با خطای
+ * «missing subclass» ردش می‌کردند. فایل DXF باید «استاندارد» باشد، نه شبیه آن.
+ *
+ * این ماژول یک نویسندهٔ کامل است: HEADER، CLASSES، TABLES (LTYPE/LAYER/STYLE/
+ * APPID/BLOCK_RECORD)، BLOCKS (مدل‌اسپیس و پیپراسپیس)، ENTITIES و OBJECTS.
+ * مختصات بر حسب متر است ($INSUNITS = 6) و متن فارسی با دنبالهٔ `\U+XXXX`
+ * نوشته می‌شود که اتوکد/ب‌ریک‌کد/ezdxf آن را به یونیکد برمی‌گردانند.
+ */
+
+import { shapeForDisplay } from "./pdf/arabic";
+
+const DXF_UNICODE = String.fromCharCode(92) + "U+";
+
+/** متن فارسی → دنبالهٔ یونیکد DXF با شکل نمایشی درست (RTL). */
+export function dxfText(value: string): string {
+  const shaped = shapeForDisplay(value, "rtl");
+  return shaped.map((code) => DXF_UNICODE + code.toString(16).toUpperCase().padStart(4, "0")).join("");
+}
+
+const f = (value: number): string => (Math.round(value * 10000) / 10000).toString();
+
+export interface DxfLayer {
+  name: string;
+  color: number;
+  ltype?: string;
+}
+
+type Pair = [number, string | number];
+
+/** نویسندهٔ ساده و قابل‌آزمون DXF R2000. */
+/** الگوهای هاشور داخلی؛ ابعاد بر حسب متر (واحد جزئیات/پلان). */
+export type DxfHatchPattern = "concrete" | "masonry";
+
+interface PatternLine {
+  angle: number;
+  base: [number, number];
+  offset: [number, number];
+  dashes: number[];
+}
+
+const PATTERN_DEFS: Record<DxfHatchPattern, { name: string; angle: number; lines: PatternLine[] }> = {
+  // بتن مسلح در مقطع: خطوط مورب ۴۵° با فاصلهٔ ۶ سانتی‌متر (هم‌ارز ANSI31)
+  concrete: {
+    name: "ANSI31",
+    angle: 45,
+    lines: [{ angle: 45, base: [0, 0], offset: [0, 0.06], dashes: [] }],
+  },
+  // بنایی/بلوک: ردیف‌های افقی با بندهای یک‌درمیان (هم‌ارز AR-B816)
+  masonry: {
+    name: "AR-B816",
+    angle: 0,
+    lines: [
+      { angle: 0, base: [0, 0], offset: [0, 0.1], dashes: [0.2, -0.2] },
+      { angle: 90, base: [0, 0], offset: [0.2, 0.05], dashes: [0.05, -0.05] },
+    ],
+  },
+};
+
+export class DxfWriter {
+  private readonly out: Pair[] = [];
+  private handleCounter = 0x20;
+  private readonly handles = { modelSpace: "", paperSpace: "", rootDict: "", groupDict: "", layers: new Map<string, string>() };
+  /** بلوک‌های تعریف‌شده: نام → موجودیت‌ها (برای INSERT). */
+  private readonly blocks = new Map<string, { handle: string; record: string; entities: Pair[] }>();
+  private target: Pair[] | null = null;
+  private openBlock: string | null = null;
+
+  constructor(private readonly layers: DxfLayer[]) {}
+
+  private nextHandle(): string {
+    this.handleCounter += 1;
+    return this.handleCounter.toString(16).toUpperCase();
+  }
+
+  private push(code: number, value: string | number): void {
+    (this.target ?? this.out).push([code, value]);
+  }
+
+  private entityStart(type: string, handle: string, layer: string, subclass: string): void {
+    this.push(0, type);
+    this.push(5, handle);
+    this.push(100, "AcDbEntity");
+    this.push(8, layer);
+    this.push(100, subclass);
+  }
+
+  /* ─────────────────────────── موجودیت‌ها ─────────────────────────── */
+
+  line(x1: number, y1: number, x2: number, y2: number, layer: string): void {
+    this.entityStart("LINE", this.nextHandle(), layer, "AcDbLine");
+    this.push(10, f(x1));
+    this.push(20, f(y1));
+    this.push(30, 0);
+    this.push(11, f(x2));
+    this.push(21, f(y2));
+    this.push(31, 0);
+  }
+
+  polyline(points: [number, number][], layer: string, closed = true): void {
+    if (points.length < 2) return;
+    this.entityStart("LWPOLYLINE", this.nextHandle(), layer, "AcDbPolyline");
+    this.push(90, points.length);
+    this.push(70, closed ? 1 : 0);
+    this.push(43, 0);
+    for (const [x, y] of points) {
+      this.push(10, f(x));
+      this.push(20, f(y));
+    }
+  }
+
+  circle(cx: number, cy: number, r: number, layer: string): void {
+    this.entityStart("CIRCLE", this.nextHandle(), layer, "AcDbCircle");
+    this.push(10, f(cx));
+    this.push(20, f(cy));
+    this.push(30, 0);
+    this.push(40, f(r));
+  }
+
+  text(
+    x: number,
+    y: number,
+    height: number,
+    value: string,
+    layer: string,
+    options: { rotation?: number; align?: "left" | "center" | "right" } = {},
+  ): void {
+    this.entityStart("TEXT", this.nextHandle(), layer, "AcDbText");
+    this.push(10, f(x));
+    this.push(20, f(y));
+    this.push(30, 0);
+    this.push(40, f(height));
+    this.push(1, value);
+    if (options.rotation) this.push(50, f(options.rotation));
+    this.push(7, "Standard");
+    // تراز افقی متن: در DXF وقتی 72 غیرصفر است، نقطهٔ تراز (11/21) مرجع
+    // می‌شود و نقطهٔ درج (10/20) نادیده گرفته می‌شود. بدون این کار متن‌های
+    // وسط‌چین و راست‌چین برگه در اتوکد جابه‌جا می‌شدند.
+    const align = options.align ?? "left";
+    if (align !== "left") {
+      this.push(72, align === "center" ? 1 : 2);
+      this.push(11, f(x));
+      this.push(21, f(y));
+      this.push(31, 0);
+    }
+    this.push(100, "AcDbText"); // زیرکلاس دوم متن (برای پایان تعریف)
+  }
+
+  /** پرشدگی ساده (SOLID) — برای پوشش برش و بلوک‌های توپر. */
+  solid(points: [number, number][], layer: string): void {
+    const [a, b, c, d] = points;
+    this.entityStart("SOLID", this.nextHandle(), layer, "AcDbTrace");
+    this.push(10, f(a[0]));
+    this.push(20, f(a[1]));
+    this.push(30, 0);
+    this.push(11, f(b[0]));
+    this.push(21, f(b[1]));
+    this.push(31, 0);
+    this.push(12, f((d ?? c)[0]));
+    this.push(22, f((d ?? c)[1]));
+    this.push(32, 0);
+    this.push(13, f(c[0]));
+    this.push(23, f(c[1]));
+    this.push(33, 0);
+  }
+
+  /**
+   * هاشور توپر (SOLID) با مرز چندضلعی.
+   * چرا HATCH و نه SOLID: SOLID فقط چهار گوشه دارد و برای پرشدگی دایره/چندضلعی
+   * دلخواه بی‌استفاده است. HATCH با مسیر مرزی (polyline path) در اتوکد، ب‌ریک‌کد
+   * و لیبره‌کد به‌درستی پر می‌شود و در DXF R2000 مجاز است.
+   */
+  solidHatch(points: [number, number][], layer: string, color?: number): void {
+    if (points.length < 3) return;
+    this.entityStart("HATCH", this.nextHandle(), layer, "AcDbHatch");
+    if (color != null) this.push(420, color);
+    this.hatchHead();
+    this.push(91, 1);
+    this.push(92, 2); // polyline boundary path
+    this.push(72, 0); // no bulge
+    this.push(73, 1); // closed
+    this.push(93, points.length);
+    for (const [x, y] of points) {
+      this.push(10, f(x));
+      this.push(20, f(y));
+    }
+    this.hatchTail();
+  }
+
+  /** هاشور توپر با مرز دایره (edge path / circular arc). */
+  circleHatch(cx: number, cy: number, r: number, layer: string, color?: number): void {
+    if (r <= 0) return;
+    this.entityStart("HATCH", this.nextHandle(), layer, "AcDbHatch");
+    if (color != null) this.push(420, color);
+    this.hatchHead();
+    this.push(91, 1);
+    this.push(92, 0); // edge boundary path
+    this.push(93, 1); // one edge
+    this.push(72, 2); // circular arc
+    this.push(10, f(cx));
+    this.push(20, f(cy));
+    this.push(40, f(r));
+    this.push(50, 0);
+    this.push(51, 360);
+    this.push(73, 1); // counter-clockwise
+    this.hatchTail();
+  }
+
+  /**
+   * هاشور **الگودار** (نه توپر): بافت بتنی/آجری با تعریف الگو داخل خود موجودیت.
+   *
+   * چرا تعریف الگو را داخل HATCH می‌نویسیم: فایل `.pat` کاربر ممکن است ANSI31 یا
+   * الگوی آجری را نداشته باشد؛ DXF اجازه می‌دهد خطوط الگو (کدهای 53/43/44/45/46/79/49)
+   * همراه موجودیت ذخیره شوند و همان‌جا رندر شوند. `76=1` یعنی «الگوی از پیش تعریف‌شده».
+   */
+  patternHatch(points: [number, number][], layer: string, pattern: DxfHatchPattern, scale = 1): void {
+    if (points.length < 3) return;
+    const def = PATTERN_DEFS[pattern];
+    this.entityStart("HATCH", this.nextHandle(), layer, "AcDbHatch");
+    this.push(10, 0);
+    this.push(20, 0);
+    this.push(30, 0);
+    this.push(210, 0);
+    this.push(220, 0);
+    this.push(230, 1);
+    this.push(2, def.name);
+    this.push(70, 0); // pattern fill (نه solid)
+    this.push(71, 0);
+    this.push(91, 1);
+    this.push(92, 2);
+    this.push(72, 0);
+    this.push(73, 1);
+    this.push(93, points.length);
+    for (const [x, y] of points) {
+      this.push(10, f(x));
+      this.push(20, f(y));
+    }
+    this.push(97, 0); // هیچ شیء مرزی وابسته‌ای وجود ندارد
+    this.push(75, 0);
+    this.push(76, 1);
+    this.push(52, def.angle);
+    this.push(41, f(scale));
+    this.push(77, 0);
+    this.push(78, def.lines.length);
+    for (const line of def.lines) {
+      this.push(53, line.angle);
+      this.push(43, f(line.base[0]));
+      this.push(44, f(line.base[1]));
+      this.push(45, f(line.offset[0]));
+      this.push(46, f(line.offset[1]));
+      this.push(79, line.dashes.length);
+      for (const dash of line.dashes) this.push(49, f(dash));
+    }
+    this.push(47, 0);
+    this.push(98, 0);
+  }
+
+  private hatchHead(): void {
+    this.push(10, 0);
+    this.push(20, 0);
+    this.push(30, 0);
+    this.push(210, 0);
+    this.push(220, 0);
+    this.push(230, 1);
+    this.push(2, "SOLID");
+    this.push(70, 1); // solid fill
+    this.push(71, 0); // not associative
+  }
+
+  private hatchTail(): void {
+    this.push(97, 0); // no source boundary objects
+    this.push(75, 0); // hatch style: normal
+    this.push(76, 1); // predefined pattern
+    this.push(52, 0);
+    this.push(41, 1);
+    this.push(77, 0);
+    this.push(78, 0);
+    this.push(98, 0);
+  }
+
+  /* ─────────────────────────── بلوک‌ها ─────────────────────────── */
+
+  /**
+   * تعریف بلوک (BLOCK) و ثبت نام آن در جدول BLOCK_RECORD.
+   * هندسهٔ بلوک در مختصات یکه (−۰٫۵..۰٫۵) نوشته می‌شود و هنگام INSERT با
+   * مقیاس طول/عرض شیء درج می‌شود؛ این‌گونه هر نمونهٔ کتابخانه در اتوکد یک
+   * «بلوک قابل انتخاب و ویرایش» است، نه چند خط پراکنده.
+   */
+  beginBlock(name: string): void {
+    if (this.openBlock) throw new Error(`بلوک باز است: ${this.openBlock}`);
+    const handle = this.nextHandle();
+    const record = this.nextHandle();
+    const entities: Pair[] = [];
+    this.blocks.set(name, { handle, record, entities });
+    this.target = entities;
+    this.openBlock = name;
+  }
+
+  endBlock(): void {
+    this.target = null;
+    this.openBlock = null;
+  }
+
+  /** درج بلوک با مقیاس محورها و چرخش (درجه). */
+  insert(name: string, x: number, y: number, sx: number, sy: number, rotation: number, layer: string): void {
+    const block = this.blocks.get(name);
+    if (!block) return;
+    this.entityStart("INSERT", this.nextHandle(), layer, "AcDbBlockReference");
+    this.push(2, name);
+    this.push(10, f(x));
+    this.push(20, f(y));
+    this.push(30, 0);
+    this.push(41, f(sx || 1));
+    this.push(42, f(sy || 1));
+    this.push(43, 1);
+    if (rotation) this.push(50, f(rotation));
+  }
+
+  /* ──────────────────────── ساخت فایل کامل ──────────────────────── */
+
+  build(extents: { minX?: number; minY?: number; maxX?: number; maxY?: number } = {}): string {
+    const header: Pair[] = [];
+    const headerPush = (code: number, value: string | number) => header.push([code, value]);
+    headerPush(0, "SECTION");
+    headerPush(2, "HEADER");
+    headerPush(9, "$ACADVER");
+    headerPush(1, "AC1015");
+    headerPush(9, "$INSUNITS");
+    headerPush(70, 6); // metres
+    headerPush(9, "$MEASUREMENT");
+    headerPush(70, 1); // metric
+    headerPush(9, "$LUPREC");
+    headerPush(70, 4);
+    // بازهٔ نقش: اتوکد با «Zoom Extents» همین بازه را نشان می‌دهد. اگر صفر
+    // بماند، فایل‌های کوچک (جزئیات یک ستون) با مقیاس نامناسب باز می‌شوند.
+    headerPush(9, "$EXTMIN");
+    headerPush(10, f(extents.minX ?? 0));
+    headerPush(20, f(extents.minY ?? 0));
+    headerPush(30, 0);
+    headerPush(9, "$EXTMAX");
+    headerPush(10, f(extents.maxX ?? 100));
+    headerPush(20, f(extents.maxY ?? 100));
+    headerPush(30, 0);
+    headerPush(9, "$HANDSEED");
+    headerPush(5, "FFFF");
+    headerPush(0, "ENDSEC");
+
+    const classes: Pair[] = [
+      [0, "SECTION"],
+      [2, "CLASSES"],
+      [0, "ENDSEC"],
+    ];
+
+    const tables: Pair[] = [];
+    const tpush = (code: number, value: string | number) => tables.push([code, value]);
+    tpush(0, "SECTION");
+    tpush(2, "TABLES");
+
+    // LTYPE
+    const ltypes = [
+      { name: "BYBLOCK", description: "" },
+      { name: "BYLAYER", description: "" },
+      { name: "CONTINUOUS", description: "Solid line" },
+    ];
+    tpush(0, "TABLE");
+    tpush(2, "LTYPE");
+    tpush(5, this.nextHandle());
+    tpush(100, "AcDbSymbolTable");
+    tpush(70, ltypes.length);
+    for (const ltype of ltypes) {
+      tpush(0, "LTYPE");
+      tpush(5, this.nextHandle());
+      tpush(100, "AcDbSymbolTableRecord");
+      tpush(100, "AcDbLinetypeTableRecord");
+      tpush(2, ltype.name);
+      tpush(70, 0);
+      tpush(3, ltype.description);
+      tpush(72, 65);
+      tpush(73, 0);
+      tpush(40, 0);
+    }
+    tpush(0, "ENDTAB");
+
+    // LAYER
+    const allLayers: DxfLayer[] = [{ name: "0", color: 7 }, ...this.layers.filter((layer) => layer.name !== "0")];
+    tpush(0, "TABLE");
+    tpush(2, "LAYER");
+    tpush(5, this.nextHandle());
+    tpush(100, "AcDbSymbolTable");
+    tpush(70, allLayers.length);
+    for (const layer of allLayers) {
+      const handle = this.nextHandle();
+      this.handles.layers.set(layer.name, handle);
+      tpush(0, "LAYER");
+      tpush(5, handle);
+      tpush(100, "AcDbSymbolTableRecord");
+      tpush(100, "AcDbLayerTableRecord");
+      tpush(2, layer.name);
+      tpush(70, 0);
+      tpush(62, layer.color);
+      tpush(6, layer.ltype ?? "CONTINUOUS");
+    }
+    tpush(0, "ENDTAB");
+
+    // STYLE
+    tpush(0, "TABLE");
+    tpush(2, "STYLE");
+    tpush(5, this.nextHandle());
+    tpush(100, "AcDbSymbolTable");
+    tpush(70, 1);
+    tpush(0, "STYLE");
+    tpush(5, this.nextHandle());
+    tpush(100, "AcDbSymbolTableRecord");
+    tpush(100, "AcDbTextStyleTableRecord");
+    tpush(2, "Standard");
+    tpush(70, 0);
+    tpush(40, 0);
+    tpush(41, 1);
+    tpush(50, 0);
+    tpush(71, 0);
+    tpush(42, 2.5);
+    tpush(3, "txt");
+    tpush(4, "");
+    tpush(0, "ENDTAB");
+
+    // APPID
+    tpush(0, "TABLE");
+    tpush(2, "APPID");
+    tpush(5, this.nextHandle());
+    tpush(100, "AcDbSymbolTable");
+    tpush(70, 1);
+    tpush(0, "APPID");
+    tpush(5, this.nextHandle());
+    tpush(100, "AcDbSymbolTableRecord");
+    tpush(100, "AcDbRegAppTableRecord");
+    tpush(2, "ACAD");
+    tpush(70, 0);
+    tpush(0, "ENDTAB");
+
+    // BLOCK_RECORD
+    this.handles.modelSpace = this.nextHandle();
+    this.handles.paperSpace = this.nextHandle();
+    tpush(0, "TABLE");
+    tpush(2, "BLOCK_RECORD");
+    tpush(5, this.nextHandle());
+    tpush(100, "AcDbSymbolTable");
+    tpush(70, 2 + this.blocks.size);
+    for (const name of ["*Model_Space", "*Paper_Space"]) {
+      tpush(0, "BLOCK_RECORD");
+      tpush(5, name === "*Model_Space" ? this.handles.modelSpace : this.handles.paperSpace);
+      tpush(100, "AcDbSymbolTableRecord");
+      tpush(100, "AcDbBlockTableRecord");
+      tpush(2, name);
+      tpush(70, 0);
+    }
+    for (const [name, block] of this.blocks) {
+      tpush(0, "BLOCK_RECORD");
+      tpush(5, block.record);
+      tpush(100, "AcDbSymbolTableRecord");
+      tpush(100, "AcDbBlockTableRecord");
+      tpush(2, name);
+      tpush(70, 0);
+    }
+    tpush(0, "ENDTAB");
+    tpush(0, "ENDSEC");
+
+    const blocks: Pair[] = [];
+    const bpush = (code: number, value: string | number) => blocks.push([code, value]);
+    bpush(0, "SECTION");
+    bpush(2, "BLOCKS");
+    for (const [name, owner] of [
+      ["*Model_Space", this.handles.modelSpace],
+      ["*Paper_Space", this.handles.paperSpace],
+    ]) {
+      bpush(0, "BLOCK");
+      bpush(5, this.nextHandle());
+      bpush(330, owner);
+      bpush(100, "AcDbEntity");
+      bpush(8, "0");
+      bpush(100, "AcDbBlockBegin");
+      bpush(2, name);
+      bpush(70, 0);
+      bpush(10, 0);
+      bpush(20, 0);
+      bpush(30, 0);
+      bpush(3, name);
+      bpush(1, "");
+      bpush(0, "ENDBLK");
+      bpush(5, this.nextHandle());
+      bpush(330, owner);
+      bpush(100, "AcDbEntity");
+      bpush(8, "0");
+      bpush(100, "AcDbBlockEnd");
+    }
+    for (const [name, block] of this.blocks) {
+      bpush(0, "BLOCK");
+      bpush(5, block.handle);
+      bpush(330, block.record);
+      bpush(100, "AcDbEntity");
+      bpush(8, "0");
+      bpush(100, "AcDbBlockBegin");
+      bpush(2, name);
+      bpush(70, 0);
+      bpush(10, 0);
+      bpush(20, 0);
+      bpush(30, 0);
+      bpush(3, name);
+      bpush(1, "");
+      for (const pair of block.entities) blocks.push(pair);
+      bpush(0, "ENDBLK");
+      bpush(5, this.nextHandle());
+      bpush(330, block.record);
+      bpush(100, "AcDbEntity");
+      bpush(8, "0");
+      bpush(100, "AcDbBlockEnd");
+    }
+    bpush(0, "ENDSEC");
+
+    const entities: Pair[] = [
+      [0, "SECTION"],
+      [2, "ENTITIES"],
+      ...this.out,
+      [0, "ENDSEC"],
+    ];
+
+    this.handles.rootDict = this.nextHandle();
+    this.handles.groupDict = this.nextHandle();
+    const objects: Pair[] = [
+      [0, "SECTION"],
+      [2, "OBJECTS"],
+      [0, "DICTIONARY"],
+      [5, this.handles.rootDict],
+      [330, "0"],
+      [100, "AcDbDictionary"],
+      [281, 1],
+      [3, "ACAD_GROUP"],
+      [350, this.handles.groupDict],
+      [0, "DICTIONARY"],
+      [5, this.handles.groupDict],
+      [330, this.handles.rootDict],
+      [100, "AcDbDictionary"],
+      [281, 1],
+      [0, "ENDSEC"],
+    ];
+
+    const all = [...header, ...classes, ...tables, ...blocks, ...entities, ...objects, [0, "EOF"] as Pair];
+    return all.map(([code, value]) => `${code}\n${value}`).join("\n") + "\n";
+  }
+}

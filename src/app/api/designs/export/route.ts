@@ -1,0 +1,49 @@
+import { assertStudioDocument } from "@/domain/studio/input";
+import { slabConfig, type SlabRebarConfig } from "@/domain/studio/slabConfig";
+import { errorResponse, readJson } from "@/server/http";
+import { exportStudio, STUDIO_FORMATS, type StudioFormat } from "@/domain/studio/render";
+import { CLASSIFICATION_LABELS, type StudioDocument } from "@/domain/studio/document";
+
+export const dynamic = "force-dynamic";
+
+interface ExportBody {
+  document?: StudioDocument;
+  format?: StudioFormat;
+  options?: { slabRebar?: Partial<SlabRebarConfig>; classification?: StudioDocument["classification"]; theme?: "screen" | "print" };
+}
+
+/**
+ * خروجی گرفتن از سندِ ذخیره‌نشده. همین مسیر، «رندر بر اساس رشته» را هم انجام
+ * می‌دهد: فیلتر رشته فقط در لحظهٔ خروجی اعمال می‌شود و سند تغییر نمی‌کند.
+ */
+export async function POST(request: Request) {
+  try {
+    const body = await readJson<ExportBody>(request);
+    const doc = body.document;
+    assertStudioDocument(doc);
+
+    const format = body.format ?? "svg";
+    if (!STUDIO_FORMATS.includes(format)) {
+      return Response.json({ error: "قالب خروجی پشتیبانی نمی‌شود.", detail: [...STUDIO_FORMATS] }, { status: 422 });
+    }
+    const classificationParam = body.options?.classification as string | undefined;
+    const allowed = CLASSIFICATION_LABELS.map((entry) => entry.id) as string[];
+    if (classificationParam && !allowed.includes(classificationParam))
+      return Response.json({ error: "رشتهٔ درخواستی معتبر نیست.", detail: allowed }, { status: 422 });
+    if (body.options?.slabRebar !== undefined) slabConfig(body.options.slabRebar);
+    const slabRebar = body.options?.slabRebar === undefined ? undefined : slabConfig({ ...doc.slabRebar, ...body.options.slabRebar });
+    const classification =
+      classificationParam && allowed.includes(classificationParam) ? (classificationParam as StudioDocument["classification"]) : undefined;
+    const result = exportStudio(doc, format, { classification, theme: body.options?.theme ?? "print", slabRebar });
+    return new Response(new Uint8Array(result.data), {
+      headers: {
+        "Content-Type": result.mime,
+        "Content-Disposition": `attachment; filename="${result.filename}"`,
+        "Content-Length": String(result.data.length),
+        "Cache-Control": "no-store",
+      },
+    });
+  } catch (error) {
+    return errorResponse(error);
+  }
+}
