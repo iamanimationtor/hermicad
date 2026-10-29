@@ -89,7 +89,14 @@ export class DxfWriter {
     this.push(40, f(r));
   }
 
-  text(x: number, y: number, height: number, value: string, layer: string, options: { rotation?: number } = {}): void {
+  text(
+    x: number,
+    y: number,
+    height: number,
+    value: string,
+    layer: string,
+    options: { rotation?: number; align?: "left" | "center" | "right" } = {},
+  ): void {
     this.entityStart("TEXT", this.nextHandle(), layer, "AcDbText");
     this.push(10, f(x));
     this.push(20, f(y));
@@ -98,6 +105,16 @@ export class DxfWriter {
     this.push(1, value);
     if (options.rotation) this.push(50, f(options.rotation));
     this.push(7, "Standard");
+    // تراز افقی متن: در DXF وقتی 72 غیرصفر است، نقطهٔ تراز (11/21) مرجع
+    // می‌شود و نقطهٔ درج (10/20) نادیده گرفته می‌شود. بدون این کار متن‌های
+    // وسط‌چین و راست‌چین برگه در اتوکد جابه‌جا می‌شدند.
+    const align = options.align ?? "left";
+    if (align !== "left") {
+      this.push(72, align === "center" ? 1 : 2);
+      this.push(11, f(x));
+      this.push(21, f(y));
+      this.push(31, 0);
+    }
     this.push(100, "AcDbText"); // زیرکلاس دوم متن (برای پایان تعریف)
   }
 
@@ -119,9 +136,72 @@ export class DxfWriter {
     this.push(33, 0);
   }
 
+  /**
+   * هاشور توپر (SOLID) با مرز چندضلعی.
+   * چرا HATCH و نه SOLID: SOLID فقط چهار گوشه دارد و برای پرشدگی دایره/چندضلعی
+   * دلخواه بی‌استفاده است. HATCH با مسیر مرزی (polyline path) در اتوکد، ب‌ریک‌کد
+   * و لیبره‌کد به‌درستی پر می‌شود و در DXF R2000 مجاز است.
+   */
+  solidHatch(points: [number, number][], layer: string): void {
+    if (points.length < 3) return;
+    this.entityStart("HATCH", this.nextHandle(), layer, "AcDbHatch");
+    this.hatchHead();
+    this.push(91, 1);
+    this.push(92, 1); // polyline boundary path
+    this.push(72, 0); // no bulge
+    this.push(73, 1); // closed
+    this.push(93, points.length);
+    for (const [x, y] of points) {
+      this.push(10, f(x));
+      this.push(20, f(y));
+    }
+    this.hatchTail();
+  }
+
+  /** هاشور توپر با مرز دایره (edge path / circular arc). */
+  circleHatch(cx: number, cy: number, r: number, layer: string): void {
+    if (r <= 0) return;
+    this.entityStart("HATCH", this.nextHandle(), layer, "AcDbHatch");
+    this.hatchHead();
+    this.push(91, 1);
+    this.push(92, 2); // edge boundary path
+    this.push(93, 1); // one edge
+    this.push(72, 3); // circular arc
+    this.push(10, f(cx));
+    this.push(20, f(cy));
+    this.push(40, f(r));
+    this.push(50, 0);
+    this.push(51, 360);
+    this.push(73, 1); // counter-clockwise
+    this.hatchTail();
+  }
+
+  private hatchHead(): void {
+    this.push(10, 0);
+    this.push(20, 0);
+    this.push(30, 0);
+    this.push(210, 0);
+    this.push(220, 0);
+    this.push(230, 1);
+    this.push(2, "SOLID");
+    this.push(70, 1); // solid fill
+    this.push(71, 0); // not associative
+  }
+
+  private hatchTail(): void {
+    this.push(97, 0); // no source boundary objects
+    this.push(75, 0); // hatch style: normal
+    this.push(76, 1); // predefined pattern
+    this.push(52, 0);
+    this.push(41, 1);
+    this.push(77, 0);
+    this.push(78, 0);
+    this.push(98, 0);
+  }
+
   /* ──────────────────────── ساخت فایل کامل ──────────────────────── */
 
-  build(): string {
+  build(extents: { minX?: number; minY?: number; maxX?: number; maxY?: number } = {}): string {
     const header: Pair[] = [];
     const headerPush = (code: number, value: string | number) => header.push([code, value]);
     headerPush(0, "SECTION");
@@ -134,13 +214,15 @@ export class DxfWriter {
     headerPush(70, 1); // metric
     headerPush(9, "$LUPREC");
     headerPush(70, 4);
+    // بازهٔ نقش: اتوکد با «Zoom Extents» همین بازه را نشان می‌دهد. اگر صفر
+    // بماند، فایل‌های کوچک (جزئیات یک ستون) با مقیاس نامناسب باز می‌شوند.
     headerPush(9, "$EXTMIN");
-    headerPush(10, 0);
-    headerPush(20, 0);
+    headerPush(10, f(extents.minX ?? 0));
+    headerPush(20, f(extents.minY ?? 0));
     headerPush(30, 0);
     headerPush(9, "$EXTMAX");
-    headerPush(10, 100);
-    headerPush(20, 100);
+    headerPush(10, f(extents.maxX ?? 100));
+    headerPush(20, f(extents.maxY ?? 100));
     headerPush(30, 0);
     headerPush(9, "$HANDSEED");
     headerPush(5, "FFFF");

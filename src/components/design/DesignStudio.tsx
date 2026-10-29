@@ -920,6 +920,7 @@ export function DesignStudio({ initialDesign }: { initialDesign: StudioDocument 
               { id: "schedules-pdf", label: "جداول و کیپلان (PDF)" },
               { id: "details", label: "جزئیات سازه و میلگرد (SVG)" },
               { id: "details-pdf", label: "جزئیات سازه و میلگرد (PDF)" },
+              { id: "details-dxf", label: "جزئیات سازه DXF (۱:۱)" },
               { id: "xlsx", label: "XLSX متره و برآورد" },
               { id: "ifc", label: "IFC4 (BIM)" },
               { id: "json", label: "JSON مدل" },

@@ -24,6 +24,7 @@ import { Scene, scenePdfOps, sceneSvg } from "./draw";
 import { assemblePdf, type SheetLayout } from "./pdf/sheetPdf";
 import { PdfText } from "./pdf/text";
 import { loadTypeface } from "./pdf/typeface";
+import { sceneToDxf } from "./sceneDxf";
 
 /* ─────────────────────────── موتور آرماتور ─────────────────────────── */
 
@@ -46,13 +47,23 @@ export function barArea(diameterMm: number): number {
   return (Math.PI * diameterMm * diameterMm) / 4;
 }
 
-export type MemberKind = "column" | "beam" | "footing" | "shear-wall" | "raft" | "pile";
+export type MemberKind =
+  | "column"
+  | "column-round"
+  | "beam"
+  | "footing"
+  | "shear-wall"
+  | "retaining-wall"
+  | "raft"
+  | "pile";
 
 export const MEMBER_LABELS: Record<MemberKind, string> = {
   column: "ستون بتنی",
+  "column-round": "ستون بتنی مدور",
   beam: "تیر بتنی",
   footing: "پی",
   "shear-wall": "دیوار برشی",
+  "retaining-wall": "دیوار حائل",
   raft: "رادیه",
   pile: "شمع",
 };
@@ -162,6 +173,34 @@ function columnBars(b: number, d: number, height: number): MemberBars {
   };
 }
 
+/**
+ * آرماتور ستون مدور. سطح مقطع دایره‌ای است (πd²/4) پس سطح فولاد لازم از همان
+ * نسبت ۱٪ به دست می‌آید و تعداد شاخه به مضرب ۴ (آرایش متقارن روی محیط) گرد
+ * می‌شود. خاموت هم دور محیط دایره بسته می‌شود، نه مستطیل.
+ */
+function circularColumnBars(diameter: number, height: number): MemberBars {
+  const areaM2 = (Math.PI * diameter * diameter) / 4;
+  const requiredAreaMm2 = 0.01 * areaM2 * 1e6;
+  let barDiameter = 16;
+  let count = Math.ceil(requiredAreaMm2 / barArea(barDiameter));
+  count = Math.max(6, Math.ceil(count / 2) * 2);
+  if (count > 14) {
+    barDiameter = 20;
+    count = Math.max(6, Math.ceil(requiredAreaMm2 / barArea(barDiameter) / 2) * 2);
+  }
+  const hoopDia = 8; // تنگ حلقوی Ø۸ — هم‌راستا با ستون مستطیلی
+  const hoop = round(Math.PI * (diameter - 2 * CONCRETE_COVER) + 2 * 10 * (hoopDia / 1000), 3);
+  return {
+    mainDia: barDiameter,
+    mainCount: count,
+    mainLength: round(height + 40 * (barDiameter / 1000), 2),
+    hoopDia,
+    hoopLength: hoop,
+    hoopCount: Math.ceil(height / COLUMN_HOOP_SPACING) + 1,
+    note: `${barLabel(count, barDiameter)} طولی + خاموت حلقوی ${faNumber(hoopDia, 0)} هر ${faNumber(COLUMN_HOOP_SPACING * 100, 0)}`,
+  };
+}
+
 function beamBars(b: number, h: number, length: number): MemberBars {
   const mainDia = 16;
   const mainCount = b >= 0.45 ? 8 : 6; // ۳ بالا + ۳ پایین (و ۴+۴ در تیر پهن)
@@ -235,8 +274,11 @@ function pileBars(diameter: number, length: number): MemberBars {
 function memberKind(item: StudioItem): MemberKind | null {
   const id = item.catalogId;
   if (id === "column-concrete") return "column";
+  if (id === "column-round") return "column-round";
   if (id === "beam-concrete") return "beam";
   if (id === "shear-wall") return "shear-wall";
+  // دیوار حائل همان منطق آرماتوربندی دیوار برشی را دارد (دو لایه عمودی/افقی)
+  if (id === "retaining-wall") return "retaining-wall";
   if (id.startsWith("footing")) return "footing";
   if (id === "raft") return "raft";
   if (id === "pile") return "pile";
@@ -279,7 +321,15 @@ export function rebarSchedule(doc: StudioDocument): RebarSchedule {
         length = Math.max(item.w, item.d);
         bars = beamBars(b, depth, length);
         break;
+      case "column-round":
+        // مقطع دایره‌ای: قطر همان w (و d) است
+        b = Math.min(item.w, item.d);
+        depth = b;
+        length = definition.defaultSize.h || DEFAULT_FLOOR_HEIGHT;
+        bars = circularColumnBars(b, length);
+        break;
       case "shear-wall":
+      case "retaining-wall":
         length = definition.defaultSize.h || DEFAULT_FLOOR_HEIGHT;
         bars = shearWallBars(depth, b, length);
         break;
@@ -361,7 +411,12 @@ export function rebarSchedule(doc: StudioDocument): RebarSchedule {
         lengthM: round(bars.hoopLength, 2),
         totalLengthM: round(total, 2),
         weightKg: round(total * barWeightPerMetre(bars.hoopDia), 1),
-        note: member.kind === "column" || member.kind === "beam" ? "خاموت" : member.kind === "pile" ? "مارپیچ" : "افقی/تنگی",
+        note:
+        member.kind === "column" || member.kind === "column-round" || member.kind === "beam"
+          ? "خاموت"
+          : member.kind === "pile"
+            ? "مارپیچ"
+            : "افقی/تنگی",
       });
     }
   }
@@ -439,7 +494,30 @@ function drawColumnDetail(scene: Scene, member: RebarMember, x: number, y: numbe
   const h = member.h * scale;
   const left = x + (size - w) / 2;
   const top = y + 8;
-  scene.text(x + size, y + 5, "جزئیات ستون", 2.8, { anchor: "end", bold: true, gray: 0.15 });
+  const circular = member.kind === "column-round";
+  scene.text(x + size, y + 5, circular ? "جزئیات ستون مدور" : "جزئیات ستون", 2.8, { anchor: "end", bold: true, gray: 0.15 });
+  if (circular) {
+    // مقطع دایره‌ای: قطر b، محیط خاموت حلقوی
+    const radius = (w) / 2;
+    scene.circle(left + w / 2, top + w / 2, radius, { width: 0.5 });
+    scene.circle(left + w / 2, top + w / 2, radius * 0.84, { width: 0.35, gray: 0.2, dash: [2, 1] });
+    const barPositions = member.bars.mainCount;
+    const barR = Math.max(0.7, (member.bars.mainDia / 1000) * scale * 0.5);
+    for (let index = 0; index < barPositions; index += 1) {
+      const angle = (index / barPositions) * Math.PI * 2 - Math.PI / 2;
+      scene.circle(
+        left + w / 2 + Math.cos(angle) * radius * 0.84,
+        top + w / 2 + Math.sin(angle) * radius * 0.84,
+        barR,
+        { fill: 0.25, width: 0.2 },
+      );
+    }
+    scene.text(left + w + 3, top + 3, `۱:${faNumber(Math.round(1000 / scale), 0)}`, 1.9, { gray: 0.5, direction: "ltr" });
+    scene.text(left + w / 2, top + w + 8, `قطر ${faNumber(member.b)} متر`, 2.4, { anchor: "middle", gray: 0.3 });
+    scene.text(left + w / 2, top + w + 13, member.bars.note, 2.2, { anchor: "middle", gray: 0.35, direction: "ltr" });
+    scene.text(left + w / 2, top - 4, `مقطع ${barLabel(member.bars.mainCount, member.bars.mainDia)}`, 2.2, { anchor: "middle", gray: 0.25 });
+    return;
+  }
   scene.rect(left, top, w, h, { width: 0.5 });
   // خاموت با گوشهٔ گرد (تقریب با مستطیل داخلی)
   const inset = Math.min(w, h) * 0.08;
@@ -583,20 +661,55 @@ function drawRebarTable(scene: Scene, schedule: RebarSchedule, x: number, y: num
 
 /** جزئیات دیوار برشی/شمع: نمای آرماتوربندی ساده. */
 function drawWallDetail(scene: Scene, member: RebarMember, x: number, y: number, size: number, height: number): void {
-  scene.text(x + size, y + 5, member.kind === "pile" ? "جزئیات شمع" : "جزئیات دیوار برشی", 2.8, {
-    anchor: "end",
-    bold: true,
-    gray: 0.15,
-  });
-  const w = Math.max(20, (size - 24) * 0.5);
-  const h = Math.max(30, height - 30);
-  scene.rect(x + 10, y + 14, w, h, { width: 0.45 });
-  scene.hatch(x + 10, y + 14, w, h, 3.4, { gray: 0.55, width: 0.16 });
-  for (let gy = y + 18; gy < y + 14 + h; gy += 4) {
-    scene.circle(x + 13, gy, 0.6, { fill: 0.25, width: 0.1 });
-    scene.circle(x + 10 + w - 3, gy, 0.6, { fill: 0.25, width: 0.1 });
+  const title =
+    member.kind === "pile" ? "جزئیات شمع" : member.kind === "retaining-wall" ? "جزئیات دیوار حائل" : "جزئیات دیوار برشی";
+  scene.text(x + size, y + 5, title, 2.8, { anchor: "end", bold: true, gray: 0.15 });
+
+  // نمای آرماتوربندی باید «تناسب» داشته باشد: دیوار ۸ متری نباید مثل یک مربع
+  // ۳×۳ دیده شود. طول و ارتفاع از خود عضو گرفته می‌شود و مقیاس طوری انتخاب
+  // می‌شود که در سلول جا شود (شمع استثناست، چون نمای قائم آن بلند و باریک است).
+  const isPile = member.kind === "pile";
+  const lengthM = isPile ? 1 : Math.max(1, member.h);
+  const heightM = Math.max(1, member.length);
+  const availableH = Math.max(24, height - 30);
+  const availableW = Math.max(24, size - 30);
+  const scale = isPile
+    ? availableH / heightM
+    : Math.min(availableW / lengthM, availableH / heightM);
+  const w = Math.max(14, lengthM * scale);
+  const h = Math.max(24, heightM * scale);
+  const left = x + 12 + (availableW - w) / 2;
+  const top = y + 16;
+
+  scene.rect(left, top, w, h, { width: 0.45 });
+  scene.hatch(left, top, w, h, 3.4, { gray: 0.55, width: 0.16 });
+
+  // دو لایهٔ میلگرد قائم در دو لبه (لبهٔ کشش و فشار) + میلگرد افقی
+  const cover = 2.2;
+  for (let gy = top + 4; gy < top + h - 2; gy += 4) {
+    scene.circle(left + cover, gy, 0.6, { fill: 0.25, width: 0.1 });
+    scene.circle(left + w - cover, gy, 0.6, { fill: 0.25, width: 0.1 });
   }
-  scene.text(x + 10 + w / 2, y + 14 + h + 7, member.bars.note, 2, { anchor: "middle", gray: 0.35 });
+  const horizontalCount = Math.max(2, Math.round(heightM / 0.2));
+  const stepY = (h - 2 * cover) / Math.max(1, horizontalCount - 1);
+  for (let index = 0; index < horizontalCount; index += 1) {
+    const gy = top + cover + index * stepY;
+    scene.line(left + cover, gy, left + w - cover, gy, { width: 0.12, gray: 0.55, dash: [2, 1] });
+  }
+
+  // اندازه‌گذاری: طول دیوار (پایین) و ارتفاع (چپ)
+  const dimY = top + h + 4;
+  scene.line(left, dimY, left + w, dimY, { width: 0.2, gray: 0.4 });
+  for (const dx of [left, left + w]) {
+    scene.line(dx - 1.2, dimY - 1.2, dx + 1.2, dimY + 1.2, { width: 0.2, gray: 0.4 });
+  }
+  const dimX = left - 5;
+  scene.line(dimX, top, dimX, top + h, { width: 0.2, gray: 0.4 });
+  for (const dy of [top, top + h]) {
+    scene.line(dimX - 1.2, dy - 1.2, dimX + 1.2, dy + 1.2, { width: 0.2, gray: 0.4 });
+  }
+  scene.text(left + w / 2, dimY + 4, `${faNumber(lengthM)} متر`, 1.9, { anchor: "middle", gray: 0.4 });
+  scene.text(left + w / 2, top + h + 12, member.bars.note, 1.9, { anchor: "middle", gray: 0.35 });
 }
 
 /** جزئیات تیپ دال: مقطع دال دوطرفه با شبکهٔ بالا و پایین روی تیرهای تکیه‌گاه. */
@@ -607,15 +720,21 @@ function drawSlabDetail(
   y: number,
   size: number,
 ): void {
-  // جا برای اندازه‌گذاری ضخامت در سمت راست و برچسب‌ها در پایین
-  const scale = Math.min(70, (size - 52) / data.span);
+  scene.text(x + size, y + 5, "جزئیات تیپ دال", 2.8, { anchor: "end", bold: true, gray: 0.15 });
+
+  // چیدمان: مقطع دال در دو سوم چپ، پلان شبکهٔ آرماتور در یک سوم راست.
+  // پیش‌تر فقط مقطع رسم می‌شد و نوار بزرگی از سلول خالی می‌ماند؛ پلان شبکه هم
+  // همان چیزی است که دفتر فنی برای بستن میلگرد دال لازم دارد.
+  const planW = Math.max(28, size * 0.3);
+  const sectionW = size - planW - 10;
+
+  const scale = Math.min(70, (sectionW - 46) / data.span);
   const spanMm = data.span * scale;
   const thicknessMm = Math.max(6, data.thickness * scale);
   const beamW = Math.max(5, spanMm * 0.04);
   const beamH = Math.max(8, thicknessMm * 1.8);
-  const left = x + (size - spanMm) / 2;
+  const left = x + (sectionW - spanMm) / 2;
   const top = y + 18;
-  scene.text(x + size, y + 5, "جزئیات تیپ دال", 2.8, { anchor: "end", bold: true, gray: 0.15 });
   scene.rect(left, top, spanMm, thicknessMm, { width: 0.5 });
   scene.hatch(left, top, spanMm, thicknessMm, 2.4, { gray: 0.55, width: 0.16 });
   for (const bx of [left - beamW, left + spanMm]) {
@@ -635,12 +754,35 @@ function drawSlabDetail(
   scene.line(dimX, top, dimX, top + thicknessMm, { width: 0.2, gray: 0.4 });
   scene.line(dimX - 1.2, top, dimX + 1.2, top, { width: 0.2, gray: 0.4 });
   scene.line(dimX - 1.2, top + thicknessMm, dimX + 1.2, top + thicknessMm, { width: 0.2, gray: 0.4 });
-  // برچسب بالای دال: کنار خط اندازه یا زیر آن، متن از کادر بیرون می‌زد.
   scene.text(left, top - 3, `ضخامت ${faNumber(data.thickness)} متر`, 2, { gray: 0.35 });
   const textTop = top + thicknessMm + beamH + 7;
   scene.text(left + spanMm / 2, textTop, `دهانهٔ تیپ ${faNumber(data.span)} متر`, 2.2, { anchor: "middle", gray: 0.3 });
   scene.text(left + spanMm / 2, textTop + 5, data.bottomNote, 1.9, { anchor: "middle", gray: 0.35 });
   scene.text(left + spanMm / 2, textTop + 9.5, data.topNote, 1.9, { anchor: "middle", gray: 0.35 });
+
+  /* ── پلان شبکهٔ آرماتور (یک دهانهٔ تیپ) ── */
+  const planSpanM = Math.min(3.4, data.span);
+  const planScale = planW / planSpanM;
+  const planDepthM = Math.min(2.2, planSpanM * 0.7);
+  const planH = planDepthM * planScale;
+  const px = x + size - planW;
+  const py = y + 20;
+  // تیرهای مرزی
+  // تیرهای مرزی: نوار دوتایی (خط داخلی وجه تیر)
+  scene.rect(px, py, planW, planH, { width: 0.5 });
+  scene.rect(px + 2.4, py + 2.4, planW - 4.8, planH - 4.8, { width: 0.3, gray: 0.35 });
+  // میلگرد دوطرفه هر ۲۰ سانتی‌متر
+  const meshStep = 0.2 * planScale;
+  // میلگردها فقط تا وجه داخلی تیرهای مرزی کشیده می‌شوند، نه روی نوار تیر.
+  const inner = 3.2;
+  for (let gx = px + inner + meshStep; gx < px + planW - inner; gx += meshStep) {
+    scene.line(gx, py + inner, gx, py + planH - inner, { width: 0.3, gray: 0.12 });
+  }
+  for (let gy = py + inner + meshStep; gy < py + planH - inner; gy += meshStep) {
+    scene.line(px + inner, gy, px + planW - inner, gy, { width: 0.3, gray: 0.12 });
+  }
+  scene.text(px + planW / 2, py + planH + 5, "پلان شبکهٔ آرماتور دال", 1.9, { anchor: "middle", gray: 0.35 });
+  scene.text(px + planW / 2, py + planH + 9.5, "میلگرد ۱۲ هر ۲۰ دوطرفه", 1.8, { anchor: "middle", gray: 0.4 });
 }
 
 /** جزئیات اتصال تیر به ستون: ناحیهٔ اتصال، خاموت متراکم و طول وصله. */
@@ -712,10 +854,12 @@ export function detailSheetScene(doc: StudioDocument): { scene: Scene; schedule:
   const tableW = area.w - detailW - 4;
   const cellW = detailW / 2;
   const cellH = (area.h - 10) / 2;
-  const columns = schedule.members.filter((member) => member.kind === "column");
+  const columns = schedule.members.filter((member) => member.kind === "column" || member.kind === "column-round");
   const beams = schedule.members.filter((member) => member.kind === "beam");
   const footings = schedule.members.filter((member) => member.kind === "footing" || member.kind === "raft");
-  const walls = schedule.members.filter((member) => member.kind === "shear-wall" || member.kind === "pile");
+  const walls = schedule.members.filter(
+    (member) => member.kind === "shear-wall" || member.kind === "retaining-wall" || member.kind === "pile",
+  );
 
   /**
    * چیدمان جزئیات: تنها اعضای موجود در سند رسم می‌شوند.
@@ -780,7 +924,7 @@ export function detailSheetScene(doc: StudioDocument): { scene: Scene; schedule:
         return;
       }
       const member = entry.member;
-      if (member.kind === "column") drawColumnDetail(scene, member, x, y, width);
+      if (member.kind === "column" || member.kind === "column-round") drawColumnDetail(scene, member, x, y, width);
       else if (member.kind === "beam") drawBeamDetail(scene, member, x, y, width);
       else if (member.kind === "footing" || member.kind === "raft") drawFootingDetail(scene, member, x, y, width);
       else drawWallDetail(scene, member, x, y, width, cellH - 8);
@@ -809,6 +953,20 @@ export function renderStudioDetailSheet(doc: StudioDocument): string {
 }
 
 /** برگهٔ جزئیات به‌صورت PDF یک‌صفحه‌ای. */
+/**
+ * برگهٔ جزئیات به DXF.
+ *
+ * چرا: برگهٔ PDF برای چاپ است، اما دفتر فنی معمولاً جدول میلگرد و جزئیات را در
+ * اتوکد ویرایش می‌کند (تغییر قطر، افزودن جزئیات). همان صحنهٔ SVG/PDF به DXF
+ * تبدیل می‌شود تا هر سه خروجی هرگز از هم جدا نشوند. مختصات مدل ۱:۱ (متر) است؛
+ * یعنی فاصلهٔ میلگردها در اتوکد اندازه‌گیری‌شدنی است، نه فقط تصویری.
+ */
+export function renderStudioDetailDxf(doc: StudioDocument): string {
+  const { sheet } = frameOf(doc);
+  const { scene } = detailSheetScene(doc);
+  return sceneToDxf(scene, { widthMm: sheet.width, heightMm: sheet.height });
+}
+
 export function renderStudioDetailPdf(doc: StudioDocument): Uint8Array {
   const { sheet, area } = frameOf(doc);
   const { scene } = detailSheetScene(doc);

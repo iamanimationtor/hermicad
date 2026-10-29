@@ -71,7 +71,17 @@ function demoDocument() {
 test("studio/catalog", "کتابخانه یکتا، کامل و با هندسهٔ نرمال‌شده است", () => {
   const ids = new Set(CATALOG.map((item) => item.id));
   assert(ids.size === CATALOG.length, "شناسهٔ تکراری در کتابخانه");
-  assert(CATALOG.length >= 90, `تعداد اشیا کمتر از انتظار: ${CATALOG.length}`);
+  assert(CATALOG.length >= 160, `تعداد اشیا کمتر از انتظار: ${CATALOG.length}`);
+  assert(CATEGORIES.length >= 20, `دسته‌های کتابخانه کم است: ${CATEGORIES.length}`);
+  // هر دسته دست‌کم ۳ شیء داشته باشد تا «کتابخانهٔ آماده» واقعاً کاربرد داشته باشد
+  for (const category of CATEGORIES) {
+    const count = CATALOG.filter((item) => item.category === category.id).length;
+    assert(count >= 3, `دستهٔ کم‌جمعیت: ${category.label} (${count})`);
+  }
+  // دسترسی‌ها (پله/پاگرد/رمپ) باید همهٔ گونه‌های رایج ایرانی را داشته باشند
+  for (const id of ["stair-u", "stair-l", "stair-spiral", "ramp-indoor", "landing"]) {
+    assert(CATALOG.some((item) => item.id === id), `نوع دسترسی غایب: ${id}`);
+  }
   for (const category of CATEGORIES) {
     const count = CATALOG.filter((item) => item.category === category.id).length;
     assert(count > 0, `دستهٔ بدون شیء: ${category.label}`);
@@ -569,6 +579,36 @@ test("studio/vertical", "PDF برش: اجزای بریده‌شده poché دا�
 
 /* ─────────────────────────── جزئیات سازه و میلگرد ─────────────────────────── */
 
+test("studio/details", "ستون مدور و دیوار حائل در جدول میلگرد و جزئیات می‌آیند", () => {
+  const doc = createStudioDocument({
+    id: "dsn-round",
+    name: "ستون مدور",
+    sheet: { format: "A3", orientation: "landscape", scale: 50 },
+    items: [
+      { id: "r1", catalogId: "column-round", x: 1, y: 1, w: 0.5, d: 0.5, rotationDeg: 0, level: 0 },
+      { id: "r2", catalogId: "column-concrete", x: 4, y: 1, w: 0.4, d: 0.4, rotationDeg: 0, level: 0 },
+      { id: "r3", catalogId: "retaining-wall", x: 1, y: 6, w: 8, d: 0.4, rotationDeg: 0, level: 0 },
+      { id: "r4", catalogId: "beam-concrete", x: 1, y: 3, w: 6, d: 0.4, rotationDeg: 0, level: 0 },
+    ],
+  });
+  const schedule = rebarSchedule(doc);
+  const round = schedule.members.find((member) => member.kind === "column-round");
+  if (!round) throw new Error("ستون مدور در فهرست آرماتور نیامد");
+  assert(round.b === round.h, "مقطع ستون مدور باید مربع محیطی باشد");
+  assert(round.bars.mainCount >= 6, `تعداد میلگرد ستون مدور کم است: ${round.bars.mainCount}`);
+  // خاموت حلقوی: طول ≈ محیط دایره، نه محیط مستطیل
+  const perimeter = Math.PI * (round.b - 0.06);
+  assert(round.bars.hoopLength > perimeter * 0.8, `طول خاموت حلقوی نامعتبر: ${round.bars.hoopLength}`);
+  assert(/حلقوی/.test(round.bars.note), `شرح خاموت مدور ناقص است: ${round.bars.note}`);
+  const wall = schedule.members.find((member) => member.kind === "retaining-wall");
+  if (!wall) throw new Error("دیوار حائل در فهرست آرماتور نیامد");
+  assert(wall.bars.mainCount > 4, "آرماتور دیوار حائل محاسبه نشد");
+  // برگهٔ جزئیات باید بدون خطا با این اعضا ساخته شود
+  const svg = renderStudioDetailSheet(doc);
+  assert(svg.includes("جزئیات ستون مدور"), "عنوان جزئیات ستون مدور نیامد");
+  assert(svg.includes("جزئیات دیوار حائل"), "عنوان جزئیات دیوار حائل نیامد");
+  return `${round.bars.mainCount} شاخه در ستون مدور`;
+});
 test("studio/details", "جدول میلگرد: تعداد/قطر/وزن سازگار و جمع درست است", () => {
   const doc = sampleDesign();
   const schedule = rebarSchedule(doc);
@@ -800,4 +840,24 @@ test("studio/exporters", "نمای DXF در مقیاس ۱:۱ با لایه‌ه�
   assert(sectionText.includes("SOLID"), "پوشش برش (poché) در DXF برش نیامده");
   assert(text.split("\nTEXT\n").length > 4, "برچسب تراز در نمای DXF نیست");
   return `${poly} بلوک نما`;
+});
+test("studio/exporters", "جزئیات سازه DXF: هاشور توپر، لایه‌های برگه و ابعاد کاغذ", () => {
+  const doc = sampleDesign();
+  const file = exportStudio(doc, "details-dxf");
+  const text = file.data.toString("utf8");
+  assert(file.filename.endsWith("-structural-details.dxf"), `نام فایل: ${file.filename}`);
+  assert(text.includes("$INSUNITS\n70\n6"), "واحد جزئیات باید متر باشد");
+  for (const layer of ["SHEET", "GEOMETRY", "HATCH", "TEXT"]) {
+    assert(text.includes(`\n${layer}\n`), `لایهٔ ${layer} در DXF جزئیات نیست`);
+  }
+  assert(text.includes("AcDbHatch"), "موجودیت هاشور استاندارد نوشته نشده");
+  const hatches = (text.match(/\nHATCH\n/g) ?? []).length;
+  assert(hatches > 20, `تعداد هاشور توپر کم است: ${hatches}`);
+  const circles = (text.match(/\nCIRCLE\n/g) ?? []).length;
+  assert(circles > 20, `میلگردهای مقطع (دایره) در DXF نیستند: ${circles}`);
+  // متن فارسی باید کلیدواژه‌های فنی را داشته باشد (به‌صورت یونیکد DXF)
+  assert(text.includes("\\U+"), "برچسب فارسی در DXF جزئیات نیست");
+  // بازهٔ نقش باید اندازهٔ کاغذ باشد نه صفر
+  assert(!text.includes("$EXTMAX\n10\n0\n20\n0"), "بازهٔ نقش تنظیم نشده");
+  return `${hatches} هاشور · ${circles} دایره`;
 });

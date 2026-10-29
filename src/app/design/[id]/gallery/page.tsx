@@ -112,6 +112,9 @@ export default async function DesignGalleryPage({ params }: { params: Promise<{ 
           <a href={`${base}?format=elevations-dxf`} className="btn" download>
             نماها DXF (۱:۱)
           </a>
+          <a href={`${base}?format=details-dxf`} className="btn" download>
+            جزئیات سازه DXF (۱:۱)
+          </a>
           <a href={`${base}?format=section-dxf`} className="btn" download>
             برش DXF (۱:۱)
           </a>

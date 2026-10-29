@@ -21,7 +21,7 @@ import { PdfWriter } from "./pdf/writer";
 import { studioIfc, studioXlsx } from "./exporters";
 import { renderStudioElevationSheet, renderStudioVertical, studioVerticalDxf } from "./vertical";
 import { renderStudioElevationsPdf, renderStudioVerticalPdf } from "./verticalPdf";
-import { renderStudioDetailPdf, renderStudioDetailSheet } from "./details";
+import { renderStudioDetailDxf, renderStudioDetailPdf, renderStudioDetailSheet } from "./details";
 import { renderStudioSchedulePdf, renderStudioScheduleSheet } from "./schedules";
 import {
   documentBounds,
@@ -1133,6 +1133,7 @@ export const STUDIO_FORMATS = [
   "section-pdf",
   "details",
   "details-pdf",
+  "details-dxf",
   "schedules",
   "schedules-pdf",
   "elevations-dxf",
@@ -1218,6 +1219,12 @@ export function exportStudio(
         filename: `${base}-structural-details.pdf`,
         mime: "application/pdf",
         data: Buffer.from(renderStudioDetailPdf(doc)),
+      };
+    case "details-dxf":
+      return {
+        filename: `${base}-structural-details.dxf`,
+        mime: "application/dxf",
+        data: Buffer.from(renderStudioDetailDxf(doc), "utf8"),
       };
     case "elevations-dxf":
       return {
